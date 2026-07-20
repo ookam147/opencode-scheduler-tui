@@ -1,28 +1,56 @@
 import type { TuiPlugin, TuiPluginApi, TuiRouteCurrent } from "@opencode-ai/plugin/tui";
 import { type SchedulerJobStatus, type SchedulerStatusSnapshot } from "./status.js";
 declare const id = "opencode-scheduler";
-type Filter = "all" | "running" | "paused" | "problems";
+export type Filter = "all" | "active" | "paused" | "problems";
+export type ScopeMode = "all" | "current";
+export type SchedulerCenterState = {
+    scope?: ScopeMode;
+    filter?: Filter;
+    query?: string;
+    selectedId?: string;
+};
+type SchedulerRouteParams = {
+    id?: string;
+    entry?: "sidebar" | "center" | "command";
+    returnRoute?: TuiRouteCurrent;
+    centerState?: SchedulerCenterState;
+};
 export declare function filterSchedulerJobs(jobs: SchedulerJobStatus[], options: {
     query?: string;
     filter?: Filter;
     scopeId?: string;
 }): SchedulerJobStatus[];
-declare function createStatusStore(api: TuiPluginApi): {
+export type StatusStoreOptions = {
+    schedulerRoot?: string;
+    loadStatus?: () => SchedulerStatusSnapshot;
+    debounceMs?: number;
+    fallbackMs?: number;
+    verificationMs?: number;
+};
+export declare function createStatusStore(api: TuiPluginApi, options?: StatusStoreOptions): {
     snapshot: import("solid-js").Accessor<SchedulerStatusSnapshot>;
     loading: import("solid-js").Accessor<boolean>;
     error: import("solid-js").Accessor<string | undefined>;
     refresh: () => Promise<void>;
+    scheduleRefresh: () => void;
 };
+export declare function Sidebar(props: {
+    api: TuiPluginApi;
+    store: ReturnType<typeof createStatusStore>;
+}): import("solid-js").JSX.Element;
 export declare function TaskCenter(props: {
     api: TuiPluginApi;
     store: ReturnType<typeof createStatusStore>;
     returnRoute?: TuiRouteCurrent;
+    initialState?: SchedulerCenterState;
 }): import("solid-js").JSX.Element;
 export declare function Detail(props: {
     api: TuiPluginApi;
     store: ReturnType<typeof createStatusStore>;
     id?: string;
+    entry?: SchedulerRouteParams["entry"];
     returnRoute?: TuiRouteCurrent;
+    centerState?: SchedulerCenterState;
 }): import("solid-js").JSX.Element;
 declare const tui: TuiPlugin;
 export { id, tui };

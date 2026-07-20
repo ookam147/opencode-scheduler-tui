@@ -13,6 +13,7 @@
  */
 import type { Plugin } from "@opencode-ai/plugin";
 import { type SchedulerArtifact, type SchedulerStatusSnapshot } from "./status.js";
+export declare function resolveToolDirectory(explicit: string | undefined, contextDirectory: string): string;
 type OpencodeRunFormat = "default" | "json";
 interface JobRunSpec {
     prompt?: string;
@@ -86,5 +87,25 @@ export declare function removeOrphanArtifact(artifactId: string, confirm?: boole
     dryRun: boolean;
     artifact: SchedulerArtifact;
 };
+export type JobUpdateTransaction = {
+    scopeChanged: boolean;
+    updatedEnabled: boolean;
+    originalEnabled: boolean;
+    uninstallOriginal(): void;
+    saveUpdated(): void;
+    installUpdated(): void;
+    verifyUpdated(): void;
+    moveData(): void;
+    deleteOriginal(): void;
+    cleanupUpdated(): void;
+    rollbackData(errors: string[]): void;
+    removeUpdated(): void;
+    restoreOriginal(): void;
+    installOriginal(): void;
+    verifyOriginal(): void;
+    audit(error: string, rollbackErrors: string[]): void;
+};
+export declare function runJobUpdateTransaction(transaction: JobUpdateTransaction): void;
+export declare function moveSchedulerJob(locator: SchedulerJobLocator, targetWorkdir: string): Job;
 export declare const SchedulerPlugin: Plugin;
 export default SchedulerPlugin;

@@ -30,7 +30,9 @@ Fresh installs through OpenCode's plugin installer discover both the server and 
 }
 ```
 
-Restart OpenCode, then run `/scheduler` or choose **Open scheduled tasks** in the command palette. The task center supports mouse selection, search/filtering, run now, pause/resume, schedule editing, logs, run history, and confirmed deletion. A compact task summary also appears in the session sidebar.
+Restart OpenCode, then run `/scheduler` or choose **Open scheduled tasks** in the command palette. The task center opens on the current project and supports mouse selection, cross-project switching, search/filtering, run now, pause/resume, schedule editing, logs, run history, confirmed deletion, and explicitly moving an older task into the current project.
+
+The session sidebar only shows tasks owned by the current project. Its task list can be collapsed while the All, Active, Paused, and Problems counters remain visible; click a counter to open the matching task-center view. Scheduler storage is watched for changes, so tasks created by the agent appear without waiting for the periodic verification pass.
 
 The task list receives focus by default. Use `↑`/`↓` or `j`/`k` to move, `Enter` to open, `/` to search, `Tab` to return to the list, `r` to refresh, and `Esc` to go back. Task rows, filters, actions, and scrolling also support the mouse.
 

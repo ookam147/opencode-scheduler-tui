@@ -18838,7 +18838,7 @@ function tool(input) {
 }
 tool.schema = exports_external;
 // src/index.ts
-import { appendFileSync, createWriteStream, existsSync as existsSync2, mkdirSync, readdirSync as readdirSync2, readFileSync as readFileSync2, rmSync, writeFileSync, unlinkSync } from "fs";
+import { appendFileSync, createWriteStream, existsSync as existsSync2, mkdirSync, readdirSync as readdirSync2, readFileSync as readFileSync2, renameSync, rmSync, writeFileSync, unlinkSync } from "fs";
 import { basename as basename2, dirname, join as join2, resolve as resolvePath2 } from "path";
 import { homedir as homedir2, platform } from "os";
 import { execFileSync as execFileSync2, execSync, spawn } from "child_process";
@@ -19335,6 +19335,9 @@ function normalizeWorkdirPath(input) {
   if (!trimmed)
     return homedir2();
   return resolvePath2(trimmed);
+}
+function resolveToolDirectory(explicit, contextDirectory) {
+  return normalizeWorkdirPath(explicit || contextDirectory);
 }
 function fnv1a642(input) {
   let hash2 = 0xcbf29ce484222325n;
@@ -21591,6 +21594,136 @@ function removeOrphanArtifact(artifactId2, confirm = false) {
   }
   return { dryRun: !confirm, artifact };
 }
+function moveScopedFile(source, destination, moved) {
+  if (!existsSync2(source))
+    return;
+  if (existsSync2(destination))
+    throw new Error(`Cannot move task data because ${destination} already exists.`);
+  ensureDir(dirname(destination));
+  renameSync(source, destination);
+  moved.push({ source, destination });
+}
+function rollbackMovedFiles(moved, errors3) {
+  for (const item of [...moved].reverse()) {
+    try {
+      if (!existsSync2(item.destination))
+        continue;
+      ensureDir(dirname(item.source));
+      renameSync(item.destination, item.source);
+    } catch (error45) {
+      errors3.push(error45 instanceof Error ? error45.message : String(error45));
+    }
+  }
+}
+function runJobUpdateTransaction(transaction) {
+  try {
+    if (transaction.scopeChanged)
+      transaction.uninstallOriginal();
+    transaction.saveUpdated();
+    if (transaction.updatedEnabled) {
+      transaction.installUpdated();
+      transaction.verifyUpdated();
+    }
+    if (transaction.scopeChanged) {
+      transaction.moveData();
+      transaction.deleteOriginal();
+    }
+  } catch (error45) {
+    const message = error45 instanceof Error ? error45.message : String(error45);
+    const rollbackErrors = [];
+    try {
+      transaction.cleanupUpdated();
+    } catch (rollbackError) {
+      rollbackErrors.push(rollbackError instanceof Error ? rollbackError.message : String(rollbackError));
+    }
+    transaction.rollbackData(rollbackErrors);
+    try {
+      transaction.removeUpdated();
+      transaction.restoreOriginal();
+      if (transaction.originalEnabled) {
+        transaction.installOriginal();
+        transaction.verifyOriginal();
+      }
+    } catch (rollbackError) {
+      rollbackErrors.push(rollbackError instanceof Error ? rollbackError.message : String(rollbackError));
+    }
+    transaction.audit(message, rollbackErrors);
+    const suffix = rollbackErrors.length ? ` Rollback diagnostics: ${rollbackErrors.join("; ")}` : "";
+    throw new Error(`Failed to update job: ${message}.${suffix}`);
+  }
+}
+function persistUpdatedJob(job, updatedJob) {
+  const oldScopeId = job.scopeId || deriveScopeId(job.workdir || homedir2());
+  const nextScopeId = updatedJob.scopeId || deriveScopeId(updatedJob.workdir || homedir2());
+  const scopeChanged = oldScopeId !== nextScopeId;
+  const moved = [];
+  if (scopeChanged) {
+    const collision = loadScopedJob(nextScopeId, updatedJob.slug);
+    if (collision)
+      throw new Error(`Task "${updatedJob.slug}" already exists in the target project.`);
+    const lockPath = join2(scopeLocksDir(oldScopeId), `${job.slug}.json`);
+    if (existsSync2(lockPath))
+      throw new Error(`Task "${job.name}" is currently running and cannot be moved.`);
+  }
+  runJobUpdateTransaction({
+    scopeChanged,
+    updatedEnabled: updatedJob.enabled !== false,
+    originalEnabled: job.enabled !== false,
+    uninstallOriginal: () => uninstallJob(job),
+    saveUpdated: () => saveJob(updatedJob),
+    installUpdated: () => {
+      installJob(updatedJob);
+    },
+    verifyUpdated: () => {
+      verifyJobInstalled(updatedJob);
+    },
+    moveData: () => {
+      moveScopedFile(join2(scopeRunsDir(oldScopeId), `${job.slug}.jsonl`), join2(scopeRunsDir(nextScopeId), `${updatedJob.slug}.jsonl`), moved);
+      moveScopedFile(scopedLogPath(oldScopeId, job.slug), scopedLogPath(nextScopeId, updatedJob.slug), moved);
+    },
+    deleteOriginal: () => {
+      const oldPath = jobFilePath(oldScopeId, job.slug);
+      if (existsSync2(oldPath))
+        unlinkSync(oldPath);
+    },
+    cleanupUpdated: () => uninstallJob(updatedJob),
+    rollbackData: (errors3) => rollbackMovedFiles(moved, errors3),
+    removeUpdated: () => {
+      if (!scopeChanged)
+        return;
+      const newPath = jobFilePath(nextScopeId, updatedJob.slug);
+      if (existsSync2(newPath))
+        unlinkSync(newPath);
+    },
+    restoreOriginal: () => saveJob(job),
+    installOriginal: () => {
+      installJob(job);
+    },
+    verifyOriginal: () => {
+      verifyJobInstalled(job);
+    },
+    audit: (error45, rollbackErrors) => appendAudit("update.rollback", { slug: job.slug, scopeId: job.scopeId, error: error45, rollbackErrors })
+  });
+  appendAudit("job.update", { slug: updatedJob.slug, scopeId: updatedJob.scopeId, previousScopeId: job.scopeId });
+  return updatedJob;
+}
+function moveSchedulerJob(locator, targetWorkdir) {
+  const job = locateSchedulerJob(locator);
+  const workdir = normalizeWorkdirPath(targetWorkdir);
+  const scopeId = deriveScopeId(workdir);
+  if ((job.scopeId || deriveScopeId(job.workdir || homedir2())) === scopeId)
+    return job;
+  const updatedJob = {
+    ...job,
+    scopeId,
+    workdir,
+    updatedAt: new Date().toISOString()
+  };
+  updatedJob.invocation = buildOpencodeArgs(updatedJob);
+  const moved = persistUpdatedJob(job, updatedJob);
+  appendAudit("job.move", { slug: moved.slug, fromScopeId: job.scopeId, toScopeId: moved.scopeId, workdir });
+  return moved;
+}
 function formatStatus(snapshot) {
   const lines = [
     `Scheduled Tasks (${snapshot.summary.total})`,
@@ -21648,10 +21781,10 @@ var SchedulerPlugin = async () => {
           timeoutSeconds: tool.schema.number().optional().describe("Optional: max runtime in seconds (0 disables)."),
           format: tool.schema.string().optional().describe("Optional: output format ('text' or 'json').")
         },
-        async execute(args) {
+        async execute(args, context) {
           const format = normalizeFormat(args.format);
           const slug = args.source ? `${args.source}-${slugify2(args.name)}` : slugify2(args.name);
-          const workdir = normalizeWorkdirPath(args.workdir || process.cwd());
+          const workdir = resolveToolDirectory(args.workdir, context.directory);
           const scopeId = deriveScopeId(workdir);
           if (loadScopedJob(scopeId, slug)) {
             return errorResult(format, `Job "${slug}" already exists in this workspace scope (${scopeId}). Delete it first or use a different name.`);
@@ -21733,6 +21866,7 @@ var SchedulerPlugin = async () => {
             saveJob(job);
             const backend = installJob(job);
             verifyJobInstalled(job);
+            appendAudit("job.create", { scopeId: job.scopeId, slug: job.slug, backend });
             const platformName = backend;
             const reliabilityLine = backend === "schtasks" ? "Windows note: scheduled runs use Task Scheduler directly. For advanced reliability guarantees, prefer simple cron schedules or split complex jobs." : backend === "cron" ? "Cron note: missed runs during sleep are not replayed. For catch-up behavior, use launchd or systemd when available." : "The job will run at the scheduled time. If your computer was asleep, it will catch up when it wakes.";
             const primaryLine = run.command ? `Command: ${run.command}${run.arguments ? ` ${run.arguments}` : ""}` : `Prompt: ${(run.prompt ?? "").slice(0, 100)}${(run.prompt ?? "").length > 100 ? "..." : ""}`;
@@ -21779,9 +21913,10 @@ Commands:
           verifySystem: tool.schema.boolean().optional().describe("Verify jobs against the OS scheduler and include health/next-run data."),
           format: tool.schema.string().optional().describe("Optional: output format ('text' or 'json').")
         },
-        async execute(args) {
+        async execute(args, context) {
           const format = normalizeFormat(args.format);
-          const scopeId = args.allScopes ? undefined : deriveScopeId(normalizeWorkdirPath(args.scopeRoot || process.cwd()));
+          const scopeRoot = args.scopeRoot || context.directory;
+          const scopeId = args.allScopes ? undefined : deriveScopeId(normalizeWorkdirPath(scopeRoot));
           let jobs = args.allScopes ? loadAllJobsAcrossScopes() : loadAllScopedJobs(scopeId);
           if (args.includeLegacy) {
             jobs = [...jobs, ...loadAllLegacyJobs()];
@@ -21793,7 +21928,7 @@ Commands:
             const snapshot = getSchedulerStatus({
               allScopes: args.allScopes,
               includeLegacy: args.includeLegacy,
-              scopeRoot: args.scopeRoot,
+              scopeRoot,
               verifySystem: true
             });
             if (args.source) {
@@ -21846,12 +21981,12 @@ ${lines.join(`
           scopeRoot: tool.schema.string().optional().describe("Scope root when allScopes is false."),
           format: tool.schema.string().optional().describe("Optional: output format ('text' or 'json').")
         },
-        async execute(args) {
+        async execute(args, context) {
           const format = normalizeFormat(args.format);
           const snapshot = getSchedulerStatus({
             allScopes: args.allScopes,
             includeLegacy: args.includeLegacy,
-            scopeRoot: args.scopeRoot,
+            scopeRoot: args.scopeRoot || context.directory,
             verifySystem: args.verifySystem !== false
           });
           return format === "json" ? JSON.stringify(snapshot, null, 2) : okResult(format, formatStatus(snapshot), snapshot);
@@ -21920,7 +22055,7 @@ ${content.trim()}
           overwrite: tool.schema.boolean().optional().describe("Overwrite existing files (default false)."),
           format: tool.schema.string().optional().describe("Optional: output format ('text' or 'json').")
         },
-        async execute(args) {
+        async execute(args, context) {
           const format = normalizeFormat(args.format);
           const skill = getBuiltinSkill(args.name);
           if (!skill) {
@@ -21929,7 +22064,7 @@ ${content.trim()}
             const label = requested ? `"${requested}"` : "that name";
             return errorResult(format, `No built-in skill found for ${label}. Available: ${available || "(none)"}`);
           }
-          const directory = args.directory ?? process.cwd();
+          const directory = args.directory ?? context.directory;
           const overwrite = args.overwrite === true;
           try {
             const installed = installBuiltinSkill(skill, directory, overwrite);
@@ -22093,52 +22228,10 @@ ${content.trim()}
             return errorResult(format, `Failed to build invocation: ${msg}`);
           }
           try {
-            const oldScopeId = job.scopeId || deriveScopeId(job.workdir || homedir2());
-            const nextScopeId = updatedJob.scopeId || deriveScopeId(updatedJob.workdir || homedir2());
-            const scopeChanged = oldScopeId !== nextScopeId;
-            if (scopeChanged) {
-              uninstallJob(job);
-            }
-            saveJob(updatedJob);
-            if (updatedJob.enabled !== false) {
-              installJob(updatedJob);
-              verifyJobInstalled(updatedJob);
-            }
-            if (scopeChanged) {
-              const oldPath = jobFilePath(oldScopeId, job.slug);
-              if (existsSync2(oldPath)) {
-                try {
-                  unlinkSync(oldPath);
-                } catch {}
-              }
-            }
-            return okResult(format, `Updated job "${updatedJob.name}"`, { job: updatedJob });
+            const persisted = persistUpdatedJob(job, updatedJob);
+            return okResult(format, `Updated job "${persisted.name}"`, { job: persisted });
           } catch (error45) {
-            const msg = error45 instanceof Error ? error45.message : String(error45);
-            const rollbackErrors = [];
-            try {
-              uninstallJob(updatedJob);
-            } catch (rollbackError) {
-              rollbackErrors.push(rollbackError instanceof Error ? rollbackError.message : String(rollbackError));
-            }
-            try {
-              const oldScopeId = job.scopeId || deriveScopeId(job.workdir || homedir2());
-              const nextScopeId = updatedJob.scopeId || deriveScopeId(updatedJob.workdir || homedir2());
-              if (oldScopeId !== nextScopeId) {
-                const newPath = jobFilePath(nextScopeId, updatedJob.slug);
-                if (existsSync2(newPath))
-                  unlinkSync(newPath);
-              }
-              saveJob(job);
-              if (job.enabled !== false) {
-                installJob(job);
-                verifyJobInstalled(job);
-              }
-            } catch (rollbackError) {
-              rollbackErrors.push(rollbackError instanceof Error ? rollbackError.message : String(rollbackError));
-            }
-            appendAudit("update.rollback", { slug: job.slug, scopeId: job.scopeId, error: msg, rollbackErrors });
-            return errorResult(format, `Failed to update job: ${msg}`);
+            return errorResult(format, error45 instanceof Error ? error45.message : String(error45));
           }
         }
       }),
@@ -22391,6 +22484,9 @@ var src_default = SchedulerPlugin;
 
 // src/tui.tsx
 import { useTerminalDimensions } from "@opentui/solid";
+import { existsSync as existsSync3, watch } from "fs";
+import { homedir as homedir3 } from "os";
+import { join as join3 } from "path";
 import { For, Show, createEffect, createMemo, createSignal, onCleanup, onMount } from "solid-js";
 import { jsxDEV } from "@opentui/solid/jsx-dev-runtime";
 var id = "opencode-scheduler";
@@ -22415,18 +22511,23 @@ function navigateBack(api2, returnRoute) {
   }
   api2.route.navigate(target?.name || "home", target && "params" in target ? target.params : undefined);
 }
-function navigateToDetail(api2, id2, returnRoute) {
-  api2.route.navigate("scheduler-detail", { id: id2, returnRoute: returnRoute || routeParams(api2).returnRoute });
+function navigateToDetail(api2, input) {
+  api2.route.navigate("scheduler-detail", {
+    id: input.id,
+    entry: input.entry,
+    returnRoute: input.returnRoute || routeParams(api2).returnRoute,
+    centerState: input.centerState
+  });
 }
 function filterSchedulerJobs(jobs, options) {
   const needle = options.query?.trim().toLowerCase() || "";
   const problems = new Set(["disabled", "missing", "drifted", "error"]);
   return jobs.filter((job) => {
-    if (needle && !`${job.name} ${job.slug} ${job.workdir}`.toLowerCase().includes(needle))
+    if (needle && !`${job.name} ${job.slug} ${job.workdir} ${job.scheduleText} ${job.model || ""} ${job.agent || ""}`.toLowerCase().includes(needle))
       return false;
     if (options.scopeId && job.scopeId !== options.scopeId)
       return false;
-    if (options.filter === "running" && job.health !== "running")
+    if (options.filter === "active" && job.enabled === false)
       return false;
     if (options.filter === "paused" && job.health !== "paused")
       return false;
@@ -22435,29 +22536,85 @@ function filterSchedulerJobs(jobs, options) {
     return true;
   });
 }
-function createStatusStore(api2) {
+function createStatusStore(api2, options = {}) {
   const [snapshot, setSnapshot] = createSignal(EMPTY);
   const [loading, setLoading] = createSignal(false);
   const [error45, setError] = createSignal();
+  let refreshPending = false;
+  let debounceTimer;
+  let fallbackTimer;
+  let watcher;
+  let watcherWarningShown = false;
   const refresh = async () => {
-    if (loading())
+    if (loading()) {
+      refreshPending = true;
       return;
+    }
     setLoading(true);
+    do {
+      refreshPending = false;
+      try {
+        setSnapshot(options.loadStatus?.() || getSchedulerStatus({ allScopes: true, includeLegacy: true, verifySystem: true }));
+        setError(undefined);
+      } catch (cause) {
+        const message = cause instanceof Error ? cause.message : String(cause);
+        setError(message);
+        api2.ui.toast({ variant: "error", title: "Scheduler", message });
+      }
+    } while (refreshPending);
+    setLoading(false);
+  };
+  const scheduleRefresh = () => {
+    if (debounceTimer)
+      clearTimeout(debounceTimer);
+    debounceTimer = setTimeout(() => void refresh(), options.debounceMs ?? 250);
+  };
+  const schedulerRoot = options.schedulerRoot || join3(homedir3(), ".config", "opencode", "scheduler");
+  const startFallback = () => {
+    if (fallbackTimer)
+      return;
+    if (!watcherWarningShown) {
+      watcherWarningShown = true;
+      console.warn("[opencode-scheduler] scheduler file watching unavailable; using 2 second refresh fallback");
+    }
+    fallbackTimer = setInterval(() => {
+      refresh();
+      startWatcher();
+    }, options.fallbackMs ?? 2000);
+  };
+  const startWatcher = () => {
+    if (watcher || !existsSync3(schedulerRoot)) {
+      if (!watcher)
+        startFallback();
+      return;
+    }
     try {
-      setSnapshot(getSchedulerStatus({ allScopes: true, includeLegacy: true, verifySystem: true }));
-      setError(undefined);
-    } catch (cause) {
-      const message = cause instanceof Error ? cause.message : String(cause);
-      setError(message);
-      api2.ui.toast({ variant: "error", title: "Scheduler", message });
-    } finally {
-      setLoading(false);
+      watcher = watch(schedulerRoot, { recursive: true }, scheduleRefresh);
+      watcher.on("error", () => {
+        watcher?.close();
+        watcher = undefined;
+        startFallback();
+      });
+      if (fallbackTimer) {
+        clearInterval(fallbackTimer);
+        fallbackTimer = undefined;
+      }
+    } catch {
+      startFallback();
     }
   };
   refresh();
-  const timer = setInterval(() => void refresh(), 1e4);
-  api2.lifecycle.onDispose(() => clearInterval(timer));
-  return { snapshot, loading, error: error45, refresh };
+  startWatcher();
+  const verificationTimer = setInterval(() => void refresh(), options.verificationMs ?? 1e4);
+  api2.lifecycle.onDispose(() => {
+    clearInterval(verificationTimer);
+    if (fallbackTimer)
+      clearInterval(fallbackTimer);
+    if (debounceTimer)
+      clearTimeout(debounceTimer);
+    watcher?.close();
+  });
+  return { snapshot, loading, error: error45, refresh, scheduleRefresh };
 }
 function statusIcon(status) {
   if (status === "healthy")
@@ -22492,78 +22649,145 @@ function relativeTime(value) {
   return `${Math.round(abs / 86400000)}d ${suffix}`;
 }
 function Sidebar(props) {
-  const jobs = createMemo(() => props.store.snapshot().jobs.slice(0, 5));
+  const [open, setOpen] = createSignal(props.api.kv?.get("scheduler.sidebar.expanded", true) ?? true);
+  const currentScopeId = createMemo(() => deriveStatusScopeId(props.api.state.path.directory));
+  const jobs = createMemo(() => props.store.snapshot().jobs.filter((job) => job.scopeId === currentScopeId()));
+  const recentJobs = createMemo(() => jobs().slice(0, 5));
+  const scopedOrphans = createMemo(() => props.store.snapshot().orphans.filter((orphan) => orphan.scopeId === currentScopeId()));
+  const active = createMemo(() => jobs().filter((job) => job.enabled !== false).length);
+  const paused = createMemo(() => jobs().filter((job) => job.enabled === false || job.health === "paused").length);
   const problems = createMemo(() => {
-    const summary = props.store.snapshot().summary;
-    return summary.disabled + summary.missing + summary.drifted + summary.orphaned + summary.error;
+    const bad = new Set(["disabled", "missing", "drifted", "error"]);
+    return jobs().filter((job) => bad.has(job.health)).length + scopedOrphans().length;
   });
-  const openCenter = () => props.api.route.navigate("scheduler", { returnRoute: props.api.route.current });
-  const openDetail = (id2) => props.api.route.navigate("scheduler-detail", { id: id2, returnRoute: props.api.route.current });
+  const toggle = () => {
+    const next = !open();
+    setOpen(next);
+    props.api.kv?.set("scheduler.sidebar.expanded", next);
+  };
+  const openCenter = (filter = "all") => props.api.route.navigate("scheduler", {
+    entry: "command",
+    returnRoute: props.api.route.current,
+    centerState: { scope: "current", filter }
+  });
+  const openDetail = (jobId) => navigateToDetail(props.api, {
+    id: jobId,
+    entry: "sidebar",
+    returnRoute: props.api.route.current
+  });
+  const counters = [
+    { id: "all", label: "\u03A3 All", value: () => jobs().length, filter: "all", color: () => props.api.theme.current.text },
+    { id: "active", label: "\u25CF Active", value: active, filter: "active", color: () => props.api.theme.current.success },
+    { id: "paused", label: "\u2161 Paused", value: paused, filter: "paused", color: () => props.api.theme.current.textMuted },
+    { id: "problems", label: "! Problems", value: problems, filter: "problems", color: () => problems() ? props.api.theme.current.warning : props.api.theme.current.textMuted }
+  ];
   return /* @__PURE__ */ jsxDEV("box", {
     gap: 1,
     paddingTop: 1,
     children: [
       /* @__PURE__ */ jsxDEV("box", {
+        id: "scheduler-sidebar-toggle",
         flexDirection: "row",
-        justifyContent: "space-between",
-        onMouseUp: openCenter,
+        gap: 1,
+        paddingRight: 1,
+        onMouseDown: toggle,
         children: [
+          /* @__PURE__ */ jsxDEV("text", {
+            fg: props.api.theme.current.text,
+            children: open() ? "\u25BC" : "\u25B6"
+          }, undefined, false, undefined, this),
           /* @__PURE__ */ jsxDEV("text", {
             fg: props.api.theme.current.text,
             children: /* @__PURE__ */ jsxDEV("b", {
               children: "Scheduled tasks"
             }, undefined, false, undefined, this)
-          }, undefined, false, undefined, this),
-          /* @__PURE__ */ jsxDEV("text", {
-            fg: problems() ? props.api.theme.current.warning : props.api.theme.current.textMuted,
-            children: [
-              props.store.snapshot().summary.total,
-              problems() ? ` \xB7 ${problems()} issues` : ""
-            ]
-          }, undefined, true, undefined, this)
+          }, undefined, false, undefined, this)
         ]
       }, undefined, true, undefined, this),
-      /* @__PURE__ */ jsxDEV(For, {
-        each: jobs(),
-        children: (job) => /* @__PURE__ */ jsxDEV("box", {
-          paddingLeft: 1,
-          onMouseUp: () => openDetail(job.id),
-          children: [
-            /* @__PURE__ */ jsxDEV("text", {
-              fg: statusColor(props.api, job.health),
+      /* @__PURE__ */ jsxDEV(Show, {
+        when: open(),
+        children: [
+          /* @__PURE__ */ jsxDEV(For, {
+            each: recentJobs(),
+            children: (job) => /* @__PURE__ */ jsxDEV("box", {
+              id: `scheduler-sidebar-job-${job.id}`,
+              paddingLeft: 1,
+              paddingRight: 1,
+              onMouseDown: () => openDetail(job.id),
               children: [
-                statusIcon(job.health),
-                " ",
-                /* @__PURE__ */ jsxDEV("span", {
-                  style: { fg: props.api.theme.current.text },
-                  children: job.name
-                }, undefined, false, undefined, this)
-              ]
-            }, undefined, true, undefined, this),
-            /* @__PURE__ */ jsxDEV("text", {
-              fg: props.api.theme.current.textMuted,
-              children: [
-                job.scheduleText,
-                " \xB7 ",
-                relativeTime(job.nextRunAt)
+                /* @__PURE__ */ jsxDEV("text", {
+                  fg: statusColor(props.api, job.health),
+                  children: [
+                    statusIcon(job.health),
+                    " ",
+                    /* @__PURE__ */ jsxDEV("span", {
+                      style: { fg: props.api.theme.current.text },
+                      children: job.name
+                    }, undefined, false, undefined, this)
+                  ]
+                }, undefined, true, undefined, this),
+                /* @__PURE__ */ jsxDEV("text", {
+                  fg: props.api.theme.current.textMuted,
+                  children: [
+                    job.scheduleText,
+                    " \xB7 ",
+                    relativeTime(job.nextRunAt)
+                  ]
+                }, undefined, true, undefined, this)
               ]
             }, undefined, true, undefined, this)
-          ]
-        }, undefined, true, undefined, this)
-      }, undefined, false, undefined, this),
-      /* @__PURE__ */ jsxDEV(Show, {
-        when: !jobs().length,
-        fallback: null,
-        children: /* @__PURE__ */ jsxDEV("text", {
-          fg: props.api.theme.current.textMuted,
-          children: "No scheduled tasks"
-        }, undefined, false, undefined, this)
-      }, undefined, false, undefined, this),
-      /* @__PURE__ */ jsxDEV("text", {
-        fg: props.api.theme.current.primary,
-        onMouseUp: openCenter,
-        children: "Open task center \u2192"
-      }, undefined, false, undefined, this)
+          }, undefined, false, undefined, this),
+          /* @__PURE__ */ jsxDEV(Show, {
+            when: !recentJobs().length,
+            fallback: null,
+            children: /* @__PURE__ */ jsxDEV("text", {
+              fg: props.api.theme.current.textMuted,
+              children: "No tasks in this project"
+            }, undefined, false, undefined, this)
+          }, undefined, false, undefined, this)
+        ]
+      }, undefined, true, undefined, this),
+      /* @__PURE__ */ jsxDEV("box", {
+        flexDirection: "row",
+        justifyContent: "space-between",
+        alignItems: "center",
+        children: [
+          /* @__PURE__ */ jsxDEV("box", {
+            flexDirection: "row",
+            flexWrap: "wrap",
+            gap: 1,
+            flexGrow: 1,
+            children: /* @__PURE__ */ jsxDEV(For, {
+              each: counters,
+              children: (item) => /* @__PURE__ */ jsxDEV("box", {
+                id: `scheduler-sidebar-${item.id}`,
+                paddingRight: 1,
+                onMouseDown: () => openCenter(item.filter),
+                children: /* @__PURE__ */ jsxDEV("text", {
+                  fg: item.color(),
+                  children: [
+                    item.label,
+                    " ",
+                    item.value()
+                  ]
+                }, undefined, true, undefined, this)
+              }, undefined, false, undefined, this)
+            }, undefined, false, undefined, this)
+          }, undefined, false, undefined, this),
+          /* @__PURE__ */ jsxDEV("box", {
+            id: "scheduler-sidebar-open",
+            paddingLeft: 1,
+            paddingRight: 1,
+            onMouseDown: () => openCenter("all"),
+            children: /* @__PURE__ */ jsxDEV("text", {
+              fg: props.api.theme.current.primary,
+              children: /* @__PURE__ */ jsxDEV("b", {
+                children: "\u2192"
+              }, undefined, false, undefined, this)
+            }, undefined, false, undefined, this)
+          }, undefined, false, undefined, this)
+        ]
+      }, undefined, true, undefined, this)
     ]
   }, undefined, true, undefined, this);
 }
@@ -22605,9 +22829,9 @@ function Header(props) {
 }
 function TaskCenter(props) {
   const dimensions = useTerminalDimensions();
-  const [query, setQuery] = createSignal("");
-  const [filter, setFilter] = createSignal("all");
-  const [scope, setScope] = createSignal("all");
+  const [query, setQuery] = createSignal(props.initialState?.query || "");
+  const [filter, setFilter] = createSignal(props.initialState?.filter || "all");
+  const [scope, setScope] = createSignal(props.initialState?.scope || "current");
   const [focus, setFocus] = createSignal("list");
   const [selectedIndex, setSelectedIndex] = createSignal(0);
   let root;
@@ -22619,6 +22843,24 @@ function TaskCenter(props) {
     filter: filter(),
     scopeId: scope() === "current" ? currentScopeId() : undefined
   }));
+  const orphans = createMemo(() => {
+    if (filter() === "active" || filter() === "paused")
+      return [];
+    const needle = query().trim().toLowerCase();
+    return props.store.snapshot().orphans.filter((orphan) => {
+      if (scope() === "current" && orphan.scopeId !== currentScopeId())
+        return false;
+      if (needle && !`${orphan.slug} ${orphan.backend}`.toLowerCase().includes(needle))
+        return false;
+      return true;
+    });
+  });
+  const centerState = () => ({
+    scope: scope(),
+    filter: filter(),
+    query: query(),
+    selectedId: jobs()[selectedIndex()]?.id
+  });
   const focusList = () => {
     setFocus("list");
     root?.focus();
@@ -22636,12 +22878,14 @@ function TaskCenter(props) {
   const openSelected = () => {
     const selected = jobs()[selectedIndex()];
     if (selected)
-      navigateToDetail(props.api, selected.id, props.returnRoute);
+      navigateToDetail(props.api, { id: selected.id, entry: "center", returnRoute: props.returnRoute, centerState: centerState() });
   };
   const close = () => navigateBack(props.api, props.returnRoute);
   createEffect(() => {
     const last = jobs().length - 1;
-    setSelectedIndex((current) => last < 0 ? 0 : Math.min(current, last));
+    const requested = props.initialState?.selectedId;
+    const restored = requested ? jobs().findIndex((job) => job.id === requested) : -1;
+    setSelectedIndex((current) => restored >= 0 ? restored : last < 0 ? 0 : Math.min(current, last));
   });
   createEffect(() => {
     const scroll = taskScroll;
@@ -22731,12 +22975,19 @@ function TaskCenter(props) {
         loading: props.store.loading()
       }, undefined, false, undefined, this),
       /* @__PURE__ */ jsxDEV("input", {
+        id: "scheduler-search",
         ref: (element) => searchInput = element,
         value: query(),
         placeholder: "Search scheduled tasks",
-        onInput: setQuery,
+        onInput: (value) => {
+          setQuery(String(value));
+          setSelectedIndex(0);
+        },
         onSubmit: focusList,
-        onMouseUp: focusSearch,
+        onMouseDown: () => {
+          setFocus("search");
+          searchInput?.focus();
+        },
         focused: focus() === "search",
         backgroundColor: props.api.theme.current.backgroundElement,
         textColor: props.api.theme.current.text,
@@ -22745,42 +22996,60 @@ function TaskCenter(props) {
       /* @__PURE__ */ jsxDEV("box", {
         flexDirection: "row",
         flexWrap: "wrap",
-        gap: 2,
+        gap: 1,
         paddingTop: 1,
         paddingBottom: 1,
         children: [
-          /* @__PURE__ */ jsxDEV("text", {
+          /* @__PURE__ */ jsxDEV("box", {
             id: "scheduler-scope-all",
-            fg: scope() === "all" ? props.api.theme.current.primary : props.api.theme.current.textMuted,
-            onMouseUp: () => {
+            paddingLeft: 1,
+            paddingRight: 1,
+            backgroundColor: scope() === "all" ? props.api.theme.current.backgroundElement : undefined,
+            onMouseDown: () => {
               setScope("all");
+              setSelectedIndex(0);
               focusList();
             },
-            children: "All projects"
+            children: /* @__PURE__ */ jsxDEV("text", {
+              fg: scope() === "all" ? props.api.theme.current.primary : props.api.theme.current.textMuted,
+              children: "All projects"
+            }, undefined, false, undefined, this)
           }, undefined, false, undefined, this),
-          /* @__PURE__ */ jsxDEV("text", {
+          /* @__PURE__ */ jsxDEV("box", {
             id: "scheduler-scope-current",
-            fg: scope() === "current" ? props.api.theme.current.primary : props.api.theme.current.textMuted,
-            onMouseUp: () => {
+            paddingLeft: 1,
+            paddingRight: 1,
+            backgroundColor: scope() === "current" ? props.api.theme.current.backgroundElement : undefined,
+            onMouseDown: () => {
               setScope("current");
+              setSelectedIndex(0);
               focusList();
             },
-            children: "Current project"
+            children: /* @__PURE__ */ jsxDEV("text", {
+              fg: scope() === "current" ? props.api.theme.current.primary : props.api.theme.current.textMuted,
+              children: "Current project"
+            }, undefined, false, undefined, this)
           }, undefined, false, undefined, this),
           /* @__PURE__ */ jsxDEV("text", {
             fg: props.api.theme.current.border,
             children: "\u2502"
           }, undefined, false, undefined, this),
           /* @__PURE__ */ jsxDEV(For, {
-            each: ["all", "running", "paused", "problems"],
-            children: (item) => /* @__PURE__ */ jsxDEV("text", {
+            each: ["all", "active", "paused", "problems"],
+            children: (item) => /* @__PURE__ */ jsxDEV("box", {
               id: `scheduler-filter-${item}`,
-              fg: filter() === item ? props.api.theme.current.primary : props.api.theme.current.textMuted,
-              onMouseUp: () => {
+              paddingLeft: 1,
+              paddingRight: 1,
+              backgroundColor: filter() === item ? props.api.theme.current.backgroundElement : undefined,
+              onMouseDown: () => {
                 setFilter(item);
+                setSelectedIndex(0);
                 focusList();
               },
-              children: item === "all" ? "All" : item === "running" ? "Running" : item === "paused" ? "Paused" : "Problems"
+              children: /* @__PURE__ */ jsxDEV("text", {
+                fg: filter() === item ? props.api.theme.current.primary : props.api.theme.current.textMuted,
+                children: item === "all" ? "All" : item === "active" ? "Active" : item === "paused" ? "Paused" : "Problems"
+              }, undefined, false, undefined, this)
             }, undefined, false, undefined, this)
           }, undefined, false, undefined, this)
         ]
@@ -22806,10 +23075,10 @@ function TaskCenter(props) {
               flexDirection: "column",
               paddingLeft: 1,
               backgroundColor: selectedIndex() === index() ? props.api.theme.current.backgroundElement : props.api.theme.current.background,
-              onMouseUp: () => {
+              onMouseDown: () => {
                 setSelectedIndex(index());
                 focusList();
-                navigateToDetail(props.api, job.id, props.returnRoute);
+                navigateToDetail(props.api, { id: job.id, entry: "center", returnRoute: props.returnRoute, centerState: centerState() });
               },
               children: [
                 /* @__PURE__ */ jsxDEV("text", {
@@ -22844,7 +23113,7 @@ function TaskCenter(props) {
         }, undefined, false, undefined, this)
       }, undefined, false, undefined, this),
       /* @__PURE__ */ jsxDEV(Show, {
-        when: props.store.snapshot().orphans.length,
+        when: orphans().length,
         fallback: null,
         children: /* @__PURE__ */ jsxDEV("box", {
           paddingTop: 1,
@@ -22854,13 +23123,13 @@ function TaskCenter(props) {
               children: /* @__PURE__ */ jsxDEV("b", {
                 children: [
                   "Orphaned OS tasks (",
-                  props.store.snapshot().orphans.length,
+                  orphans().length,
                   ")"
                 ]
               }, undefined, true, undefined, this)
             }, undefined, false, undefined, this),
             /* @__PURE__ */ jsxDEV(For, {
-              each: props.store.snapshot().orphans,
+              each: orphans(),
               children: (orphan) => /* @__PURE__ */ jsxDEV("text", {
                 fg: props.api.theme.current.warning,
                 onMouseUp: () => openOrphanDialog(props.api, props.store, orphan),
@@ -22963,7 +23232,7 @@ function openLogs(api2, job) {
   }, undefined, false, undefined, this));
   api2.ui.dialog.setSize("xlarge");
 }
-function confirmDelete(api2, store, job) {
+function confirmDelete(api2, store, job, onDeleted) {
   const DialogConfirm = api2.ui.DialogConfirm;
   api2.ui.dialog.replace(() => /* @__PURE__ */ jsxDEV(DialogConfirm, {
     title: `Delete ${job.name}?`,
@@ -22971,7 +23240,34 @@ function confirmDelete(api2, store, job) {
     onConfirm: () => {
       perform(api2, store, () => deleteSchedulerJob({ id: job.id }), "Task deleted");
       api2.ui.dialog.clear();
-      api2.route.navigate("scheduler");
+      onDeleted();
+    },
+    onCancel: () => api2.ui.dialog.clear()
+  }, undefined, false, undefined, this));
+}
+function confirmMove(api2, store, job, targetWorkdir, route) {
+  const DialogConfirm = api2.ui.DialogConfirm;
+  api2.ui.dialog.replace(() => /* @__PURE__ */ jsxDEV(DialogConfirm, {
+    title: `Move ${job.name}?`,
+    message: `From: ${job.workdir}
+To: ${targetWorkdir}
+
+The operating-system schedule and saved run history will move together.`,
+    onConfirm: () => {
+      try {
+        const moved = moveSchedulerJob({ id: job.id }, targetWorkdir);
+        api2.ui.toast({ variant: "success", title: "Scheduler", message: "Task moved to current project" });
+        api2.ui.dialog.clear();
+        store.refresh();
+        const movedId = `${moved.scopeId}:${moved.slug}`;
+        api2.route.navigate("scheduler-detail", {
+          ...route,
+          id: movedId,
+          centerState: route.centerState ? { ...route.centerState, selectedId: movedId } : undefined
+        });
+      } catch (error45) {
+        api2.ui.toast({ variant: "error", title: "Scheduler", message: error45 instanceof Error ? error45.message : String(error45) });
+      }
     },
     onCancel: () => api2.ui.dialog.clear()
   }, undefined, false, undefined, this));
@@ -22999,7 +23295,7 @@ function Action(props) {
     paddingLeft: 1,
     paddingRight: 1,
     backgroundColor: props.api.theme.current.backgroundElement,
-    onMouseUp: props.onSelect,
+    onMouseDown: props.onSelect,
     children: /* @__PURE__ */ jsxDEV("text", {
       fg: props.warning ? props.api.theme.current.warning : props.api.theme.current.primary,
       children: props.label
@@ -23010,7 +23306,14 @@ function Detail(props) {
   const dimensions = useTerminalDimensions();
   let root;
   const job = createMemo(() => props.store.snapshot().jobs.find((item) => item.id === props.id));
-  const backToCenter = () => props.api.route.navigate("scheduler", { returnRoute: props.returnRoute });
+  const currentScopeId = createMemo(() => deriveStatusScopeId(props.api.state.path.directory));
+  const back = () => {
+    if (props.entry === "center") {
+      props.api.route.navigate("scheduler", { entry: "command", returnRoute: props.returnRoute, centerState: props.centerState });
+      return;
+    }
+    navigateBack(props.api, props.returnRoute);
+  };
   createEffect(() => {
     const target = root;
     if (!target)
@@ -23020,7 +23323,7 @@ function Detail(props) {
       targetMode: "focus-within",
       priority: 100,
       commands: [
-        { name: "scheduler.detail.back", run: backToCenter },
+        { name: "scheduler.detail.back", run: back },
         { name: "scheduler.detail.refresh", run: () => void props.store.refresh() }
       ],
       bindings: [
@@ -23053,7 +23356,7 @@ function Detail(props) {
       /* @__PURE__ */ jsxDEV(Header, {
         api: props.api,
         title: job()?.name || "Scheduled task",
-        back: backToCenter,
+        back,
         refresh: () => void props.store.refresh(),
         refreshId: "scheduler-detail-refresh",
         loading: props.store.loading()
@@ -23290,6 +23593,19 @@ function Detail(props) {
                     label: "Edit frequency",
                     onSelect: () => openScheduleDialog(props.api, props.store, item())
                   }, undefined, false, undefined, this),
+                  /* @__PURE__ */ jsxDEV(Show, {
+                    when: item().scopeId !== currentScopeId(),
+                    fallback: null,
+                    children: /* @__PURE__ */ jsxDEV(Action, {
+                      api: props.api,
+                      label: "Move to current project",
+                      onSelect: () => confirmMove(props.api, props.store, item(), props.api.state.path.directory, {
+                        entry: props.entry,
+                        returnRoute: props.returnRoute,
+                        centerState: props.centerState
+                      })
+                    }, undefined, false, undefined, this)
+                  }, undefined, false, undefined, this),
                   /* @__PURE__ */ jsxDEV(Action, {
                     api: props.api,
                     label: "View logs",
@@ -23299,7 +23615,7 @@ function Detail(props) {
                     api: props.api,
                     label: "Delete",
                     warning: true,
-                    onSelect: () => confirmDelete(props.api, props.store, item())
+                    onSelect: () => confirmDelete(props.api, props.store, item(), back)
                   }, undefined, false, undefined, this)
                 ]
               }, undefined, true, undefined, this),
@@ -23364,7 +23680,8 @@ var tui = async (api2) => {
       render: ({ params }) => /* @__PURE__ */ jsxDEV(TaskCenter, {
         api: api2,
         store,
-        returnRoute: params?.returnRoute
+        returnRoute: params?.returnRoute,
+        initialState: params?.centerState
       }, undefined, false, undefined, this)
     },
     {
@@ -23373,7 +23690,9 @@ var tui = async (api2) => {
         api: api2,
         store,
         id: typeof params?.id === "string" ? params.id : undefined,
-        returnRoute: params?.returnRoute
+        entry: params?.entry,
+        returnRoute: params?.returnRoute,
+        centerState: params?.centerState
       }, undefined, false, undefined, this)
     }
   ]);
@@ -23387,7 +23706,7 @@ var tui = async (api2) => {
     onSelect: () => {
       const returnRoute = api2.route.current;
       api2.ui.dialog.clear();
-      api2.route.navigate("scheduler", { returnRoute });
+      api2.route.navigate("scheduler", { entry: "command", returnRoute, centerState: { scope: "current", filter: "all" } });
     }
   }]);
 };
@@ -23397,6 +23716,8 @@ export {
   id,
   filterSchedulerJobs,
   tui_default as default,
+  createStatusStore,
   TaskCenter,
+  Sidebar,
   Detail
 };

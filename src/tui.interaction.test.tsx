@@ -2,8 +2,11 @@ import { describe, expect, test } from "bun:test"
 import { createDefaultOpenTuiKeymap } from "@opentui/keymap/opentui"
 import { testRender, useRenderer } from "@opentui/solid"
 import { createSignal } from "solid-js"
-import { Detail, TaskCenter } from "./tui"
-import type { SchedulerJobStatus, SchedulerStatusSnapshot } from "./status"
+import { Detail, Sidebar, TaskCenter } from "./tui"
+import { deriveStatusScopeId, type SchedulerJobStatus, type SchedulerStatusSnapshot } from "./status"
+
+const CURRENT_DIRECTORY = "/projects/current"
+const CURRENT_SCOPE = deriveStatusScopeId(CURRENT_DIRECTORY)
 
 function findRenderable(root: { id?: string; getChildren?: () => unknown[] }, id: string): any {
   if (root.id === id) return root
@@ -33,8 +36,8 @@ const theme = {
 function job(name: string, index: number): SchedulerJobStatus {
   const slug = name.toLowerCase().replace(/\s+/g, "-")
   return {
-    id: `scope:${slug}`,
-    scopeId: "scope",
+    id: `${CURRENT_SCOPE}:${slug}`,
+    scopeId: CURRENT_SCOPE,
     slug,
     name,
     enabled: true,
@@ -44,17 +47,17 @@ function job(name: string, index: number): SchedulerJobStatus {
     scheduleText: `every ${index + 1} minutes`,
     timezone: "UTC",
     nextRunAt: "2026-07-20T10:00:00.000Z",
-    workdir: "/projects/current",
+    workdir: CURRENT_DIRECTORY,
     logPath: `/tmp/${slug}.log`,
     runHistory: [],
     artifacts: [],
     diagnostics: [],
     job: {
-      scopeId: "scope",
+      scopeId: CURRENT_SCOPE,
       slug,
       name,
       schedule: `*/${index + 1} * * * *`,
-      workdir: "/projects/current",
+      workdir: CURRENT_DIRECTORY,
       createdAt: "2026-07-20T00:00:00.000Z",
     },
   }
@@ -80,7 +83,7 @@ async function mountTaskCenter(jobs: SchedulerJobStatus[]) {
     const store = { snapshot: status, loading, error: () => undefined, refresh: async () => { refreshes += 1 } }
     const api = {
       keymap,
-      state: { path: { directory: "/projects/current" } },
+      state: { path: { directory: CURRENT_DIRECTORY } },
       route: {
         current: { name: "scheduler", params: { returnRoute: { name: "home" } } },
         navigate(name: string, params?: Record<string, unknown>) {
@@ -106,7 +109,12 @@ describe("scheduler task center interaction", () => {
       mounted.app.mockInput.pressEnter()
       expect(mounted.navigations.at(-1)).toEqual({
         name: "scheduler-detail",
-        params: { id: "scope:second-task", returnRoute: { name: "home" } },
+        params: {
+          id: `${CURRENT_SCOPE}:second-task`,
+          entry: "center",
+          returnRoute: { name: "home" },
+          centerState: { scope: "current", filter: "all", query: "", selectedId: `${CURRENT_SCOPE}:second-task` },
+        },
       })
     } finally {
       mounted.app.renderer.destroy()
@@ -116,14 +124,15 @@ describe("scheduler task center interaction", () => {
   test("focuses search with slash, filters, and returns to the list with Tab", async () => {
     const mounted = await mountTaskCenter([job("Daily report", 0), job("Backup task", 1)])
     try {
-      mounted.app.mockInput.pressKey("/")
+      const search = findRenderable(mounted.app.renderer.root, "scheduler-search")
+      await mounted.app.mockMouse.click(search.x + 2, search.y)
       await mounted.app.mockInput.typeText("backup")
       await mounted.app.flush()
       expect(mounted.app.captureCharFrame()).toContain("Backup task")
       expect(mounted.app.captureCharFrame()).not.toContain("Daily report")
       mounted.app.mockInput.pressTab()
       mounted.app.mockInput.pressEnter()
-      expect(mounted.navigations.at(-1)?.params?.id).toBe("scope:backup-task")
+      expect(mounted.navigations.at(-1)?.params?.id).toBe(`${CURRENT_SCOPE}:backup-task`)
     } finally {
       mounted.app.renderer.destroy()
     }
@@ -150,10 +159,10 @@ describe("scheduler task center interaction", () => {
   test("opens the exact task clicked with the mouse", async () => {
     const mounted = await mountTaskCenter([job("First task", 0), job("Mouse task", 1)])
     try {
-      const row = findRenderable(mounted.app.renderer.root, "scheduler-job-scope:mouse-task")
+      const row = findRenderable(mounted.app.renderer.root, `scheduler-job-${CURRENT_SCOPE}:mouse-task`)
       expect(row).toBeDefined()
       await mounted.app.mockMouse.click(row!.x + 2, row!.y)
-      expect(mounted.navigations.at(-1)?.params?.id).toBe("scope:mouse-task")
+      expect(mounted.navigations.at(-1)?.params?.id).toBe(`${CURRENT_SCOPE}:mouse-task`)
     } finally {
       mounted.app.renderer.destroy()
     }
@@ -180,7 +189,7 @@ describe("scheduler task center interaction", () => {
       const frame = mounted.app.captureCharFrame()
       expect(frame).toContain("Narrow terminal task")
       mounted.app.mockInput.pressEnter()
-      expect(mounted.navigations.at(-1)?.params?.id).toBe("scope:narrow-terminal-task")
+      expect(mounted.navigations.at(-1)?.params?.id).toBe(`${CURRENT_SCOPE}:narrow-terminal-task`)
     } finally {
       mounted.app.renderer.destroy()
     }
@@ -206,6 +215,89 @@ describe("scheduler task center interaction", () => {
     }
   })
 
+  test("switches between current and all projects with the mouse", async () => {
+    const current = job("Current task", 0)
+    const external = {
+      ...job("External task", 1),
+      id: "external-scope:external-task",
+      scopeId: "external-scope",
+      workdir: "/projects/external",
+    }
+    const mounted = await mountTaskCenter([current, external])
+    try {
+      expect(mounted.app.captureCharFrame()).toContain("Current task")
+      expect(mounted.app.captureCharFrame()).not.toContain("External task")
+      const all = findRenderable(mounted.app.renderer.root, "scheduler-scope-all")
+      await mounted.app.mockMouse.click(all.x + 1, all.y)
+      await mounted.app.flush()
+      expect(mounted.app.captureCharFrame()).toContain("External task")
+      const currentTab = findRenderable(mounted.app.renderer.root, "scheduler-scope-current")
+      await mounted.app.mockMouse.click(currentTab.x + 1, currentTab.y)
+      await mounted.app.flush()
+      expect(mounted.app.captureCharFrame()).not.toContain("External task")
+    } finally {
+      mounted.app.renderer.destroy()
+    }
+  })
+
+  test("sidebar stays scoped to the current project and keeps counters when collapsed", async () => {
+    const navigations: Array<{ name: string; params?: Record<string, unknown> }> = []
+    const current = job("Sidebar current", 0)
+    const external = {
+      ...job("Sidebar external", 1),
+      id: "external-scope:sidebar-external",
+      scopeId: "external-scope",
+      workdir: "/projects/external",
+    }
+    function Harness() {
+      const snapshot: SchedulerStatusSnapshot = {
+        scannedAt: "2026-07-20T00:00:00.000Z",
+        timezone: "UTC",
+        jobs: [current, external],
+        orphans: [],
+        diagnostics: [],
+        summary: { total: 2, healthy: 2, running: 0, paused: 0, disabled: 0, missing: 0, drifted: 0, orphaned: 0, error: 0 },
+      }
+      const [status] = createSignal(snapshot)
+      const [loading] = createSignal(false)
+      const values = new Map<string, unknown>()
+      const api = {
+        state: { path: { directory: CURRENT_DIRECTORY } },
+        route: {
+          current: { name: "session", params: { sessionID: "session-1" } },
+          navigate(name: string, params?: Record<string, unknown>) { navigations.push({ name, params }) },
+        },
+        theme: { current: theme },
+        kv: { get: (key: string, fallback: unknown) => values.get(key) ?? fallback, set: (key: string, value: unknown) => values.set(key, value) },
+      }
+      const store = { snapshot: status, loading, error: () => undefined, refresh: async () => {}, scheduleRefresh() {} }
+      return <Sidebar api={api as never} store={store as never} />
+    }
+    const app = await testRender(() => <Harness />, { width: 80, height: 16 })
+    try {
+      await app.flush()
+      expect(app.captureCharFrame()).toContain("Sidebar current")
+      expect(app.captureCharFrame()).not.toContain("Sidebar external")
+      const toggle = findRenderable(app.renderer.root, "scheduler-sidebar-toggle")
+      await app.mockMouse.click(toggle.x + 1, toggle.y)
+      await app.flush()
+      expect(app.captureCharFrame()).not.toContain("Sidebar current")
+      expect(app.captureCharFrame()).toContain("Σ All 1")
+      const active = findRenderable(app.renderer.root, "scheduler-sidebar-active")
+      await app.mockMouse.click(active.x + 1, active.y)
+      expect(navigations.at(-1)).toEqual({
+        name: "scheduler",
+        params: {
+          entry: "command",
+          returnRoute: { name: "session", params: { sessionID: "session-1" } },
+          centerState: { scope: "current", filter: "active" },
+        },
+      })
+    } finally {
+      app.renderer.destroy()
+    }
+  })
+
   test("renders detail as an overlay and returns to the task center with Escape", async () => {
     const navigations: Array<{ name: string; params?: Record<string, unknown> }> = []
     const detailJob = job("Detail task", 0)
@@ -226,8 +318,9 @@ describe("scheduler task center interaction", () => {
       const store = { snapshot: status, loading, error: () => undefined, refresh: async () => {} }
       const api = {
         keymap,
+        state: { path: { directory: CURRENT_DIRECTORY } },
         route: {
-          current: { name: "scheduler-detail", params: { id: detailJob.id, returnRoute: { name: "home" } } },
+          current: { name: "scheduler-detail", params: { id: detailJob.id, entry: "center", returnRoute: { name: "home" } } },
           navigate(name: string, params?: Record<string, unknown>) { navigations.push({ name, params }) },
         },
         theme: { current: theme },
@@ -235,7 +328,7 @@ describe("scheduler task center interaction", () => {
       }
       return (
         <>
-          <Detail api={api as never} store={store as never} id={detailJob.id} returnRoute={{ name: "home" }} />
+          <Detail api={api as never} store={store as never} id={detailJob.id} entry="center" returnRoute={{ name: "home" }} centerState={{ scope: "current", filter: "paused" }} />
           <input id="scheduler-dialog-focus-probe" value="" />
         </>
       )
@@ -257,7 +350,50 @@ describe("scheduler task center interaction", () => {
       root.focus()
       app.mockInput.pressEscape()
       await settle(app)
-      expect(navigations.at(-1)).toEqual({ name: "scheduler", params: { returnRoute: { name: "home" } } })
+      expect(navigations.at(-1)).toEqual({
+        name: "scheduler",
+        params: { entry: "command", returnRoute: { name: "home" }, centerState: { scope: "current", filter: "paused" } },
+      })
+    } finally {
+      app.renderer.destroy()
+    }
+  })
+
+  test("returns directly to the OpenCode route when detail was opened from the sidebar", async () => {
+    const navigations: Array<{ name: string; params?: Record<string, unknown> }> = []
+    const detailJob = job("Direct detail", 0)
+    function Harness() {
+      const renderer = useRenderer()
+      const keymap = createDefaultOpenTuiKeymap(renderer)
+      const snapshot: SchedulerStatusSnapshot = {
+        scannedAt: "2026-07-20T00:00:00.000Z",
+        timezone: "UTC",
+        jobs: [detailJob],
+        orphans: [],
+        diagnostics: [],
+        summary: { total: 1, healthy: 1, running: 0, paused: 0, disabled: 0, missing: 0, drifted: 0, orphaned: 0, error: 0 },
+      }
+      const [status] = createSignal(snapshot)
+      const [loading] = createSignal(false)
+      const api = {
+        keymap,
+        state: { path: { directory: CURRENT_DIRECTORY } },
+        route: {
+          current: { name: "scheduler-detail" },
+          navigate(name: string, params?: Record<string, unknown>) { navigations.push({ name, params }) },
+        },
+        theme: { current: theme },
+        ui: { toast() {}, dialog: { clear() {} } },
+      }
+      const store = { snapshot: status, loading, error: () => undefined, refresh: async () => {} }
+      return <Detail api={api as never} store={store as never} id={detailJob.id} entry="sidebar" returnRoute={{ name: "session", params: { sessionID: "session-1" } }} />
+    }
+    const app = await testRender(() => <Harness />, { width: 100, height: 30 })
+    try {
+      await app.flush()
+      app.mockInput.pressEscape()
+      await settle(app)
+      expect(navigations.at(-1)).toEqual({ name: "session", params: { sessionID: "session-1" } })
     } finally {
       app.renderer.destroy()
     }

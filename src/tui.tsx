@@ -1,10 +1,14 @@
 import type { TuiPlugin, TuiPluginApi, TuiRouteCurrent } from "@opencode-ai/plugin/tui"
 import type { BoxRenderable, InputRenderable, ScrollBoxRenderable } from "@opentui/core"
 import { useTerminalDimensions } from "@opentui/solid"
+import { existsSync, watch, type FSWatcher } from "fs"
+import { homedir } from "os"
+import { join } from "path"
 import { For, Show, createEffect, createMemo, createSignal, onCleanup, onMount } from "solid-js"
 import {
   deleteSchedulerJob,
   getSchedulerStatus,
+  moveSchedulerJob,
   pauseSchedulerJob,
   removeOrphanArtifact,
   resumeSchedulerJob,
@@ -24,12 +28,22 @@ const EMPTY: SchedulerStatusSnapshot = {
   summary: { total: 0, healthy: 0, running: 0, paused: 0, disabled: 0, missing: 0, drifted: 0, orphaned: 0, error: 0 },
 }
 
-type Filter = "all" | "running" | "paused" | "problems"
+export type Filter = "all" | "active" | "paused" | "problems"
+export type ScopeMode = "all" | "current"
 type TaskCenterFocus = "list" | "search"
+
+export type SchedulerCenterState = {
+  scope?: ScopeMode
+  filter?: Filter
+  query?: string
+  selectedId?: string
+}
 
 type SchedulerRouteParams = {
   id?: string
+  entry?: "sidebar" | "center" | "command"
   returnRoute?: TuiRouteCurrent
+  centerState?: SchedulerCenterState
 }
 
 function routeParams(api: TuiPluginApi): SchedulerRouteParams {
@@ -46,8 +60,13 @@ function navigateBack(api: TuiPluginApi, returnRoute?: TuiRouteCurrent) {
   api.route.navigate(target?.name || "home", target && "params" in target ? target.params : undefined)
 }
 
-function navigateToDetail(api: TuiPluginApi, id: string, returnRoute?: TuiRouteCurrent) {
-  api.route.navigate("scheduler-detail", { id, returnRoute: returnRoute || routeParams(api).returnRoute })
+function navigateToDetail(api: TuiPluginApi, input: { id: string; entry: "sidebar" | "center"; returnRoute?: TuiRouteCurrent; centerState?: SchedulerCenterState }) {
+  api.route.navigate("scheduler-detail", {
+    id: input.id,
+    entry: input.entry,
+    returnRoute: input.returnRoute || routeParams(api).returnRoute,
+    centerState: input.centerState,
+  })
 }
 
 export function filterSchedulerJobs(
@@ -57,39 +76,101 @@ export function filterSchedulerJobs(
   const needle = options.query?.trim().toLowerCase() || ""
   const problems = new Set<SchedulerHealth>(["disabled", "missing", "drifted", "error"])
   return jobs.filter((job) => {
-    if (needle && !`${job.name} ${job.slug} ${job.workdir}`.toLowerCase().includes(needle)) return false
+    if (needle && !`${job.name} ${job.slug} ${job.workdir} ${job.scheduleText} ${job.model || ""} ${job.agent || ""}`.toLowerCase().includes(needle)) return false
     if (options.scopeId && job.scopeId !== options.scopeId) return false
-    if (options.filter === "running" && job.health !== "running") return false
+    if (options.filter === "active" && job.enabled === false) return false
     if (options.filter === "paused" && job.health !== "paused") return false
     if (options.filter === "problems" && !problems.has(job.health)) return false
     return true
   })
 }
 
-function createStatusStore(api: TuiPluginApi) {
+export type StatusStoreOptions = {
+  schedulerRoot?: string
+  loadStatus?: () => SchedulerStatusSnapshot
+  debounceMs?: number
+  fallbackMs?: number
+  verificationMs?: number
+}
+
+export function createStatusStore(api: TuiPluginApi, options: StatusStoreOptions = {}) {
   const [snapshot, setSnapshot] = createSignal(EMPTY)
   const [loading, setLoading] = createSignal(false)
   const [error, setError] = createSignal<string>()
+  let refreshPending = false
+  let debounceTimer: ReturnType<typeof setTimeout> | undefined
+  let fallbackTimer: ReturnType<typeof setInterval> | undefined
+  let watcher: FSWatcher | undefined
+  let watcherWarningShown = false
 
   const refresh = async () => {
-    if (loading()) return
+    if (loading()) {
+      refreshPending = true
+      return
+    }
     setLoading(true)
+    do {
+      refreshPending = false
+      try {
+        setSnapshot(options.loadStatus?.() || getSchedulerStatus({ allScopes: true, includeLegacy: true, verifySystem: true }))
+        setError(undefined)
+      } catch (cause) {
+        const message = cause instanceof Error ? cause.message : String(cause)
+        setError(message)
+        api.ui.toast({ variant: "error", title: "Scheduler", message })
+      }
+    } while (refreshPending)
+    setLoading(false)
+  }
+
+  const scheduleRefresh = () => {
+    if (debounceTimer) clearTimeout(debounceTimer)
+    debounceTimer = setTimeout(() => void refresh(), options.debounceMs ?? 250)
+  }
+
+  const schedulerRoot = options.schedulerRoot || join(homedir(), ".config", "opencode", "scheduler")
+  const startFallback = () => {
+    if (fallbackTimer) return
+    if (!watcherWarningShown) {
+      watcherWarningShown = true
+      console.warn("[opencode-scheduler] scheduler file watching unavailable; using 2 second refresh fallback")
+    }
+    fallbackTimer = setInterval(() => {
+      void refresh()
+      startWatcher()
+    }, options.fallbackMs ?? 2_000)
+  }
+  const startWatcher = () => {
+    if (watcher || !existsSync(schedulerRoot)) {
+      if (!watcher) startFallback()
+      return
+    }
     try {
-      setSnapshot(getSchedulerStatus({ allScopes: true, includeLegacy: true, verifySystem: true }))
-      setError(undefined)
-    } catch (cause) {
-      const message = cause instanceof Error ? cause.message : String(cause)
-      setError(message)
-      api.ui.toast({ variant: "error", title: "Scheduler", message })
-    } finally {
-      setLoading(false)
+      watcher = watch(schedulerRoot, { recursive: true }, scheduleRefresh)
+      watcher.on("error", () => {
+        watcher?.close()
+        watcher = undefined
+        startFallback()
+      })
+      if (fallbackTimer) {
+        clearInterval(fallbackTimer)
+        fallbackTimer = undefined
+      }
+    } catch {
+      startFallback()
     }
   }
 
   void refresh()
-  const timer = setInterval(() => void refresh(), 10_000)
-  api.lifecycle.onDispose(() => clearInterval(timer))
-  return { snapshot, loading, error, refresh }
+  startWatcher()
+  const verificationTimer = setInterval(() => void refresh(), options.verificationMs ?? 10_000)
+  api.lifecycle.onDispose(() => {
+    clearInterval(verificationTimer)
+    if (fallbackTimer) clearInterval(fallbackTimer)
+    if (debounceTimer) clearTimeout(debounceTimer)
+    watcher?.close()
+  })
+  return { snapshot, loading, error, refresh, scheduleRefresh }
 }
 
 function statusIcon(status: SchedulerHealth) {
@@ -117,34 +198,72 @@ function relativeTime(value: string | null) {
   return `${Math.round(abs / 86_400_000)}d ${suffix}`
 }
 
-function Sidebar(props: { api: TuiPluginApi; store: ReturnType<typeof createStatusStore> }) {
-  const jobs = createMemo(() => props.store.snapshot().jobs.slice(0, 5))
+export function Sidebar(props: { api: TuiPluginApi; store: ReturnType<typeof createStatusStore> }) {
+  const [open, setOpen] = createSignal(props.api.kv?.get("scheduler.sidebar.expanded", true) ?? true)
+  const currentScopeId = createMemo(() => deriveStatusScopeId(props.api.state.path.directory))
+  const jobs = createMemo(() => props.store.snapshot().jobs.filter((job) => job.scopeId === currentScopeId()))
+  const recentJobs = createMemo(() => jobs().slice(0, 5))
+  const scopedOrphans = createMemo(() => props.store.snapshot().orphans.filter((orphan) => orphan.scopeId === currentScopeId()))
+  const active = createMemo(() => jobs().filter((job) => job.enabled !== false).length)
+  const paused = createMemo(() => jobs().filter((job) => job.enabled === false || job.health === "paused").length)
   const problems = createMemo(() => {
-    const summary = props.store.snapshot().summary
-    return summary.disabled + summary.missing + summary.drifted + summary.orphaned + summary.error
+    const bad = new Set<SchedulerHealth>(["disabled", "missing", "drifted", "error"])
+    return jobs().filter((job) => bad.has(job.health)).length + scopedOrphans().length
   })
-  const openCenter = () => props.api.route.navigate("scheduler", { returnRoute: props.api.route.current })
-  const openDetail = (id: string) => props.api.route.navigate("scheduler-detail", { id, returnRoute: props.api.route.current })
+  const toggle = () => {
+    const next = !open()
+    setOpen(next)
+    props.api.kv?.set("scheduler.sidebar.expanded", next)
+  }
+  const openCenter = (filter: Filter = "all") => props.api.route.navigate("scheduler", {
+    entry: "command",
+    returnRoute: props.api.route.current,
+    centerState: { scope: "current", filter },
+  })
+  const openDetail = (jobId: string) => navigateToDetail(props.api, {
+    id: jobId,
+    entry: "sidebar",
+    returnRoute: props.api.route.current,
+  })
+  const counters: Array<{ id: string; label: string; value: () => number; filter: Filter; color: () => unknown }> = [
+    { id: "all", label: "Σ All", value: () => jobs().length, filter: "all", color: () => props.api.theme.current.text },
+    { id: "active", label: "● Active", value: active, filter: "active", color: () => props.api.theme.current.success },
+    { id: "paused", label: "Ⅱ Paused", value: paused, filter: "paused", color: () => props.api.theme.current.textMuted },
+    { id: "problems", label: "! Problems", value: problems, filter: "problems", color: () => problems() ? props.api.theme.current.warning : props.api.theme.current.textMuted },
+  ]
   return (
     <box gap={1} paddingTop={1}>
-      <box flexDirection="row" justifyContent="space-between" onMouseUp={openCenter}>
+      <box id="scheduler-sidebar-toggle" flexDirection="row" gap={1} paddingRight={1} onMouseDown={toggle}>
+        <text fg={props.api.theme.current.text}>{open() ? "▼" : "▶"}</text>
         <text fg={props.api.theme.current.text}><b>Scheduled tasks</b></text>
-        <text fg={problems() ? props.api.theme.current.warning : props.api.theme.current.textMuted}>
-          {props.store.snapshot().summary.total}{problems() ? ` · ${problems()} issues` : ""}
-        </text>
       </box>
-      <For each={jobs()}>
-        {(job) => (
-          <box paddingLeft={1} onMouseUp={() => openDetail(job.id)}>
-            <text fg={statusColor(props.api, job.health)}>{statusIcon(job.health)} <span style={{ fg: props.api.theme.current.text }}>{job.name}</span></text>
-            <text fg={props.api.theme.current.textMuted}>{job.scheduleText} · {relativeTime(job.nextRunAt)}</text>
-          </box>
-        )}
-      </For>
-      <Show when={!jobs().length} fallback={null}>
-        <text fg={props.api.theme.current.textMuted}>No scheduled tasks</text>
+      <Show when={open()}>
+        <For each={recentJobs()}>
+          {(job) => (
+            <box id={`scheduler-sidebar-job-${job.id}`} paddingLeft={1} paddingRight={1} onMouseDown={() => openDetail(job.id)}>
+              <text fg={statusColor(props.api, job.health)}>{statusIcon(job.health)} <span style={{ fg: props.api.theme.current.text }}>{job.name}</span></text>
+              <text fg={props.api.theme.current.textMuted}>{job.scheduleText} · {relativeTime(job.nextRunAt)}</text>
+            </box>
+          )}
+        </For>
+        <Show when={!recentJobs().length} fallback={null}>
+          <text fg={props.api.theme.current.textMuted}>No tasks in this project</text>
+        </Show>
       </Show>
-      <text fg={props.api.theme.current.primary} onMouseUp={openCenter}>Open task center →</text>
+      <box flexDirection="row" justifyContent="space-between" alignItems="center">
+        <box flexDirection="row" flexWrap="wrap" gap={1} flexGrow={1}>
+          <For each={counters}>
+            {(item) => (
+              <box id={`scheduler-sidebar-${item.id}`} paddingRight={1} onMouseDown={() => openCenter(item.filter)}>
+                <text fg={item.color() as never}>{item.label} {item.value()}</text>
+              </box>
+            )}
+          </For>
+        </box>
+        <box id="scheduler-sidebar-open" paddingLeft={1} paddingRight={1} onMouseDown={() => openCenter("all")}>
+          <text fg={props.api.theme.current.primary}><b>→</b></text>
+        </box>
+      </box>
     </box>
   )
 }
@@ -161,11 +280,11 @@ function Header(props: { api: TuiPluginApi; title: string; back?: () => void; re
   )
 }
 
-export function TaskCenter(props: { api: TuiPluginApi; store: ReturnType<typeof createStatusStore>; returnRoute?: TuiRouteCurrent }) {
+export function TaskCenter(props: { api: TuiPluginApi; store: ReturnType<typeof createStatusStore>; returnRoute?: TuiRouteCurrent; initialState?: SchedulerCenterState }) {
   const dimensions = useTerminalDimensions()
-  const [query, setQuery] = createSignal("")
-  const [filter, setFilter] = createSignal<Filter>("all")
-  const [scope, setScope] = createSignal<"all" | "current">("all")
+  const [query, setQuery] = createSignal(props.initialState?.query || "")
+  const [filter, setFilter] = createSignal<Filter>(props.initialState?.filter || "all")
+  const [scope, setScope] = createSignal<ScopeMode>(props.initialState?.scope || "current")
   const [focus, setFocus] = createSignal<TaskCenterFocus>("list")
   const [selectedIndex, setSelectedIndex] = createSignal(0)
   let root: BoxRenderable | undefined
@@ -177,6 +296,21 @@ export function TaskCenter(props: { api: TuiPluginApi; store: ReturnType<typeof 
     filter: filter(),
     scopeId: scope() === "current" ? currentScopeId() : undefined,
   }))
+  const orphans = createMemo(() => {
+    if (filter() === "active" || filter() === "paused") return []
+    const needle = query().trim().toLowerCase()
+    return props.store.snapshot().orphans.filter((orphan) => {
+      if (scope() === "current" && orphan.scopeId !== currentScopeId()) return false
+      if (needle && !`${orphan.slug} ${orphan.backend}`.toLowerCase().includes(needle)) return false
+      return true
+    })
+  })
+  const centerState = (): SchedulerCenterState => ({
+    scope: scope(),
+    filter: filter(),
+    query: query(),
+    selectedId: jobs()[selectedIndex()]?.id,
+  })
   const focusList = () => {
     setFocus("list")
     root?.focus()
@@ -192,13 +326,15 @@ export function TaskCenter(props: { api: TuiPluginApi; store: ReturnType<typeof 
   }
   const openSelected = () => {
     const selected = jobs()[selectedIndex()]
-    if (selected) navigateToDetail(props.api, selected.id, props.returnRoute)
+    if (selected) navigateToDetail(props.api, { id: selected.id, entry: "center", returnRoute: props.returnRoute, centerState: centerState() })
   }
   const close = () => navigateBack(props.api, props.returnRoute)
 
   createEffect(() => {
     const last = jobs().length - 1
-    setSelectedIndex((current) => last < 0 ? 0 : Math.min(current, last))
+    const requested = props.initialState?.selectedId
+    const restored = requested ? jobs().findIndex((job) => job.id === requested) : -1
+    setSelectedIndex((current) => restored >= 0 ? restored : last < 0 ? 0 : Math.min(current, last))
   })
 
   createEffect(() => {
@@ -285,28 +421,35 @@ export function TaskCenter(props: { api: TuiPluginApi; store: ReturnType<typeof 
     >
       <Header api={props.api} title="Scheduled tasks" refresh={() => void props.store.refresh()} refreshId="scheduler-refresh" loading={props.store.loading()} />
       <input
+        id="scheduler-search"
         ref={(element: InputRenderable) => (searchInput = element)}
         value={query()}
         placeholder="Search scheduled tasks"
-        onInput={setQuery}
+        onInput={(value) => { setQuery(String(value)); setSelectedIndex(0) }}
         onSubmit={focusList}
-        onMouseUp={focusSearch}
+        onMouseDown={() => { setFocus("search"); searchInput?.focus() }}
         focused={focus() === "search"}
         backgroundColor={props.api.theme.current.backgroundElement}
         textColor={props.api.theme.current.text}
         focusedTextColor={props.api.theme.current.text}
       />
-      <box flexDirection="row" flexWrap="wrap" gap={2} paddingTop={1} paddingBottom={1}>
-        <text id="scheduler-scope-all" fg={scope() === "all" ? props.api.theme.current.primary : props.api.theme.current.textMuted} onMouseUp={() => { setScope("all"); focusList() }}>All projects</text>
-        <text id="scheduler-scope-current" fg={scope() === "current" ? props.api.theme.current.primary : props.api.theme.current.textMuted} onMouseUp={() => { setScope("current"); focusList() }}>Current project</text>
+      <box flexDirection="row" flexWrap="wrap" gap={1} paddingTop={1} paddingBottom={1}>
+        <box id="scheduler-scope-all" paddingLeft={1} paddingRight={1} backgroundColor={scope() === "all" ? props.api.theme.current.backgroundElement : undefined} onMouseDown={() => { setScope("all"); setSelectedIndex(0); focusList() }}>
+          <text fg={scope() === "all" ? props.api.theme.current.primary : props.api.theme.current.textMuted}>All projects</text>
+        </box>
+        <box id="scheduler-scope-current" paddingLeft={1} paddingRight={1} backgroundColor={scope() === "current" ? props.api.theme.current.backgroundElement : undefined} onMouseDown={() => { setScope("current"); setSelectedIndex(0); focusList() }}>
+          <text fg={scope() === "current" ? props.api.theme.current.primary : props.api.theme.current.textMuted}>Current project</text>
+        </box>
         <text fg={props.api.theme.current.border}>│</text>
-        <For each={["all", "running", "paused", "problems"] as Filter[]}>
+        <For each={["all", "active", "paused", "problems"] as Filter[]}>
           {(item) => (
-            <text
+            <box
               id={`scheduler-filter-${item}`}
-              fg={filter() === item ? props.api.theme.current.primary : props.api.theme.current.textMuted}
-              onMouseUp={() => { setFilter(item); focusList() }}
-            >{item === "all" ? "All" : item === "running" ? "Running" : item === "paused" ? "Paused" : "Problems"}</text>
+              paddingLeft={1}
+              paddingRight={1}
+              backgroundColor={filter() === item ? props.api.theme.current.backgroundElement : undefined}
+              onMouseDown={() => { setFilter(item); setSelectedIndex(0); focusList() }}
+            ><text fg={filter() === item ? props.api.theme.current.primary : props.api.theme.current.textMuted}>{item === "all" ? "All" : item === "active" ? "Active" : item === "paused" ? "Paused" : "Problems"}</text></box>
           )}
         </For>
       </box>
@@ -327,10 +470,10 @@ export function TaskCenter(props: { api: TuiPluginApi; store: ReturnType<typeof 
                 flexDirection="column"
                 paddingLeft={1}
                 backgroundColor={selectedIndex() === index() ? props.api.theme.current.backgroundElement : props.api.theme.current.background}
-                onMouseUp={() => {
+                onMouseDown={() => {
                   setSelectedIndex(index())
                   focusList()
-                  navigateToDetail(props.api, job.id, props.returnRoute)
+                  navigateToDetail(props.api, { id: job.id, entry: "center", returnRoute: props.returnRoute, centerState: centerState() })
                 }}
               >
                 <text wrapMode="none" fg={statusColor(props.api, job.health)}>{selectedIndex() === index() ? "▶" : " "} {statusIcon(job.health)} <span style={{ fg: props.api.theme.current.text }}>{job.name}</span></text>
@@ -340,10 +483,10 @@ export function TaskCenter(props: { api: TuiPluginApi; store: ReturnType<typeof 
           </For>
         </scrollbox>
       </Show>
-      <Show when={props.store.snapshot().orphans.length} fallback={null}>
+      <Show when={orphans().length} fallback={null}>
         <box paddingTop={1}>
-          <text fg={props.api.theme.current.warning}><b>Orphaned OS tasks ({props.store.snapshot().orphans.length})</b></text>
-          <For each={props.store.snapshot().orphans}>
+          <text fg={props.api.theme.current.warning}><b>Orphaned OS tasks ({orphans().length})</b></text>
+          <For each={orphans()}>
             {(orphan) => <text fg={props.api.theme.current.warning} onMouseUp={() => openOrphanDialog(props.api, props.store, orphan)}>! {orphan.slug} · {orphan.backend} · click to inspect</text>}
           </For>
         </box>
@@ -405,7 +548,7 @@ function openLogs(api: TuiPluginApi, job: SchedulerJobStatus) {
   api.ui.dialog.setSize("xlarge")
 }
 
-function confirmDelete(api: TuiPluginApi, store: ReturnType<typeof createStatusStore>, job: SchedulerJobStatus) {
+function confirmDelete(api: TuiPluginApi, store: ReturnType<typeof createStatusStore>, job: SchedulerJobStatus, onDeleted: () => void) {
   const DialogConfirm = api.ui.DialogConfirm
   api.ui.dialog.replace(() => (
     <DialogConfirm
@@ -414,7 +557,40 @@ function confirmDelete(api: TuiPluginApi, store: ReturnType<typeof createStatusS
       onConfirm={() => {
         perform(api, store, () => deleteSchedulerJob({ id: job.id }), "Task deleted")
         api.ui.dialog.clear()
-        api.route.navigate("scheduler")
+        onDeleted()
+      }}
+      onCancel={() => api.ui.dialog.clear()}
+    />
+  ))
+}
+
+function confirmMove(
+  api: TuiPluginApi,
+  store: ReturnType<typeof createStatusStore>,
+  job: SchedulerJobStatus,
+  targetWorkdir: string,
+  route: Omit<SchedulerRouteParams, "id">,
+) {
+  const DialogConfirm = api.ui.DialogConfirm
+  api.ui.dialog.replace(() => (
+    <DialogConfirm
+      title={`Move ${job.name}?`}
+      message={`From: ${job.workdir}\nTo: ${targetWorkdir}\n\nThe operating-system schedule and saved run history will move together.`}
+      onConfirm={() => {
+        try {
+          const moved = moveSchedulerJob({ id: job.id }, targetWorkdir)
+          api.ui.toast({ variant: "success", title: "Scheduler", message: "Task moved to current project" })
+          api.ui.dialog.clear()
+          void store.refresh()
+          const movedId = `${moved.scopeId}:${moved.slug}`
+          api.route.navigate("scheduler-detail", {
+            ...route,
+            id: movedId,
+            centerState: route.centerState ? { ...route.centerState, selectedId: movedId } : undefined,
+          })
+        } catch (error) {
+          api.ui.toast({ variant: "error", title: "Scheduler", message: error instanceof Error ? error.message : String(error) })
+        }
       }}
       onCancel={() => api.ui.dialog.clear()}
     />
@@ -443,18 +619,32 @@ function Action(props: { api: TuiPluginApi; label: string; onSelect: () => void;
       paddingLeft={1}
       paddingRight={1}
       backgroundColor={props.api.theme.current.backgroundElement}
-      onMouseUp={props.onSelect}
+      onMouseDown={props.onSelect}
     >
       <text fg={props.warning ? props.api.theme.current.warning : props.api.theme.current.primary}>{props.label}</text>
     </box>
   )
 }
 
-export function Detail(props: { api: TuiPluginApi; store: ReturnType<typeof createStatusStore>; id?: string; returnRoute?: TuiRouteCurrent }) {
+export function Detail(props: {
+  api: TuiPluginApi
+  store: ReturnType<typeof createStatusStore>
+  id?: string
+  entry?: SchedulerRouteParams["entry"]
+  returnRoute?: TuiRouteCurrent
+  centerState?: SchedulerCenterState
+}) {
   const dimensions = useTerminalDimensions()
   let root: BoxRenderable | undefined
   const job = createMemo(() => props.store.snapshot().jobs.find((item) => item.id === props.id))
-  const backToCenter = () => props.api.route.navigate("scheduler", { returnRoute: props.returnRoute })
+  const currentScopeId = createMemo(() => deriveStatusScopeId(props.api.state.path.directory))
+  const back = () => {
+    if (props.entry === "center") {
+      props.api.route.navigate("scheduler", { entry: "command", returnRoute: props.returnRoute, centerState: props.centerState })
+      return
+    }
+    navigateBack(props.api, props.returnRoute)
+  }
   createEffect(() => {
     const target = root
     if (!target) return
@@ -463,7 +653,7 @@ export function Detail(props: { api: TuiPluginApi; store: ReturnType<typeof crea
       targetMode: "focus-within",
       priority: 100,
       commands: [
-        { name: "scheduler.detail.back", run: backToCenter },
+        { name: "scheduler.detail.back", run: back },
         { name: "scheduler.detail.refresh", run: () => void props.store.refresh() },
       ],
       bindings: [
@@ -494,7 +684,7 @@ export function Detail(props: { api: TuiPluginApi; store: ReturnType<typeof crea
       focusable
       focused
     >
-      <Header api={props.api} title={job()?.name || "Scheduled task"} back={backToCenter} refresh={() => void props.store.refresh()} refreshId="scheduler-detail-refresh" loading={props.store.loading()} />
+      <Header api={props.api} title={job()?.name || "Scheduled task"} back={back} refresh={() => void props.store.refresh()} refreshId="scheduler-detail-refresh" loading={props.store.loading()} />
       <Show when={job()} fallback={<text fg={props.api.theme.current.warning}>Task not found. Refresh or return to the task center.</text>}>
         {(item) => (
           <scrollbox flexGrow={1}>
@@ -536,8 +726,15 @@ export function Detail(props: { api: TuiPluginApi; store: ReturnType<typeof crea
                   onSelect={() => perform(props.api, props.store, () => item().enabled ? pauseSchedulerJob({ id: item().id }) : resumeSchedulerJob({ id: item().id }), item().enabled ? "Task paused" : "Task resumed")}
                 />
                 <Action api={props.api} label="Edit frequency" onSelect={() => openScheduleDialog(props.api, props.store, item())} />
+                <Show when={item().scopeId !== currentScopeId()} fallback={null}>
+                  <Action api={props.api} label="Move to current project" onSelect={() => confirmMove(props.api, props.store, item(), props.api.state.path.directory, {
+                    entry: props.entry,
+                    returnRoute: props.returnRoute,
+                    centerState: props.centerState,
+                  })} />
+                </Show>
                 <Action api={props.api} label="View logs" onSelect={() => openLogs(props.api, item())} />
-                <Action api={props.api} label="Delete" warning onSelect={() => confirmDelete(props.api, props.store, item())} />
+                <Action api={props.api} label="Delete" warning onSelect={() => confirmDelete(props.api, props.store, item(), back)} />
               </box>
               <box paddingTop={1}>
                 <text fg={props.api.theme.current.text}><b>Run history</b></text>
@@ -568,11 +765,23 @@ const tui: TuiPlugin = async (api) => {
   api.route.register([
     {
       name: "scheduler",
-      render: ({ params }) => <TaskCenter api={api} store={store} returnRoute={params?.returnRoute as TuiRouteCurrent | undefined} />,
+      render: ({ params }) => <TaskCenter
+        api={api}
+        store={store}
+        returnRoute={params?.returnRoute as TuiRouteCurrent | undefined}
+        initialState={params?.centerState as SchedulerCenterState | undefined}
+      />,
     },
     {
       name: "scheduler-detail",
-      render: ({ params }) => <Detail api={api} store={store} id={typeof params?.id === "string" ? params.id : undefined} returnRoute={params?.returnRoute as TuiRouteCurrent | undefined} />,
+      render: ({ params }) => <Detail
+        api={api}
+        store={store}
+        id={typeof params?.id === "string" ? params.id : undefined}
+        entry={params?.entry as SchedulerRouteParams["entry"]}
+        returnRoute={params?.returnRoute as TuiRouteCurrent | undefined}
+        centerState={params?.centerState as SchedulerCenterState | undefined}
+      />,
     },
   ])
   api.command?.register(() => [{
@@ -585,7 +794,7 @@ const tui: TuiPlugin = async (api) => {
     onSelect: () => {
       const returnRoute = api.route.current
       api.ui.dialog.clear()
-      api.route.navigate("scheduler", { returnRoute })
+      api.route.navigate("scheduler", { entry: "command", returnRoute, centerState: { scope: "current", filter: "all" } })
     },
   }])
 }

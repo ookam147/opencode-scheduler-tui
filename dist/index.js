@@ -18838,7 +18838,7 @@ function tool(input) {
 }
 tool.schema = exports_external;
 // src/index.ts
-import { appendFileSync, createWriteStream, existsSync as existsSync2, mkdirSync, readdirSync as readdirSync2, readFileSync as readFileSync2, rmSync, writeFileSync, unlinkSync } from "fs";
+import { appendFileSync, createWriteStream, existsSync as existsSync2, mkdirSync, readdirSync as readdirSync2, readFileSync as readFileSync2, renameSync, rmSync, writeFileSync, unlinkSync } from "fs";
 import { basename as basename2, dirname, join as join2, resolve as resolvePath2 } from "path";
 import { homedir as homedir2, platform } from "os";
 import { execFileSync as execFileSync2, execSync, spawn } from "child_process";
@@ -19335,6 +19335,9 @@ function normalizeWorkdirPath(input) {
   if (!trimmed)
     return homedir2();
   return resolvePath2(trimmed);
+}
+function resolveToolDirectory(explicit, contextDirectory) {
+  return normalizeWorkdirPath(explicit || contextDirectory);
 }
 function fnv1a642(input) {
   let hash2 = 0xcbf29ce484222325n;
@@ -21591,6 +21594,136 @@ function removeOrphanArtifact(artifactId2, confirm = false) {
   }
   return { dryRun: !confirm, artifact };
 }
+function moveScopedFile(source, destination, moved) {
+  if (!existsSync2(source))
+    return;
+  if (existsSync2(destination))
+    throw new Error(`Cannot move task data because ${destination} already exists.`);
+  ensureDir(dirname(destination));
+  renameSync(source, destination);
+  moved.push({ source, destination });
+}
+function rollbackMovedFiles(moved, errors3) {
+  for (const item of [...moved].reverse()) {
+    try {
+      if (!existsSync2(item.destination))
+        continue;
+      ensureDir(dirname(item.source));
+      renameSync(item.destination, item.source);
+    } catch (error45) {
+      errors3.push(error45 instanceof Error ? error45.message : String(error45));
+    }
+  }
+}
+function runJobUpdateTransaction(transaction) {
+  try {
+    if (transaction.scopeChanged)
+      transaction.uninstallOriginal();
+    transaction.saveUpdated();
+    if (transaction.updatedEnabled) {
+      transaction.installUpdated();
+      transaction.verifyUpdated();
+    }
+    if (transaction.scopeChanged) {
+      transaction.moveData();
+      transaction.deleteOriginal();
+    }
+  } catch (error45) {
+    const message = error45 instanceof Error ? error45.message : String(error45);
+    const rollbackErrors = [];
+    try {
+      transaction.cleanupUpdated();
+    } catch (rollbackError) {
+      rollbackErrors.push(rollbackError instanceof Error ? rollbackError.message : String(rollbackError));
+    }
+    transaction.rollbackData(rollbackErrors);
+    try {
+      transaction.removeUpdated();
+      transaction.restoreOriginal();
+      if (transaction.originalEnabled) {
+        transaction.installOriginal();
+        transaction.verifyOriginal();
+      }
+    } catch (rollbackError) {
+      rollbackErrors.push(rollbackError instanceof Error ? rollbackError.message : String(rollbackError));
+    }
+    transaction.audit(message, rollbackErrors);
+    const suffix = rollbackErrors.length ? ` Rollback diagnostics: ${rollbackErrors.join("; ")}` : "";
+    throw new Error(`Failed to update job: ${message}.${suffix}`);
+  }
+}
+function persistUpdatedJob(job, updatedJob) {
+  const oldScopeId = job.scopeId || deriveScopeId(job.workdir || homedir2());
+  const nextScopeId = updatedJob.scopeId || deriveScopeId(updatedJob.workdir || homedir2());
+  const scopeChanged = oldScopeId !== nextScopeId;
+  const moved = [];
+  if (scopeChanged) {
+    const collision = loadScopedJob(nextScopeId, updatedJob.slug);
+    if (collision)
+      throw new Error(`Task "${updatedJob.slug}" already exists in the target project.`);
+    const lockPath = join2(scopeLocksDir(oldScopeId), `${job.slug}.json`);
+    if (existsSync2(lockPath))
+      throw new Error(`Task "${job.name}" is currently running and cannot be moved.`);
+  }
+  runJobUpdateTransaction({
+    scopeChanged,
+    updatedEnabled: updatedJob.enabled !== false,
+    originalEnabled: job.enabled !== false,
+    uninstallOriginal: () => uninstallJob(job),
+    saveUpdated: () => saveJob(updatedJob),
+    installUpdated: () => {
+      installJob(updatedJob);
+    },
+    verifyUpdated: () => {
+      verifyJobInstalled(updatedJob);
+    },
+    moveData: () => {
+      moveScopedFile(join2(scopeRunsDir(oldScopeId), `${job.slug}.jsonl`), join2(scopeRunsDir(nextScopeId), `${updatedJob.slug}.jsonl`), moved);
+      moveScopedFile(scopedLogPath(oldScopeId, job.slug), scopedLogPath(nextScopeId, updatedJob.slug), moved);
+    },
+    deleteOriginal: () => {
+      const oldPath = jobFilePath(oldScopeId, job.slug);
+      if (existsSync2(oldPath))
+        unlinkSync(oldPath);
+    },
+    cleanupUpdated: () => uninstallJob(updatedJob),
+    rollbackData: (errors3) => rollbackMovedFiles(moved, errors3),
+    removeUpdated: () => {
+      if (!scopeChanged)
+        return;
+      const newPath = jobFilePath(nextScopeId, updatedJob.slug);
+      if (existsSync2(newPath))
+        unlinkSync(newPath);
+    },
+    restoreOriginal: () => saveJob(job),
+    installOriginal: () => {
+      installJob(job);
+    },
+    verifyOriginal: () => {
+      verifyJobInstalled(job);
+    },
+    audit: (error45, rollbackErrors) => appendAudit("update.rollback", { slug: job.slug, scopeId: job.scopeId, error: error45, rollbackErrors })
+  });
+  appendAudit("job.update", { slug: updatedJob.slug, scopeId: updatedJob.scopeId, previousScopeId: job.scopeId });
+  return updatedJob;
+}
+function moveSchedulerJob(locator, targetWorkdir) {
+  const job = locateSchedulerJob(locator);
+  const workdir = normalizeWorkdirPath(targetWorkdir);
+  const scopeId = deriveScopeId(workdir);
+  if ((job.scopeId || deriveScopeId(job.workdir || homedir2())) === scopeId)
+    return job;
+  const updatedJob = {
+    ...job,
+    scopeId,
+    workdir,
+    updatedAt: new Date().toISOString()
+  };
+  updatedJob.invocation = buildOpencodeArgs(updatedJob);
+  const moved = persistUpdatedJob(job, updatedJob);
+  appendAudit("job.move", { slug: moved.slug, fromScopeId: job.scopeId, toScopeId: moved.scopeId, workdir });
+  return moved;
+}
 function formatStatus(snapshot) {
   const lines = [
     `Scheduled Tasks (${snapshot.summary.total})`,
@@ -21648,10 +21781,10 @@ var SchedulerPlugin = async () => {
           timeoutSeconds: tool.schema.number().optional().describe("Optional: max runtime in seconds (0 disables)."),
           format: tool.schema.string().optional().describe("Optional: output format ('text' or 'json').")
         },
-        async execute(args) {
+        async execute(args, context) {
           const format = normalizeFormat(args.format);
           const slug = args.source ? `${args.source}-${slugify2(args.name)}` : slugify2(args.name);
-          const workdir = normalizeWorkdirPath(args.workdir || process.cwd());
+          const workdir = resolveToolDirectory(args.workdir, context.directory);
           const scopeId = deriveScopeId(workdir);
           if (loadScopedJob(scopeId, slug)) {
             return errorResult(format, `Job "${slug}" already exists in this workspace scope (${scopeId}). Delete it first or use a different name.`);
@@ -21733,6 +21866,7 @@ var SchedulerPlugin = async () => {
             saveJob(job);
             const backend = installJob(job);
             verifyJobInstalled(job);
+            appendAudit("job.create", { scopeId: job.scopeId, slug: job.slug, backend });
             const platformName = backend;
             const reliabilityLine = backend === "schtasks" ? "Windows note: scheduled runs use Task Scheduler directly. For advanced reliability guarantees, prefer simple cron schedules or split complex jobs." : backend === "cron" ? "Cron note: missed runs during sleep are not replayed. For catch-up behavior, use launchd or systemd when available." : "The job will run at the scheduled time. If your computer was asleep, it will catch up when it wakes.";
             const primaryLine = run.command ? `Command: ${run.command}${run.arguments ? ` ${run.arguments}` : ""}` : `Prompt: ${(run.prompt ?? "").slice(0, 100)}${(run.prompt ?? "").length > 100 ? "..." : ""}`;
@@ -21779,9 +21913,10 @@ Commands:
           verifySystem: tool.schema.boolean().optional().describe("Verify jobs against the OS scheduler and include health/next-run data."),
           format: tool.schema.string().optional().describe("Optional: output format ('text' or 'json').")
         },
-        async execute(args) {
+        async execute(args, context) {
           const format = normalizeFormat(args.format);
-          const scopeId = args.allScopes ? undefined : deriveScopeId(normalizeWorkdirPath(args.scopeRoot || process.cwd()));
+          const scopeRoot = args.scopeRoot || context.directory;
+          const scopeId = args.allScopes ? undefined : deriveScopeId(normalizeWorkdirPath(scopeRoot));
           let jobs = args.allScopes ? loadAllJobsAcrossScopes() : loadAllScopedJobs(scopeId);
           if (args.includeLegacy) {
             jobs = [...jobs, ...loadAllLegacyJobs()];
@@ -21793,7 +21928,7 @@ Commands:
             const snapshot = getSchedulerStatus({
               allScopes: args.allScopes,
               includeLegacy: args.includeLegacy,
-              scopeRoot: args.scopeRoot,
+              scopeRoot,
               verifySystem: true
             });
             if (args.source) {
@@ -21846,12 +21981,12 @@ ${lines.join(`
           scopeRoot: tool.schema.string().optional().describe("Scope root when allScopes is false."),
           format: tool.schema.string().optional().describe("Optional: output format ('text' or 'json').")
         },
-        async execute(args) {
+        async execute(args, context) {
           const format = normalizeFormat(args.format);
           const snapshot = getSchedulerStatus({
             allScopes: args.allScopes,
             includeLegacy: args.includeLegacy,
-            scopeRoot: args.scopeRoot,
+            scopeRoot: args.scopeRoot || context.directory,
             verifySystem: args.verifySystem !== false
           });
           return format === "json" ? JSON.stringify(snapshot, null, 2) : okResult(format, formatStatus(snapshot), snapshot);
@@ -21920,7 +22055,7 @@ ${content.trim()}
           overwrite: tool.schema.boolean().optional().describe("Overwrite existing files (default false)."),
           format: tool.schema.string().optional().describe("Optional: output format ('text' or 'json').")
         },
-        async execute(args) {
+        async execute(args, context) {
           const format = normalizeFormat(args.format);
           const skill = getBuiltinSkill(args.name);
           if (!skill) {
@@ -21929,7 +22064,7 @@ ${content.trim()}
             const label = requested ? `"${requested}"` : "that name";
             return errorResult(format, `No built-in skill found for ${label}. Available: ${available || "(none)"}`);
           }
-          const directory = args.directory ?? process.cwd();
+          const directory = args.directory ?? context.directory;
           const overwrite = args.overwrite === true;
           try {
             const installed = installBuiltinSkill(skill, directory, overwrite);
@@ -22093,52 +22228,10 @@ ${content.trim()}
             return errorResult(format, `Failed to build invocation: ${msg}`);
           }
           try {
-            const oldScopeId = job.scopeId || deriveScopeId(job.workdir || homedir2());
-            const nextScopeId = updatedJob.scopeId || deriveScopeId(updatedJob.workdir || homedir2());
-            const scopeChanged = oldScopeId !== nextScopeId;
-            if (scopeChanged) {
-              uninstallJob(job);
-            }
-            saveJob(updatedJob);
-            if (updatedJob.enabled !== false) {
-              installJob(updatedJob);
-              verifyJobInstalled(updatedJob);
-            }
-            if (scopeChanged) {
-              const oldPath = jobFilePath(oldScopeId, job.slug);
-              if (existsSync2(oldPath)) {
-                try {
-                  unlinkSync(oldPath);
-                } catch {}
-              }
-            }
-            return okResult(format, `Updated job "${updatedJob.name}"`, { job: updatedJob });
+            const persisted = persistUpdatedJob(job, updatedJob);
+            return okResult(format, `Updated job "${persisted.name}"`, { job: persisted });
           } catch (error45) {
-            const msg = error45 instanceof Error ? error45.message : String(error45);
-            const rollbackErrors = [];
-            try {
-              uninstallJob(updatedJob);
-            } catch (rollbackError) {
-              rollbackErrors.push(rollbackError instanceof Error ? rollbackError.message : String(rollbackError));
-            }
-            try {
-              const oldScopeId = job.scopeId || deriveScopeId(job.workdir || homedir2());
-              const nextScopeId = updatedJob.scopeId || deriveScopeId(updatedJob.workdir || homedir2());
-              if (oldScopeId !== nextScopeId) {
-                const newPath = jobFilePath(nextScopeId, updatedJob.slug);
-                if (existsSync2(newPath))
-                  unlinkSync(newPath);
-              }
-              saveJob(job);
-              if (job.enabled !== false) {
-                installJob(job);
-                verifyJobInstalled(job);
-              }
-            } catch (rollbackError) {
-              rollbackErrors.push(rollbackError instanceof Error ? rollbackError.message : String(rollbackError));
-            }
-            appendAudit("update.rollback", { slug: job.slug, scopeId: job.scopeId, error: msg, rollbackErrors });
-            return errorResult(format, `Failed to update job: ${msg}`);
+            return errorResult(format, error45 instanceof Error ? error45.message : String(error45));
           }
         }
       }),
@@ -22392,9 +22485,12 @@ export {
   updateSchedulerJobSchedule,
   schedulerJobLogs,
   runSchedulerJob,
+  runJobUpdateTransaction,
   resumeSchedulerJob,
+  resolveToolDirectory,
   removeOrphanArtifact,
   pauseSchedulerJob,
+  moveSchedulerJob,
   locateSchedulerJob,
   getSchedulerStatus,
   deleteSchedulerJob,
