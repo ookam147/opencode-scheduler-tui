@@ -22388,16 +22388,793 @@ ${logs}`, { job, logPath, logs });
   };
 };
 var src_default = SchedulerPlugin;
+
+// src/tui.tsx
+import { For, Show, createMemo, createSignal, onMount } from "solid-js";
+import { jsxDEV } from "@opentui/solid/jsx-dev-runtime";
+var id = "opencode-scheduler";
+var EMPTY = {
+  scannedAt: "",
+  timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+  jobs: [],
+  orphans: [],
+  diagnostics: [],
+  summary: { total: 0, healthy: 0, running: 0, paused: 0, disabled: 0, missing: 0, drifted: 0, orphaned: 0, error: 0 }
+};
+function filterSchedulerJobs(jobs, options) {
+  const needle = options.query?.trim().toLowerCase() || "";
+  const problems = new Set(["disabled", "missing", "drifted", "error"]);
+  return jobs.filter((job) => {
+    if (needle && !`${job.name} ${job.slug} ${job.workdir}`.toLowerCase().includes(needle))
+      return false;
+    if (options.scopeId && job.scopeId !== options.scopeId)
+      return false;
+    if (options.filter === "running" && job.health !== "running")
+      return false;
+    if (options.filter === "paused" && job.health !== "paused")
+      return false;
+    if (options.filter === "problems" && !problems.has(job.health))
+      return false;
+    return true;
+  });
+}
+function createStatusStore(api2) {
+  const [snapshot, setSnapshot] = createSignal(EMPTY);
+  const [loading, setLoading] = createSignal(false);
+  const [error45, setError] = createSignal();
+  const refresh = async () => {
+    if (loading())
+      return;
+    setLoading(true);
+    try {
+      setSnapshot(getSchedulerStatus({ allScopes: true, includeLegacy: true, verifySystem: true }));
+      setError(undefined);
+    } catch (cause) {
+      const message = cause instanceof Error ? cause.message : String(cause);
+      setError(message);
+      api2.ui.toast({ variant: "error", title: "Scheduler", message });
+    } finally {
+      setLoading(false);
+    }
+  };
+  refresh();
+  const timer = setInterval(() => void refresh(), 1e4);
+  api2.lifecycle.onDispose(() => clearInterval(timer));
+  return { snapshot, loading, error: error45, refresh };
+}
+function statusIcon(status) {
+  if (status === "healthy")
+    return "\u25CF";
+  if (status === "running")
+    return "\u25C9";
+  if (status === "paused")
+    return "\u2161";
+  return "!";
+}
+function statusColor(api2, status) {
+  if (status === "healthy")
+    return api2.theme.current.success;
+  if (status === "running")
+    return api2.theme.current.info;
+  if (status === "paused")
+    return api2.theme.current.textMuted;
+  return api2.theme.current.warning;
+}
+function relativeTime(value) {
+  if (!value)
+    return "\u2014";
+  const delta = Date.parse(value) - Date.now();
+  const abs = Math.abs(delta);
+  const suffix = delta >= 0 ? "from now" : "ago";
+  if (abs < 60000)
+    return "less than a minute";
+  if (abs < 3600000)
+    return `${Math.round(abs / 60000)}m ${suffix}`;
+  if (abs < 86400000)
+    return `${Math.round(abs / 3600000)}h ${suffix}`;
+  return `${Math.round(abs / 86400000)}d ${suffix}`;
+}
+function Sidebar(props) {
+  const jobs = createMemo(() => props.store.snapshot().jobs.slice(0, 5));
+  const problems = createMemo(() => {
+    const summary = props.store.snapshot().summary;
+    return summary.disabled + summary.missing + summary.drifted + summary.orphaned + summary.error;
+  });
+  return /* @__PURE__ */ jsxDEV("box", {
+    gap: 1,
+    paddingTop: 1,
+    children: [
+      /* @__PURE__ */ jsxDEV("box", {
+        flexDirection: "row",
+        justifyContent: "space-between",
+        onMouseUp: () => props.api.route.navigate("scheduler"),
+        children: [
+          /* @__PURE__ */ jsxDEV("text", {
+            fg: props.api.theme.current.text,
+            children: /* @__PURE__ */ jsxDEV("b", {
+              children: "Scheduled tasks"
+            }, undefined, false, undefined, this)
+          }, undefined, false, undefined, this),
+          /* @__PURE__ */ jsxDEV("text", {
+            fg: problems() ? props.api.theme.current.warning : props.api.theme.current.textMuted,
+            children: [
+              props.store.snapshot().summary.total,
+              problems() ? ` \xB7 ${problems()} issues` : ""
+            ]
+          }, undefined, true, undefined, this)
+        ]
+      }, undefined, true, undefined, this),
+      /* @__PURE__ */ jsxDEV(For, {
+        each: jobs(),
+        children: (job) => /* @__PURE__ */ jsxDEV("box", {
+          paddingLeft: 1,
+          onMouseUp: () => props.api.route.navigate("scheduler-detail", { id: job.id }),
+          children: [
+            /* @__PURE__ */ jsxDEV("text", {
+              fg: statusColor(props.api, job.health),
+              children: [
+                statusIcon(job.health),
+                " ",
+                /* @__PURE__ */ jsxDEV("span", {
+                  style: { fg: props.api.theme.current.text },
+                  children: job.name
+                }, undefined, false, undefined, this)
+              ]
+            }, undefined, true, undefined, this),
+            /* @__PURE__ */ jsxDEV("text", {
+              fg: props.api.theme.current.textMuted,
+              children: [
+                job.scheduleText,
+                " \xB7 ",
+                relativeTime(job.nextRunAt)
+              ]
+            }, undefined, true, undefined, this)
+          ]
+        }, undefined, true, undefined, this)
+      }, undefined, false, undefined, this),
+      /* @__PURE__ */ jsxDEV(Show, {
+        when: !jobs().length,
+        children: /* @__PURE__ */ jsxDEV("text", {
+          fg: props.api.theme.current.textMuted,
+          children: "No scheduled tasks"
+        }, undefined, false, undefined, this)
+      }, undefined, false, undefined, this),
+      /* @__PURE__ */ jsxDEV("text", {
+        fg: props.api.theme.current.primary,
+        onMouseUp: () => props.api.route.navigate("scheduler"),
+        children: "Open task center \u2192"
+      }, undefined, false, undefined, this)
+    ]
+  }, undefined, true, undefined, this);
+}
+function Header(props) {
+  return /* @__PURE__ */ jsxDEV("box", {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    paddingBottom: 1,
+    children: [
+      /* @__PURE__ */ jsxDEV("box", {
+        flexDirection: "row",
+        gap: 2,
+        children: [
+          /* @__PURE__ */ jsxDEV(Show, {
+            when: props.back,
+            children: /* @__PURE__ */ jsxDEV("text", {
+              fg: props.api.theme.current.primary,
+              onMouseUp: () => props.back?.(),
+              children: "\u2190 Back"
+            }, undefined, false, undefined, this)
+          }, undefined, false, undefined, this),
+          /* @__PURE__ */ jsxDEV("text", {
+            fg: props.api.theme.current.text,
+            children: /* @__PURE__ */ jsxDEV("b", {
+              children: props.title
+            }, undefined, false, undefined, this)
+          }, undefined, false, undefined, this)
+        ]
+      }, undefined, true, undefined, this),
+      /* @__PURE__ */ jsxDEV("text", {
+        fg: props.api.theme.current.textMuted,
+        onMouseUp: props.refresh,
+        children: props.loading ? "Refreshing\u2026" : "\u21BB Refresh"
+      }, undefined, false, undefined, this)
+    ]
+  }, undefined, true, undefined, this);
+}
+function TaskCenter(props) {
+  const [query, setQuery] = createSignal("");
+  const [filter, setFilter] = createSignal("all");
+  const [scope, setScope] = createSignal("all");
+  const currentScopeId = createMemo(() => deriveStatusScopeId(props.api.state.path.directory));
+  const jobs = createMemo(() => filterSchedulerJobs(props.store.snapshot().jobs, {
+    query: query(),
+    filter: filter(),
+    scopeId: scope() === "current" ? currentScopeId() : undefined
+  }));
+  const options = createMemo(() => jobs().map((job) => ({
+    name: `${statusIcon(job.health)} ${job.name}`,
+    description: `${job.scheduleText} \xB7 next ${relativeTime(job.nextRunAt)} \xB7 ${job.workdir}`,
+    value: job.id
+  })));
+  onMount(() => void props.store.refresh());
+  return /* @__PURE__ */ jsxDEV("box", {
+    width: "100%",
+    height: "100%",
+    padding: 2,
+    flexDirection: "column",
+    children: [
+      /* @__PURE__ */ jsxDEV(Header, {
+        api: props.api,
+        title: "Scheduled tasks",
+        refresh: () => void props.store.refresh(),
+        loading: props.store.loading()
+      }, undefined, false, undefined, this),
+      /* @__PURE__ */ jsxDEV("input", {
+        value: query(),
+        placeholder: "Search scheduled tasks",
+        onInput: setQuery,
+        backgroundColor: props.api.theme.current.backgroundElement,
+        textColor: props.api.theme.current.text,
+        focusedTextColor: props.api.theme.current.text
+      }, undefined, false, undefined, this),
+      /* @__PURE__ */ jsxDEV("box", {
+        flexDirection: "row",
+        gap: 2,
+        paddingTop: 1,
+        paddingBottom: 1,
+        children: [
+          /* @__PURE__ */ jsxDEV("text", {
+            fg: scope() === "all" ? props.api.theme.current.primary : props.api.theme.current.textMuted,
+            onMouseUp: () => setScope("all"),
+            children: "All projects"
+          }, undefined, false, undefined, this),
+          /* @__PURE__ */ jsxDEV("text", {
+            fg: scope() === "current" ? props.api.theme.current.primary : props.api.theme.current.textMuted,
+            onMouseUp: () => setScope("current"),
+            children: "Current project"
+          }, undefined, false, undefined, this),
+          /* @__PURE__ */ jsxDEV("text", {
+            fg: props.api.theme.current.border,
+            children: "\u2502"
+          }, undefined, false, undefined, this),
+          /* @__PURE__ */ jsxDEV(For, {
+            each: ["all", "running", "paused", "problems"],
+            children: (item) => /* @__PURE__ */ jsxDEV("text", {
+              fg: filter() === item ? props.api.theme.current.primary : props.api.theme.current.textMuted,
+              onMouseUp: () => setFilter(item),
+              children: item === "all" ? "All" : item === "running" ? "Running" : item === "paused" ? "Paused" : "Problems"
+            }, undefined, false, undefined, this)
+          }, undefined, false, undefined, this)
+        ]
+      }, undefined, true, undefined, this),
+      /* @__PURE__ */ jsxDEV(Show, {
+        when: options().length,
+        fallback: /* @__PURE__ */ jsxDEV("text", {
+          fg: props.api.theme.current.textMuted,
+          children: "No matching tasks."
+        }, undefined, false, undefined, this),
+        children: /* @__PURE__ */ jsxDEV("select", {
+          options: options(),
+          focused: true,
+          flexGrow: 1,
+          showDescription: true,
+          showScrollIndicator: true,
+          backgroundColor: props.api.theme.current.background,
+          textColor: props.api.theme.current.text,
+          descriptionColor: props.api.theme.current.textMuted,
+          selectedBackgroundColor: props.api.theme.current.backgroundElement,
+          selectedTextColor: props.api.theme.current.text,
+          onSelect: (_, option) => {
+            if (typeof option?.value === "string")
+              props.api.route.navigate("scheduler-detail", { id: option.value });
+          }
+        }, undefined, false, undefined, this)
+      }, undefined, false, undefined, this),
+      /* @__PURE__ */ jsxDEV(Show, {
+        when: props.store.snapshot().orphans.length,
+        children: /* @__PURE__ */ jsxDEV("box", {
+          paddingTop: 1,
+          children: [
+            /* @__PURE__ */ jsxDEV("text", {
+              fg: props.api.theme.current.warning,
+              children: /* @__PURE__ */ jsxDEV("b", {
+                children: [
+                  "Orphaned OS tasks (",
+                  props.store.snapshot().orphans.length,
+                  ")"
+                ]
+              }, undefined, true, undefined, this)
+            }, undefined, false, undefined, this),
+            /* @__PURE__ */ jsxDEV(For, {
+              each: props.store.snapshot().orphans,
+              children: (orphan) => /* @__PURE__ */ jsxDEV("text", {
+                fg: props.api.theme.current.warning,
+                onMouseUp: () => openOrphanDialog(props.api, props.store, orphan),
+                children: [
+                  "! ",
+                  orphan.slug,
+                  " \xB7 ",
+                  orphan.backend,
+                  " \xB7 click to inspect"
+                ]
+              }, undefined, true, undefined, this)
+            }, undefined, false, undefined, this)
+          ]
+        }, undefined, true, undefined, this)
+      }, undefined, false, undefined, this),
+      /* @__PURE__ */ jsxDEV("text", {
+        fg: props.api.theme.current.textMuted,
+        children: "Mouse: click task \xB7 Keyboard: \u2191/\u2193 and Enter \xB7 Refreshes every 10 seconds"
+      }, undefined, false, undefined, this)
+    ]
+  }, undefined, true, undefined, this);
+}
+function perform(api2, store, action, success2) {
+  try {
+    action();
+    api2.ui.toast({ variant: "success", title: "Scheduler", message: success2 });
+    store.refresh();
+  } catch (error45) {
+    api2.ui.toast({ variant: "error", title: "Scheduler", message: error45 instanceof Error ? error45.message : String(error45) });
+  }
+}
+function openScheduleDialog(api2, store, job) {
+  const DialogPrompt = api2.ui.DialogPrompt;
+  api2.ui.dialog.replace(() => /* @__PURE__ */ jsxDEV(DialogPrompt, {
+    title: `Change schedule \xB7 ${job.name}`,
+    description: () => /* @__PURE__ */ jsxDEV("text", {
+      fg: api2.theme.current.textMuted,
+      children: [
+        "Five-field cron expression. Current: ",
+        job.schedule
+      ]
+    }, undefined, true, undefined, this),
+    value: job.schedule,
+    onConfirm: (value) => {
+      perform(api2, store, () => updateSchedulerJobSchedule({ id: job.id }, value), "Schedule updated");
+      api2.ui.dialog.clear();
+    },
+    onCancel: () => api2.ui.dialog.clear()
+  }, undefined, false, undefined, this));
+}
+function openLogs(api2, job) {
+  const Dialog = api2.ui.Dialog;
+  let result;
+  try {
+    result = schedulerJobLogs({ id: job.id }, 300);
+  } catch (error45) {
+    api2.ui.toast({
+      variant: "error",
+      title: "Scheduler",
+      message: error45 instanceof Error ? error45.message : String(error45)
+    });
+    return;
+  }
+  api2.ui.dialog.replace(() => /* @__PURE__ */ jsxDEV(Dialog, {
+    size: "xlarge",
+    onClose: () => api2.ui.dialog.clear(),
+    children: /* @__PURE__ */ jsxDEV("box", {
+      flexDirection: "column",
+      width: "100%",
+      height: "100%",
+      gap: 1,
+      children: [
+        /* @__PURE__ */ jsxDEV("text", {
+          fg: api2.theme.current.text,
+          children: /* @__PURE__ */ jsxDEV("b", {
+            children: [
+              "Logs \xB7 ",
+              job.name
+            ]
+          }, undefined, true, undefined, this)
+        }, undefined, false, undefined, this),
+        /* @__PURE__ */ jsxDEV("text", {
+          fg: api2.theme.current.textMuted,
+          children: result.logPath
+        }, undefined, false, undefined, this),
+        /* @__PURE__ */ jsxDEV("scrollbox", {
+          flexGrow: 1,
+          children: /* @__PURE__ */ jsxDEV("text", {
+            fg: api2.theme.current.text,
+            children: result.logs || "No logs yet."
+          }, undefined, false, undefined, this)
+        }, undefined, false, undefined, this),
+        /* @__PURE__ */ jsxDEV("text", {
+          fg: api2.theme.current.textMuted,
+          onMouseUp: () => api2.ui.dialog.clear(),
+          children: "esc \xB7 close"
+        }, undefined, false, undefined, this)
+      ]
+    }, undefined, true, undefined, this)
+  }, undefined, false, undefined, this));
+  api2.ui.dialog.setSize("xlarge");
+}
+function confirmDelete(api2, store, job) {
+  const DialogConfirm = api2.ui.DialogConfirm;
+  api2.ui.dialog.replace(() => /* @__PURE__ */ jsxDEV(DialogConfirm, {
+    title: `Delete ${job.name}?`,
+    message: "This removes the job configuration and its OS scheduler entry. Logs are retained.",
+    onConfirm: () => {
+      perform(api2, store, () => deleteSchedulerJob({ id: job.id }), "Task deleted");
+      api2.ui.dialog.clear();
+      api2.route.navigate("scheduler");
+    },
+    onCancel: () => api2.ui.dialog.clear()
+  }, undefined, false, undefined, this));
+}
+function openOrphanDialog(api2, store, orphan) {
+  const DialogConfirm = api2.ui.DialogConfirm;
+  const ids = orphan.artifactIds.join(`
+`);
+  api2.ui.dialog.replace(() => /* @__PURE__ */ jsxDEV(DialogConfirm, {
+    title: `Remove orphan ${orphan.slug}?`,
+    message: `Backend: ${orphan.backend}
+Artifacts:
+${ids}
+
+Only these exact scheduler artifacts will be removed.`,
+    onConfirm: () => {
+      perform(api2, store, () => orphan.artifactIds.forEach((artifactId2) => removeOrphanArtifact(artifactId2, true)), "Orphan removed");
+      api2.ui.dialog.clear();
+    },
+    onCancel: () => api2.ui.dialog.clear()
+  }, undefined, false, undefined, this));
+}
+function Action(props) {
+  return /* @__PURE__ */ jsxDEV("box", {
+    paddingLeft: 1,
+    paddingRight: 1,
+    backgroundColor: props.api.theme.current.backgroundElement,
+    onMouseUp: props.onSelect,
+    children: /* @__PURE__ */ jsxDEV("text", {
+      fg: props.warning ? props.api.theme.current.warning : props.api.theme.current.primary,
+      children: props.label
+    }, undefined, false, undefined, this)
+  }, undefined, false, undefined, this);
+}
+function Detail(props) {
+  const job = createMemo(() => props.store.snapshot().jobs.find((item) => item.id === props.id));
+  onMount(() => void props.store.refresh());
+  return /* @__PURE__ */ jsxDEV("box", {
+    width: "100%",
+    height: "100%",
+    padding: 2,
+    flexDirection: "column",
+    children: [
+      /* @__PURE__ */ jsxDEV(Header, {
+        api: props.api,
+        title: job()?.name || "Scheduled task",
+        back: () => props.api.route.navigate("scheduler"),
+        refresh: () => void props.store.refresh(),
+        loading: props.store.loading()
+      }, undefined, false, undefined, this),
+      /* @__PURE__ */ jsxDEV(Show, {
+        when: job(),
+        fallback: /* @__PURE__ */ jsxDEV("text", {
+          fg: props.api.theme.current.warning,
+          children: "Task not found. Refresh or return to the task center."
+        }, undefined, false, undefined, this),
+        children: (item) => /* @__PURE__ */ jsxDEV("scrollbox", {
+          flexGrow: 1,
+          children: /* @__PURE__ */ jsxDEV("box", {
+            gap: 1,
+            paddingRight: 1,
+            children: [
+              /* @__PURE__ */ jsxDEV("text", {
+                fg: statusColor(props.api, item().health),
+                children: /* @__PURE__ */ jsxDEV("b", {
+                  children: [
+                    statusIcon(item().health),
+                    " ",
+                    item().health.toUpperCase()
+                  ]
+                }, undefined, true, undefined, this)
+              }, undefined, false, undefined, this),
+              /* @__PURE__ */ jsxDEV("box", {
+                border: true,
+                borderColor: props.api.theme.current.border,
+                padding: 1,
+                children: [
+                  /* @__PURE__ */ jsxDEV("text", {
+                    fg: props.api.theme.current.text,
+                    children: /* @__PURE__ */ jsxDEV("b", {
+                      children: "Task"
+                    }, undefined, false, undefined, this)
+                  }, undefined, false, undefined, this),
+                  /* @__PURE__ */ jsxDEV("text", {
+                    fg: props.api.theme.current.text,
+                    children: item().prompt || item().command || "No prompt or command"
+                  }, undefined, false, undefined, this)
+                ]
+              }, undefined, true, undefined, this),
+              /* @__PURE__ */ jsxDEV("box", {
+                border: true,
+                borderColor: props.api.theme.current.border,
+                padding: 1,
+                children: [
+                  /* @__PURE__ */ jsxDEV("text", {
+                    fg: props.api.theme.current.text,
+                    children: /* @__PURE__ */ jsxDEV("b", {
+                      children: "Details"
+                    }, undefined, false, undefined, this)
+                  }, undefined, false, undefined, this),
+                  /* @__PURE__ */ jsxDEV("text", {
+                    fg: props.api.theme.current.textMuted,
+                    children: [
+                      "Project  ",
+                      /* @__PURE__ */ jsxDEV("span", {
+                        style: { fg: props.api.theme.current.text },
+                        children: item().workdir
+                      }, undefined, false, undefined, this)
+                    ]
+                  }, undefined, true, undefined, this),
+                  /* @__PURE__ */ jsxDEV("text", {
+                    fg: props.api.theme.current.textMuted,
+                    children: [
+                      "Scope    ",
+                      /* @__PURE__ */ jsxDEV("span", {
+                        style: { fg: props.api.theme.current.text },
+                        children: item().scopeId
+                      }, undefined, false, undefined, this)
+                    ]
+                  }, undefined, true, undefined, this),
+                  /* @__PURE__ */ jsxDEV("text", {
+                    fg: props.api.theme.current.textMuted,
+                    children: [
+                      "Backend  ",
+                      /* @__PURE__ */ jsxDEV("span", {
+                        style: { fg: props.api.theme.current.text },
+                        children: item().backend || "not registered"
+                      }, undefined, false, undefined, this)
+                    ]
+                  }, undefined, true, undefined, this),
+                  /* @__PURE__ */ jsxDEV("text", {
+                    fg: props.api.theme.current.textMuted,
+                    children: [
+                      "Registered ",
+                      /* @__PURE__ */ jsxDEV("span", {
+                        style: { fg: props.api.theme.current.text },
+                        children: item().artifacts.some((artifact) => artifact.registered) ? "yes" : "no"
+                      }, undefined, false, undefined, this)
+                    ]
+                  }, undefined, true, undefined, this),
+                  /* @__PURE__ */ jsxDEV("text", {
+                    fg: props.api.theme.current.textMuted,
+                    children: [
+                      "Model    ",
+                      /* @__PURE__ */ jsxDEV("span", {
+                        style: { fg: props.api.theme.current.text },
+                        children: item().model || "default"
+                      }, undefined, false, undefined, this)
+                    ]
+                  }, undefined, true, undefined, this),
+                  /* @__PURE__ */ jsxDEV("text", {
+                    fg: props.api.theme.current.textMuted,
+                    children: [
+                      "Agent    ",
+                      /* @__PURE__ */ jsxDEV("span", {
+                        style: { fg: props.api.theme.current.text },
+                        children: item().agent || "default"
+                      }, undefined, false, undefined, this)
+                    ]
+                  }, undefined, true, undefined, this),
+                  /* @__PURE__ */ jsxDEV("text", {
+                    fg: props.api.theme.current.textMuted,
+                    children: [
+                      "Timeout  ",
+                      /* @__PURE__ */ jsxDEV("span", {
+                        style: { fg: props.api.theme.current.text },
+                        children: item().timeoutSeconds ? `${item().timeoutSeconds}s` : "default"
+                      }, undefined, false, undefined, this)
+                    ]
+                  }, undefined, true, undefined, this)
+                ]
+              }, undefined, true, undefined, this),
+              /* @__PURE__ */ jsxDEV("box", {
+                border: true,
+                borderColor: props.api.theme.current.border,
+                padding: 1,
+                children: [
+                  /* @__PURE__ */ jsxDEV("text", {
+                    fg: props.api.theme.current.text,
+                    children: /* @__PURE__ */ jsxDEV("b", {
+                      children: "Frequency"
+                    }, undefined, false, undefined, this)
+                  }, undefined, false, undefined, this),
+                  /* @__PURE__ */ jsxDEV("text", {
+                    fg: props.api.theme.current.textMuted,
+                    children: [
+                      "Cron      ",
+                      /* @__PURE__ */ jsxDEV("span", {
+                        style: { fg: props.api.theme.current.text },
+                        children: item().schedule
+                      }, undefined, false, undefined, this)
+                    ]
+                  }, undefined, true, undefined, this),
+                  /* @__PURE__ */ jsxDEV("text", {
+                    fg: props.api.theme.current.textMuted,
+                    children: [
+                      "Readable  ",
+                      /* @__PURE__ */ jsxDEV("span", {
+                        style: { fg: props.api.theme.current.text },
+                        children: item().scheduleText
+                      }, undefined, false, undefined, this)
+                    ]
+                  }, undefined, true, undefined, this),
+                  /* @__PURE__ */ jsxDEV("text", {
+                    fg: props.api.theme.current.textMuted,
+                    children: [
+                      "Timezone  ",
+                      /* @__PURE__ */ jsxDEV("span", {
+                        style: { fg: props.api.theme.current.text },
+                        children: item().timezone
+                      }, undefined, false, undefined, this)
+                    ]
+                  }, undefined, true, undefined, this),
+                  /* @__PURE__ */ jsxDEV("text", {
+                    fg: props.api.theme.current.textMuted,
+                    children: [
+                      "Next run  ",
+                      /* @__PURE__ */ jsxDEV("span", {
+                        style: { fg: props.api.theme.current.text },
+                        children: item().nextRunAt || "\u2014"
+                      }, undefined, false, undefined, this)
+                    ]
+                  }, undefined, true, undefined, this),
+                  /* @__PURE__ */ jsxDEV("text", {
+                    fg: props.api.theme.current.textMuted,
+                    children: [
+                      "Last run  ",
+                      /* @__PURE__ */ jsxDEV("span", {
+                        style: { fg: props.api.theme.current.text },
+                        children: item().lastRunAt ? `${item().lastRunAt} \xB7 ${item().lastRunStatus || "unknown"}` : "\u2014"
+                      }, undefined, false, undefined, this)
+                    ]
+                  }, undefined, true, undefined, this)
+                ]
+              }, undefined, true, undefined, this),
+              /* @__PURE__ */ jsxDEV(Show, {
+                when: item().diagnostics.length,
+                children: /* @__PURE__ */ jsxDEV("box", {
+                  border: true,
+                  borderColor: props.api.theme.current.warning,
+                  padding: 1,
+                  children: [
+                    /* @__PURE__ */ jsxDEV("text", {
+                      fg: props.api.theme.current.warning,
+                      children: /* @__PURE__ */ jsxDEV("b", {
+                        children: "Diagnostics"
+                      }, undefined, false, undefined, this)
+                    }, undefined, false, undefined, this),
+                    /* @__PURE__ */ jsxDEV(For, {
+                      each: item().diagnostics,
+                      children: (message) => /* @__PURE__ */ jsxDEV("text", {
+                        fg: props.api.theme.current.warning,
+                        children: [
+                          "! ",
+                          message
+                        ]
+                      }, undefined, true, undefined, this)
+                    }, undefined, false, undefined, this)
+                  ]
+                }, undefined, true, undefined, this)
+              }, undefined, false, undefined, this),
+              /* @__PURE__ */ jsxDEV("box", {
+                flexDirection: "row",
+                gap: 1,
+                flexWrap: "wrap",
+                children: [
+                  /* @__PURE__ */ jsxDEV(Action, {
+                    api: props.api,
+                    label: "Run now",
+                    onSelect: () => perform(props.api, props.store, () => runSchedulerJob({ id: item().id }), "Task started")
+                  }, undefined, false, undefined, this),
+                  /* @__PURE__ */ jsxDEV(Action, {
+                    api: props.api,
+                    label: item().enabled ? "Pause" : "Resume",
+                    onSelect: () => perform(props.api, props.store, () => item().enabled ? pauseSchedulerJob({ id: item().id }) : resumeSchedulerJob({ id: item().id }), item().enabled ? "Task paused" : "Task resumed")
+                  }, undefined, false, undefined, this),
+                  /* @__PURE__ */ jsxDEV(Action, {
+                    api: props.api,
+                    label: "Edit frequency",
+                    onSelect: () => openScheduleDialog(props.api, props.store, item())
+                  }, undefined, false, undefined, this),
+                  /* @__PURE__ */ jsxDEV(Action, {
+                    api: props.api,
+                    label: "View logs",
+                    onSelect: () => openLogs(props.api, item())
+                  }, undefined, false, undefined, this),
+                  /* @__PURE__ */ jsxDEV(Action, {
+                    api: props.api,
+                    label: "Delete",
+                    warning: true,
+                    onSelect: () => confirmDelete(props.api, props.store, item())
+                  }, undefined, false, undefined, this)
+                ]
+              }, undefined, true, undefined, this),
+              /* @__PURE__ */ jsxDEV("box", {
+                paddingTop: 1,
+                children: [
+                  /* @__PURE__ */ jsxDEV("text", {
+                    fg: props.api.theme.current.text,
+                    children: /* @__PURE__ */ jsxDEV("b", {
+                      children: "Run history"
+                    }, undefined, false, undefined, this)
+                  }, undefined, false, undefined, this),
+                  /* @__PURE__ */ jsxDEV(Show, {
+                    when: item().runHistory.length,
+                    fallback: /* @__PURE__ */ jsxDEV("text", {
+                      fg: props.api.theme.current.textMuted,
+                      children: "No recorded runs yet."
+                    }, undefined, false, undefined, this),
+                    children: /* @__PURE__ */ jsxDEV(For, {
+                      each: item().runHistory,
+                      children: (run) => /* @__PURE__ */ jsxDEV("text", {
+                        fg: run.status === "success" ? props.api.theme.current.success : props.api.theme.current.warning,
+                        children: [
+                          "\u2022 ",
+                          run.startedAt || "unknown",
+                          " \xB7 ",
+                          run.source || "scheduled",
+                          " \xB7 ",
+                          run.status || "unknown",
+                          " \xB7 ",
+                          run.durationMs ?? 0,
+                          "ms"
+                        ]
+                      }, undefined, true, undefined, this)
+                    }, undefined, false, undefined, this)
+                  }, undefined, false, undefined, this)
+                ]
+              }, undefined, true, undefined, this)
+            ]
+          }, undefined, true, undefined, this)
+        }, undefined, false, undefined, this)
+      }, undefined, false, undefined, this)
+    ]
+  }, undefined, true, undefined, this);
+}
+var tui = async (api2) => {
+  const store = createStatusStore(api2);
+  api2.slots.register({
+    order: 350,
+    slots: {
+      sidebar_content() {
+        return /* @__PURE__ */ jsxDEV(Sidebar, {
+          api: api2,
+          store
+        }, undefined, false, undefined, this);
+      }
+    }
+  });
+  api2.route.register([
+    { name: "scheduler", render: () => /* @__PURE__ */ jsxDEV(TaskCenter, {
+      api: api2,
+      store
+    }, undefined, false, undefined, this) },
+    { name: "scheduler-detail", render: ({ params }) => /* @__PURE__ */ jsxDEV(Detail, {
+      api: api2,
+      store,
+      id: typeof params?.id === "string" ? params.id : undefined
+    }, undefined, false, undefined, this) }
+  ]);
+  api2.command?.register(() => [{
+    title: "Open scheduled tasks",
+    value: "scheduler.open",
+    description: "Browse and manage OS-verified scheduled tasks",
+    category: "Scheduler",
+    suggested: true,
+    slash: { name: "scheduler", aliases: ["schedules", "tasks"] },
+    onSelect: () => {
+      api2.ui.dialog.clear();
+      api2.route.navigate("scheduler");
+    }
+  }]);
+};
+var tui_default = { id, tui };
 export {
-  updateSchedulerJobSchedule,
-  schedulerJobLogs,
-  runSchedulerJob,
-  resumeSchedulerJob,
-  removeOrphanArtifact,
-  pauseSchedulerJob,
-  locateSchedulerJob,
-  getSchedulerStatus,
-  deleteSchedulerJob,
-  src_default as default,
-  SchedulerPlugin
+  tui,
+  id,
+  filterSchedulerJobs,
+  tui_default as default
 };

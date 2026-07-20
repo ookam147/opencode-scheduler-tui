@@ -13,11 +13,18 @@
  */
 import type { Plugin } from "@opencode-ai/plugin"
 import { tool } from "@opencode-ai/plugin"
-import { createWriteStream, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync, unlinkSync } from "fs"
+import { appendFileSync, createWriteStream, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync, unlinkSync } from "fs"
 import { basename, dirname, join, resolve as resolvePath } from "path"
 import { homedir, platform } from "os"
 import { execFileSync, execSync, spawn, type ChildProcess } from "child_process"
 import { fileURLToPath } from "url"
+import {
+  scanSchedulerStatus,
+  type SchedulerArtifact,
+  type SchedulerHealth,
+  type SchedulerJobStatus,
+  type SchedulerStatusSnapshot,
+} from "./status.js"
 
 // Storage location - shared with other opencode tools
 const OPENCODE_CONFIG = join(homedir(), ".config", "opencode")
@@ -27,6 +34,14 @@ const SCHEDULER_DIR = join(OPENCODE_CONFIG, "scheduler")
 const SCOPES_DIR = join(SCHEDULER_DIR, "scopes")
 const SUPERVISOR_PATH = join(SCHEDULER_DIR, "supervisor.pl")
 const SCHEDULER_CONFIG = join(OPENCODE_CONFIG, "opencode-scheduler.json")
+const AUDIT_LOG = join(SCHEDULER_DIR, "audit.jsonl")
+
+function appendAudit(action: string, details: Record<string, unknown>): void {
+  try {
+    ensureDir(SCHEDULER_DIR)
+    appendFileSync(AUDIT_LOG, `${JSON.stringify({ at: new Date().toISOString(), action, ...details })}\n`)
+  } catch {}
+}
 
 // Platform detection
 const IS_MAC = platform() === "darwin"
@@ -393,7 +408,7 @@ type JobInvocation = {
   args: string[]
 }
 
-interface Job {
+export interface Job {
   // Scope isolates jobs per opencode "owner" (usually the workspace workdir).
   // Jobs scheduled from different workdirs should not collide.
   scopeId?: string
@@ -401,6 +416,7 @@ interface Job {
   slug: string
   name: string
   schedule: string
+  enabled?: boolean
 
   // Legacy fields (kept for backward compatibility)
   prompt?: string
@@ -1059,6 +1075,7 @@ function createLaunchdPlist(job: Job): string {
   const enhancedPath = getEnhancedPath()
 
   return `<?xml version="1.0" encoding="UTF-8"?>
+<!-- opencode-scheduler-cron: ${escapePlistString(job.schedule)} -->
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
@@ -1181,7 +1198,8 @@ function createSystemdTimer(job: Job): string {
   const calendars = cronToSystemdCalendars(job.schedule)
   const calendarLines = calendars.map((calendar) => `OnCalendar=${calendar}`).join("\n")
 
-  return `[Unit]
+  return `# opencode-scheduler-cron: ${job.schedule}
+[Unit]
 Description=Timer for OpenCode Job: ${job.name}
 
 [Timer]
@@ -1467,6 +1485,10 @@ function installJob(job: Job): SchedulerBackend {
       if (!isCronAvailable()) {
         throw error
       }
+      // A failed systemd install may have written or enabled only part of the
+      // unit pair. Remove it before falling back so one job never has two
+      // competing scheduler backends.
+      uninstallSystemdJob(job)
       installCronJob(job)
       return "cron"
     }
@@ -1537,14 +1559,9 @@ function loadAllScopedJobs(scopeId: string): Job[] {
 function listScopeIds(): string[] {
   ensureDir(SCOPES_DIR)
   try {
-    return readdirSync(SCOPES_DIR)
-      .filter((name) => {
-        try {
-          return existsSync(scopeDir(name))
-        } catch {
-          return false
-        }
-      })
+    return readdirSync(SCOPES_DIR, { withFileTypes: true })
+      .filter((entry) => entry.isDirectory())
+      .map((entry) => entry.name)
       .sort()
   } catch {
     return []
@@ -2070,6 +2087,7 @@ function normalizeJob(raw: unknown): Job | null {
     slug: raw.slug,
     name: raw.name,
     schedule: raw.schedule,
+    enabled: typeof raw.enabled === "boolean" ? raw.enabled : true,
     source: typeof raw.source === "string" ? raw.source : undefined,
     workdir: typeof raw.workdir === "string" ? raw.workdir : undefined,
     timeoutSeconds: typeof raw.timeoutSeconds === "number" ? raw.timeoutSeconds : undefined,
@@ -2296,6 +2314,20 @@ function getOpencodeVersion(opencodePath: string): string | null {
   }
 }
 
+function appendRunRecord(job: Job, record: Record<string, unknown>): void {
+  const scopeId = job.scopeId || deriveScopeId(job.workdir || homedir())
+  try {
+    ensureDir(scopeRunsDir(scopeId))
+    appendFileSync(join(scopeRunsDir(scopeId), `${job.slug}.jsonl`), `${JSON.stringify({ scopeId, slug: job.slug, ...record })}\n`)
+  } catch (error) {
+    appendAudit("run.record.error", {
+      scopeId,
+      slug: job.slug,
+      error: error instanceof Error ? error.message : String(error),
+    })
+  }
+}
+
 function runJobNow(job: Job): { startedAt: string; logPath: string; pid?: number; job: Job | null } {
   ensureDir(LOGS_DIR)
   ensureDir(scopeLogsDir(job.scopeId || deriveScopeId(job.workdir || homedir())))
@@ -2337,9 +2369,24 @@ function runJobNow(job: Job): { startedAt: string; logPath: string; pid?: number
   if (child.stdout) child.stdout.pipe(logStream)
   if (child.stderr) child.stderr.pipe(logStream)
 
+  let runRecorded = false
+
   child.on("error", (error) => {
+    const finishedAt = new Date().toISOString()
     logStream.write(`\n=== Run error ${new Date().toISOString()} ===\n${error.message}\n`)
     logStream.end()
+    runRecorded = true
+    appendRunRecord(job, {
+      runId: `manual-${Date.now()}-${child.pid ?? "unknown"}`,
+      source: "manual",
+      startedAt,
+      finishedAt,
+      durationMs: Math.max(0, Date.parse(finishedAt) - Date.parse(startedAt)),
+      status: "failed",
+      error: error.message,
+      pid: child.pid,
+      logPath,
+    })
     updateJobRecord(job, {
       lastRunStatus: "failed",
       lastRunExitCode: undefined,
@@ -2349,8 +2396,24 @@ function runJobNow(job: Job): { startedAt: string; logPath: string; pid?: number
 
   child.on("close", (code) => {
     const exitCode = typeof code === "number" ? code : undefined
-    logStream.write(`\n=== Run complete (${exitCode ?? "unknown"}) ${new Date().toISOString()} ===\n`)
+    const finishedAt = new Date().toISOString()
+    logStream.write(`\n=== Run complete (${exitCode ?? "unknown"}) ${finishedAt} ===\n`)
     logStream.end()
+    if (!runRecorded) {
+      runRecorded = true
+      appendRunRecord(job, {
+        runId: `manual-${Date.now()}-${child.pid ?? "unknown"}`,
+        source: "manual",
+        startedAt,
+        finishedAt,
+        durationMs: Math.max(0, Date.parse(finishedAt) - Date.parse(startedAt)),
+        status: exitCode === 0 ? "success" : "failed",
+        exitCode,
+        error: exitCode === 0 ? undefined : `Exit code ${exitCode ?? "unknown"}`,
+        pid: child.pid,
+        logPath,
+      })
+    }
     updateJobRecord(job, {
       lastRunStatus: exitCode === 0 ? "success" : "failed",
       lastRunExitCode: exitCode,
@@ -2532,10 +2595,298 @@ function getJobLogs(job: Job, options?: { tailLines?: number; maxChars?: number 
   }
 }
 
+export interface SchedulerJobLocator {
+  id?: string
+  name?: string
+  scopeId?: string
+}
+
+function parseLocatorId(id?: string): { scopeId?: string; slug?: string } {
+  if (!id) return {}
+  const separator = id.indexOf(":")
+  if (separator < 0) return { slug: id }
+  return { scopeId: id.slice(0, separator), slug: id.slice(separator + 1) }
+}
+
+export function locateSchedulerJob(locator: SchedulerJobLocator): Job {
+  const parsed = parseLocatorId(locator.id)
+  const scopeId = locator.scopeId || parsed.scopeId
+  const needle = parsed.slug || locator.name
+  if (!needle) throw new Error("A job id or name is required")
+  const jobs = [...loadAllJobsAcrossScopes(), ...loadAllLegacyJobs()]
+  const lowered = needle.toLowerCase()
+  const matches = jobs.filter((job) => {
+    const jobScope = job.scopeId || deriveScopeId(job.workdir || homedir())
+    if (scopeId && jobScope !== scopeId) return false
+    return job.slug === needle || job.name.toLowerCase() === lowered
+  })
+  if (matches.length === 0) throw new Error(`Job "${needle}" not found.`)
+  if (matches.length > 1) {
+    throw new Error(`Job "${needle}" exists in multiple scopes. Pass scopeId or the status id.`)
+  }
+  return matches[0]
+}
+
+function schedulerJobId(job: Job): string {
+  return `${job.scopeId || deriveScopeId(job.workdir || homedir())}:${job.slug}`
+}
+
+function verifyJobInstalled(job: Job): SchedulerJobStatus {
+  const status = getSchedulerStatus({ allScopes: true, includeLegacy: true, verifySystem: true }).jobs.find(
+    (item) => item.id === schedulerJobId(job)
+  )
+  if (!status) throw new Error(`Installed job "${job.name}" could not be read back.`)
+  if (status.health !== "healthy" && status.health !== "running") {
+    throw new Error(`OS scheduler verification failed for "${job.name}": ${status.health}${status.diagnostics.length ? ` (${status.diagnostics.join("; ")})` : ""}`)
+  }
+  return status
+}
+
+function verifyJobUninstalled(job: Job): void {
+  const status = getSchedulerStatus({ allScopes: true, includeLegacy: true, verifySystem: true }).jobs.find(
+    (item) => item.id === schedulerJobId(job)
+  )
+  if (status?.artifacts.length) {
+    throw new Error(`OS scheduler still reports ${status.artifacts.length} artifact(s) for "${job.name}".`)
+  }
+}
+
+export function getSchedulerStatus(options?: {
+  allScopes?: boolean
+  includeLegacy?: boolean
+  scopeRoot?: string
+  verifySystem?: boolean
+}): SchedulerStatusSnapshot {
+  return scanSchedulerStatus({
+    allScopes: options?.allScopes,
+    includeLegacy: options?.includeLegacy,
+    scopeRoot: options?.scopeRoot,
+    verifySystem: options?.verifySystem,
+  })
+}
+
+export function pauseSchedulerJob(locator: SchedulerJobLocator): Job {
+  const job = locateSchedulerJob(locator)
+  if (job.enabled === false) return job
+  uninstallJob(job)
+  try {
+    verifyJobUninstalled(job)
+  } catch (error) {
+    try {
+      installJob(job)
+    } catch {}
+    appendAudit("job.pause.rollback", { scopeId: job.scopeId, slug: job.slug, error: error instanceof Error ? error.message : String(error) })
+    throw error
+  }
+  const paused = { ...job, enabled: false, updatedAt: new Date().toISOString() }
+  saveJob(paused)
+  appendAudit("job.pause", { scopeId: paused.scopeId, slug: paused.slug })
+  return paused
+}
+
+export function resumeSchedulerJob(locator: SchedulerJobLocator): Job {
+  const job = locateSchedulerJob(locator)
+  if (job.enabled !== false) return job
+  const resumed = { ...job, enabled: true, updatedAt: new Date().toISOString() }
+  resumed.invocation = buildOpencodeArgs(resumed)
+  try {
+    saveJob(resumed)
+    installJob(resumed)
+    verifyJobInstalled(resumed)
+    appendAudit("job.resume", { scopeId: resumed.scopeId, slug: resumed.slug })
+    return resumed
+  } catch (error) {
+    const rollbackErrors: string[] = []
+    try {
+      uninstallJob(resumed)
+    } catch (rollbackError) {
+      rollbackErrors.push(rollbackError instanceof Error ? rollbackError.message : String(rollbackError))
+    }
+    try {
+      saveJob(job)
+    } catch (rollbackError) {
+      rollbackErrors.push(rollbackError instanceof Error ? rollbackError.message : String(rollbackError))
+    }
+    appendAudit("job.resume.rollback", {
+      scopeId: job.scopeId,
+      slug: job.slug,
+      error: error instanceof Error ? error.message : String(error),
+      rollbackErrors,
+    })
+    throw error
+  }
+}
+
+export function updateSchedulerJobSchedule(locator: SchedulerJobLocator, schedule: string): Job {
+  validateCronExpression(schedule)
+  const job = locateSchedulerJob(locator)
+  const updated: Job = { ...job, schedule, updatedAt: new Date().toISOString() }
+  updated.invocation = buildOpencodeArgs(updated)
+  try {
+    saveJob(updated)
+    if (updated.enabled !== false) {
+      installJob(updated)
+      verifyJobInstalled(updated)
+    }
+    appendAudit("job.schedule.update", { scopeId: updated.scopeId, slug: updated.slug, schedule })
+    return updated
+  } catch (error) {
+    try {
+      uninstallJob(updated)
+      saveJob(job)
+      if (job.enabled !== false) installJob(job)
+    } catch (rollbackError) {
+      appendAudit("job.schedule.rollback.error", {
+        scopeId: job.scopeId,
+        slug: job.slug,
+        error: rollbackError instanceof Error ? rollbackError.message : String(rollbackError),
+      })
+    }
+    throw error
+  }
+}
+
+export function runSchedulerJob(locator: SchedulerJobLocator) {
+  const job = locateSchedulerJob(locator)
+  return runJobNow(job)
+}
+
+export function deleteSchedulerJob(locator: SchedulerJobLocator): Job {
+  const job = locateSchedulerJob(locator)
+  const scopeId = job.scopeId || deriveScopeId(job.workdir || homedir())
+  const scopedPath = jobFilePath(scopeId, job.slug)
+  const legacyPath = join(LEGACY_JOBS_DIR, `${job.slug}.json`)
+  const hadScopedFile = existsSync(scopedPath)
+  uninstallJob(job)
+  try {
+    verifyJobUninstalled(job)
+  } catch (error) {
+    try {
+      if (job.enabled !== false) installJob(job)
+    } catch {}
+    appendAudit("job.delete.rollback", { scopeId: job.scopeId, slug: job.slug, error: error instanceof Error ? error.message : String(error) })
+    throw error
+  }
+  try {
+    deleteJobFile(job)
+    if (existsSync(legacyPath)) unlinkSync(legacyPath)
+  } catch (error) {
+    const rollbackErrors: string[] = []
+    try {
+      if (hadScopedFile && !existsSync(scopedPath)) saveJob(job)
+    } catch (rollbackError) {
+      rollbackErrors.push(rollbackError instanceof Error ? rollbackError.message : String(rollbackError))
+    }
+    try {
+      if (job.enabled !== false) installJob(job)
+    } catch (rollbackError) {
+      rollbackErrors.push(rollbackError instanceof Error ? rollbackError.message : String(rollbackError))
+    }
+    appendAudit("job.delete.config.rollback", {
+      scopeId: job.scopeId,
+      slug: job.slug,
+      error: error instanceof Error ? error.message : String(error),
+      rollbackErrors,
+    })
+    throw error
+  }
+  appendAudit("job.delete", { scopeId: job.scopeId, slug: job.slug })
+  return job
+}
+
+export function schedulerJobLogs(locator: SchedulerJobLocator, lines = 200): { job: Job; logPath: string; logs: string } {
+  const job = locateSchedulerJob(locator)
+  const logPath = getLogPath(job)
+  return { job, logPath, logs: getJobLogs(job, { tailLines: lines, maxChars: 50000 }) || "" }
+}
+
+function removeArtifact(artifact: SchedulerArtifact): void {
+  if (artifact.backend === "launchd") {
+    if (artifact.path) {
+      try {
+        execFileSync("launchctl", ["unload", artifact.path], { stdio: "ignore" })
+      } catch {}
+      if (existsSync(artifact.path)) unlinkSync(artifact.path)
+    } else {
+      try {
+        execFileSync("launchctl", ["remove", artifact.label], { stdio: "ignore" })
+      } catch {}
+    }
+    return
+  }
+  if (artifact.backend === "systemd") {
+    try {
+      execFileSync("systemctl", ["--user", "stop", artifact.label], { stdio: "ignore" })
+      execFileSync("systemctl", ["--user", "disable", artifact.label], { stdio: "ignore" })
+    } catch {}
+    if (artifact.path && existsSync(artifact.path)) unlinkSync(artifact.path)
+    const servicePath = artifact.path?.replace(/\.timer$/, ".service")
+    if (servicePath && existsSync(servicePath)) unlinkSync(servicePath)
+    try {
+      execFileSync("systemctl", ["--user", "daemon-reload"], { stdio: "ignore" })
+    } catch {}
+    return
+  }
+  if (artifact.backend === "cron") {
+    const current = readUserCrontab()
+    const stripped = stripManagedCronBlocks(current, new Set([artifact.label]))
+    if (stripped.removed > 0) writeUserCrontab(stripped.content)
+    return
+  }
+  execFileSync("schtasks", ["/Delete", "/TN", artifact.label, "/F"], { stdio: "ignore" })
+}
+
+export function removeOrphanArtifact(artifactId: string, confirm = false): { dryRun: boolean; artifact: SchedulerArtifact } {
+  const snapshot = getSchedulerStatus({ allScopes: true, includeLegacy: true, verifySystem: true })
+  const orphan = snapshot.orphans.find((item) => item.artifactIds.includes(artifactId))
+  const artifact = orphan?.artifacts.find((item) => item.artifactId === artifactId)
+  if (!artifact) throw new Error(`Orphan artifact "${artifactId}" was not found. Refresh scheduler_status and retry.`)
+  if (confirm) {
+    removeArtifact(artifact)
+    const remaining = getSchedulerStatus({ allScopes: true, includeLegacy: true, verifySystem: true })
+      .orphans.some((item) => item.artifactIds.includes(artifactId))
+    if (remaining) {
+      appendAudit("orphan.remove.error", { artifactId, backend: artifact.backend, label: artifact.label })
+      throw new Error(`The OS scheduler still reports orphan artifact "${artifactId}" after removal.`)
+    }
+    appendAudit("orphan.remove", { artifactId, backend: artifact.backend, label: artifact.label })
+  }
+  return { dryRun: !confirm, artifact }
+}
+
+function formatStatus(snapshot: SchedulerStatusSnapshot): string {
+  const lines = [
+    `Scheduled Tasks (${snapshot.summary.total})`,
+    `Healthy ${snapshot.summary.healthy} · Running ${snapshot.summary.running} · Paused ${snapshot.summary.paused} · Problems ${snapshot.summary.disabled + snapshot.summary.missing + snapshot.summary.drifted + snapshot.summary.orphaned + snapshot.summary.error}`,
+    "",
+  ]
+  for (const job of snapshot.jobs) {
+    lines.push(`[${job.health}] ${job.name} (${job.id})`)
+    lines.push(`  ${job.scheduleText} · next ${job.nextRunAt || "—"} · ${job.backend || "unverified"}`)
+    for (const diagnostic of job.diagnostics) lines.push(`  ! ${diagnostic}`)
+  }
+  for (const orphan of snapshot.orphans) {
+    lines.push(`[${orphan.health}] orphan ${orphan.slug} (${orphan.backend})`)
+    lines.push(`  artifactIds: ${orphan.artifactIds.join(", ")}`)
+  }
+  return lines.join("\n")
+}
+
 // === PLUGIN ===
 
 export const SchedulerPlugin: Plugin = async () => {
   return {
+    config: async (config) => {
+      const commands = (config.command ??= {})
+      commands["scheduler-status"] = {
+        template: "Use scheduler_status with verifySystem=true to show scheduled task health. If $ARGUMENTS contains --all, also set allScopes=true and includeLegacy=true. Arguments: $ARGUMENTS",
+        description: "Show verified scheduled task status",
+      }
+      commands["scheduler-status-all"] = {
+        template: "Use scheduler_status with allScopes=true, includeLegacy=true, and verifySystem=true. $ARGUMENTS",
+        description: "Show verified scheduled tasks across all projects",
+      }
+    },
     tool: {
        schedule_job: tool({
            description:
@@ -2663,6 +3014,7 @@ export const SchedulerPlugin: Plugin = async () => {
               slug,
               name: args.name,
               schedule: args.schedule,
+              enabled: true,
               run: normalizeRunSpec(run),
               // keep legacy fields as well for backwards-compat / readability
               prompt: args.prompt,
@@ -2685,6 +3037,7 @@ export const SchedulerPlugin: Plugin = async () => {
            try {
              saveJob(job)
              const backend = installJob(job)
+             verifyJobInstalled(job)
 
              const platformName = backend
              const reliabilityLine = backend === "schtasks"
@@ -2718,8 +3071,19 @@ Commands:
             )
 
           } catch (error) {
-            deleteJobFile(job)
+            const rollbackErrors: string[] = []
+            try {
+              uninstallJob(job)
+            } catch (rollbackError) {
+              rollbackErrors.push(rollbackError instanceof Error ? rollbackError.message : String(rollbackError))
+            }
+            try {
+              deleteJobFile(job)
+            } catch (rollbackError) {
+              rollbackErrors.push(rollbackError instanceof Error ? rollbackError.message : String(rollbackError))
+            }
             const msg = error instanceof Error ? error.message : String(error)
+            appendAudit("schedule.rollback", { slug: job.slug, scopeId: job.scopeId, error: msg, rollbackErrors })
             return errorResult(format, `Failed to schedule job: ${msg}`)
           }
         },
@@ -2735,6 +3099,7 @@ Commands:
             .string()
             .optional()
             .describe("Optional: scope root directory (defaults to current directory)."),
+          verifySystem: tool.schema.boolean().optional().describe("Verify jobs against the OS scheduler and include health/next-run data."),
           format: tool.schema.string().optional().describe("Optional: output format ('text' or 'json')."),
         },
 
@@ -2753,6 +3118,30 @@ Commands:
 
           if (args.source) {
             jobs = jobs.filter((j) => j.source === args.source || j.slug.startsWith(`${args.source}-`))
+          }
+
+          if (args.verifySystem) {
+            const snapshot = getSchedulerStatus({
+              allScopes: args.allScopes,
+              includeLegacy: args.includeLegacy,
+              scopeRoot: args.scopeRoot,
+              verifySystem: true,
+            })
+            if (args.source) {
+              snapshot.jobs = snapshot.jobs.filter(
+                (item) => item.job.source === args.source || item.slug.startsWith(`${args.source}-`)
+              )
+              const statuses: SchedulerHealth[] = ["healthy", "running", "paused", "disabled", "missing", "drifted", "orphaned", "error"]
+              snapshot.summary = Object.fromEntries([
+                ["total", snapshot.jobs.length + snapshot.orphans.length],
+                ...statuses.map((status) => [
+                  status,
+                  snapshot.jobs.filter((item) => item.health === status).length
+                    + snapshot.orphans.filter((item) => item.health === status).length,
+                ]),
+              ]) as SchedulerStatusSnapshot["summary"]
+            }
+            return okResult(format, formatStatus(snapshot), snapshot)
           }
 
           if (jobs.length === 0) {
@@ -2785,6 +3174,27 @@ Commands:
 
 
           return okResult(format, `Scheduled Jobs\n\n${lines.join("\n\n")}`, { jobs })
+        },
+      }),
+
+      scheduler_status: tool({
+        description: "Show authoritative scheduler health by reconciling job files with the operating system scheduler.",
+        args: {
+          allScopes: tool.schema.boolean().optional().describe("Include all workspace scopes."),
+          includeLegacy: tool.schema.boolean().optional().describe("Include legacy unscoped job files."),
+          verifySystem: tool.schema.boolean().optional().describe("Query OS scheduler state (default true)."),
+          scopeRoot: tool.schema.string().optional().describe("Scope root when allScopes is false."),
+          format: tool.schema.string().optional().describe("Optional: output format ('text' or 'json')."),
+        },
+        async execute(args) {
+          const format = normalizeFormat(args.format)
+          const snapshot = getSchedulerStatus({
+            allScopes: args.allScopes,
+            includeLegacy: args.includeLegacy,
+            scopeRoot: args.scopeRoot,
+            verifySystem: args.verifySystem !== false,
+          })
+          return format === "json" ? JSON.stringify(snapshot, null, 2) : okResult(format, formatStatus(snapshot), snapshot)
         },
       }),
 
@@ -2909,14 +3319,16 @@ Commands:
         description: "Get details for a scheduled job",
         args: {
           name: tool.schema.string().describe("The job name or slug"),
+          scopeId: tool.schema.string().optional().describe("Optional scope id; required for duplicate names across scopes."),
           format: tool.schema.string().optional().describe("Optional: output format ('text' or 'json')."),
         },
         async execute(args) {
           const format = normalizeFormat(args.format)
-          const job = findJobByName(args.name)
-
-          if (!job) {
-            return errorResult(format, `Job "${args.name}" not found.`)
+          let job: Job
+          try {
+            job = locateSchedulerJob({ name: args.name, scopeId: args.scopeId })
+          } catch (error) {
+            return errorResult(format, error instanceof Error ? error.message : String(error))
           }
 
           return okResult(format, formatJobDetails(job), { job })
@@ -2927,6 +3339,7 @@ Commands:
         description: "Update a scheduled job",
         args: {
           name: tool.schema.string().describe("The job name or slug"),
+          scopeId: tool.schema.string().optional().describe("Optional scope id; required for duplicate names across scopes."),
           schedule: tool.schema.string().optional().describe("Updated cron expression"),
 
           // Legacy prompt field
@@ -2959,10 +3372,11 @@ Commands:
         },
         async execute(args) {
           const format = normalizeFormat(args.format)
-          const job = findJobByName(args.name)
-
-          if (!job) {
-            return errorResult(format, `Job "${args.name}" not found.`)
+          let job: Job
+          try {
+            job = locateSchedulerJob({ name: args.name, scopeId: args.scopeId })
+          } catch (error) {
+            return errorResult(format, error instanceof Error ? error.message : String(error))
           }
 
           const updates: Partial<Job> = {}
@@ -3083,7 +3497,10 @@ Commands:
             }
 
             saveJob(updatedJob)
-            installJob(updatedJob)
+            if (updatedJob.enabled !== false) {
+              installJob(updatedJob)
+              verifyJobInstalled(updatedJob)
+            }
 
             if (scopeChanged) {
               // Remove the old job file if it exists.
@@ -3097,11 +3514,28 @@ Commands:
             return okResult(format, `Updated job "${updatedJob.name}"`, { job: updatedJob })
           } catch (error) {
             const msg = error instanceof Error ? error.message : String(error)
-            // Best-effort rollback: restore original job and schedule.
+            const rollbackErrors: string[] = []
             try {
+              uninstallJob(updatedJob)
+            } catch (rollbackError) {
+              rollbackErrors.push(rollbackError instanceof Error ? rollbackError.message : String(rollbackError))
+            }
+            try {
+              const oldScopeId = job.scopeId || deriveScopeId(job.workdir || homedir())
+              const nextScopeId = updatedJob.scopeId || deriveScopeId(updatedJob.workdir || homedir())
+              if (oldScopeId !== nextScopeId) {
+                const newPath = jobFilePath(nextScopeId, updatedJob.slug)
+                if (existsSync(newPath)) unlinkSync(newPath)
+              }
               saveJob(job)
-              installJob(job)
-            } catch {}
+              if (job.enabled !== false) {
+                installJob(job)
+                verifyJobInstalled(job)
+              }
+            } catch (rollbackError) {
+              rollbackErrors.push(rollbackError instanceof Error ? rollbackError.message : String(rollbackError))
+            }
+            appendAudit("update.rollback", { slug: job.slug, scopeId: job.scopeId, error: msg, rollbackErrors })
             return errorResult(format, `Failed to update job: ${msg}`)
           }
         },
@@ -3111,28 +3545,91 @@ Commands:
         description: "Delete a scheduled job",
         args: {
           name: tool.schema.string().describe("The job name or slug to delete"),
+          scopeId: tool.schema.string().optional().describe("Optional scope id; required for duplicate names across scopes."),
           format: tool.schema.string().optional().describe("Optional: output format ('text' or 'json')."),
         },
         async execute(args) {
           const format = normalizeFormat(args.format)
-          const job = findJobByName(args.name)
-
-          if (!job) {
-            return errorResult(format, `Job "${args.name}" not found.`)
+          try {
+            const job = deleteSchedulerJob({ name: args.name, scopeId: args.scopeId })
+            return okResult(format, `Deleted job "${job.name}"`, { job })
+          } catch (error) {
+            return errorResult(format, error instanceof Error ? error.message : String(error))
           }
+        },
+      }),
 
-          uninstallJob(job)
-          deleteJobFile(job)
-
-          // Best-effort: remove legacy job file if present.
-          const legacyPath = join(LEGACY_JOBS_DIR, `${job.slug}.json`)
-          if (existsSync(legacyPath)) {
-            try {
-              unlinkSync(legacyPath)
-            } catch {}
+      pause_job: tool({
+        description: "Pause a scheduled job without deleting its configuration.",
+        args: {
+          name: tool.schema.string().describe("The job name or slug."),
+          scopeId: tool.schema.string().optional().describe("Required when the name exists in multiple scopes."),
+          format: tool.schema.string().optional().describe("Optional: output format ('text' or 'json')."),
+        },
+        async execute(args) {
+          const format = normalizeFormat(args.format)
+          try {
+            const job = pauseSchedulerJob({ name: args.name, scopeId: args.scopeId })
+            return okResult(format, `Paused job "${job.name}"`, { job })
+          } catch (error) {
+            return errorResult(format, error instanceof Error ? error.message : String(error))
           }
+        },
+      }),
 
-          return okResult(format, `Deleted job "${job.name}"`, { job })
+      resume_job: tool({
+        description: "Resume a paused scheduled job and reinstall its operating-system schedule.",
+        args: {
+          name: tool.schema.string().describe("The job name or slug."),
+          scopeId: tool.schema.string().optional().describe("Required when the name exists in multiple scopes."),
+          format: tool.schema.string().optional().describe("Optional: output format ('text' or 'json')."),
+        },
+        async execute(args) {
+          const format = normalizeFormat(args.format)
+          try {
+            const job = resumeSchedulerJob({ name: args.name, scopeId: args.scopeId })
+            return okResult(format, `Resumed job "${job.name}"`, { job })
+          } catch (error) {
+            return errorResult(format, error instanceof Error ? error.message : String(error))
+          }
+        },
+      }),
+
+      repair_job: tool({
+        description: "Preview or repair a missing/drifted job, or remove one exact orphan OS artifact.",
+        args: {
+          action: tool.schema.string().describe("Repair action: reinstall or remove-orphan."),
+          name: tool.schema.string().optional().describe("Job name/slug for reinstall."),
+          scopeId: tool.schema.string().optional().describe("Job scope for reinstall."),
+          artifactId: tool.schema.string().optional().describe("Exact artifact id from scheduler_status for remove-orphan."),
+          confirm: tool.schema.boolean().optional().describe("Execute the change. Default false is dry-run."),
+          format: tool.schema.string().optional().describe("Optional: output format ('text' or 'json')."),
+        },
+        async execute(args) {
+          const format = normalizeFormat(args.format)
+          try {
+            if (args.action === "remove-orphan") {
+              if (!args.artifactId) return errorResult(format, "artifactId is required for remove-orphan.")
+              const result = removeOrphanArtifact(args.artifactId, args.confirm === true)
+              const mode = result.dryRun ? "DRY RUN" : "REMOVED"
+              return okResult(format, `${mode}: ${result.artifact.backend} ${result.artifact.label}`, result)
+            }
+            if (args.action === "reinstall") {
+              if (!args.name) return errorResult(format, "name is required for reinstall.")
+              const job = locateSchedulerJob({ name: args.name, scopeId: args.scopeId })
+              if (args.confirm !== true) {
+                return okResult(format, `DRY RUN: reinstall ${job.name} (${job.scopeId}:${job.slug})`, { dryRun: true, job })
+              }
+              if (job.enabled === false) return errorResult(format, `Job "${job.name}" is paused. Resume it instead.`)
+              installJob(job)
+              verifyJobInstalled(job)
+              appendAudit("job.reinstall", { scopeId: job.scopeId, slug: job.slug })
+              return okResult(format, `Reinstalled job "${job.name}"`, { dryRun: false, job })
+            }
+            return errorResult(format, `Unknown repair action "${args.action}". Expected reinstall or remove-orphan.`)
+          } catch (error) {
+            return errorResult(format, error instanceof Error ? error.message : String(error))
+          }
         },
       }),
 
@@ -3174,6 +3671,7 @@ Commands:
         description: "Run a scheduled job immediately",
         args: {
           name: tool.schema.string().describe("The job name or slug"),
+          scopeId: tool.schema.string().optional().describe("Optional scope id; required for duplicate names across scopes."),
           // Optional overrides for a one-off run
           prompt: tool.schema.string().optional().describe("Override prompt for this run"),
           command: tool.schema.string().optional().describe("Override command for this run"),
@@ -3193,10 +3691,11 @@ Commands:
         },
         async execute(args) {
           const format = normalizeFormat(args.format)
-          const job = findJobByName(args.name)
-
-          if (!job) {
-            return errorResult(format, `Job "${args.name}" not found. Use list_jobs to see available jobs.`)
+          let job: Job
+          try {
+            job = locateSchedulerJob({ name: args.name, scopeId: args.scopeId })
+          } catch (error) {
+            return errorResult(format, error instanceof Error ? error.message : String(error))
           }
 
           const parseFiles = (raw?: unknown): string[] | undefined => {
@@ -3278,6 +3777,7 @@ Commands:
         description: "View the latest logs from a scheduled job",
         args: {
           name: tool.schema.string().describe("The job name or slug"),
+          scopeId: tool.schema.string().optional().describe("Optional scope id; required for duplicate names across scopes."),
           lines: tool.schema
             .number()
             .optional()
@@ -3286,10 +3786,11 @@ Commands:
         },
         async execute(args) {
           const format = normalizeFormat(args.format)
-          const job = findJobByName(args.name)
-
-          if (!job) {
-            return errorResult(format, `Job "${args.name}" not found.`)
+          let job: Job
+          try {
+            job = locateSchedulerJob({ name: args.name, scopeId: args.scopeId })
+          } catch (error) {
+            return errorResult(format, error instanceof Error ? error.message : String(error))
           }
 
           const tailLines = typeof args.lines === "number" && Number.isFinite(args.lines) ? args.lines : 200

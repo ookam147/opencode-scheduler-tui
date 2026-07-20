@@ -22388,16 +22388,14 @@ ${logs}`, { job, logPath, logs });
   };
 };
 var src_default = SchedulerPlugin;
+
+// src/server.ts
+var id = "opencode-scheduler";
+var server_default = {
+  id,
+  server: SchedulerPlugin
+};
 export {
-  updateSchedulerJobSchedule,
-  schedulerJobLogs,
-  runSchedulerJob,
-  resumeSchedulerJob,
-  removeOrphanArtifact,
-  pauseSchedulerJob,
-  locateSchedulerJob,
-  getSchedulerStatus,
-  deleteSchedulerJob,
-  src_default as default,
-  SchedulerPlugin
+  id,
+  server_default as default
 };

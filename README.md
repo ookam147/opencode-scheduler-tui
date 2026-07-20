@@ -8,7 +8,7 @@ Schedule a daily job at 9am to search Facebook Marketplace for posters under $10
 
 This is an [OpenCode](https://opencode.ai) plugin that uses your OS's native scheduler (launchd on macOS, systemd on Linux, Task Scheduler on Windows), with cron fallback where native backends are unavailable.
 
-As of `v1.2.0`, jobs are scoped by `workdir` (so different projects don't collide), and scheduled runs are supervised (no overlap + optional timeout).
+As of `v1.4.0`, the plugin includes an OS-verified status API and a mouse-enabled OpenCode TUI task center. Jobs remain scoped by `workdir`, and scheduled runs are supervised (no overlap + optional timeout).
 
 ## Install
 
@@ -19,6 +19,18 @@ Add to your `opencode.json`:
   "plugin": ["opencode-scheduler"]
 }
 ```
+
+### TUI task center (OpenCode 1.18.3+)
+
+Fresh installs through OpenCode's plugin installer discover both the server and TUI entrypoints. Existing users should also add the package to `tui.json` (globally at `~/.config/opencode/tui.json` or in `.opencode/tui.json`):
+
+```json
+{
+  "plugin": ["opencode-scheduler"]
+}
+```
+
+Restart OpenCode, then run `/scheduler` or choose **Open scheduled tasks** in the command palette. The task center supports mouse selection, search/filtering, run now, pause/resume, schedule editing, logs, run history, and confirmed deletion. A compact task summary also appears in the session sidebar.
 
 ## Examples
 
@@ -43,6 +55,8 @@ Schedule a job every 6 hours to check if my website is up and alert me on Slack 
 |---------|---------|
 | Schedule a job | `Schedule a daily job at 9am to...` |
 | List jobs | `Show my scheduled jobs` |
+| Verify system status | `Show scheduler status across all projects` |
+| Pause / resume | `Pause standing-desk` / `Resume standing-desk` |
 | Get version | `Show scheduler version` |
 | Install skill template | `Install the scheduled job best practices skill` |
 | Get job | `Show details for standing-desk` |
@@ -115,12 +129,15 @@ Jobs use standard 5-field cron expressions:
 |------|-------------|
 | `schedule_job` | Create a new scheduled job |
 | `list_jobs` | List all scheduled jobs |
+| `scheduler_status` | Reconcile saved jobs with the OS scheduler and report health/orphans |
 | `get_version` | Show scheduler and opencode versions |
 | `get_skill` | Get built-in skill templates (best practices) |
 | `install_skill` | Install a built-in skill into your repo |
 | `get_job` | Fetch job details and metadata |
 | `update_job` | Update an existing job |
 | `delete_job` | Remove a scheduled job |
+| `pause_job` / `resume_job` | Pause without deleting, or reinstall a paused job |
+| `repair_job` | Dry-run or execute a reinstall/orphan cleanup |
 | `cleanup_global` | Remove scheduler artifacts across all scopes (dry-run by default) |
 | `run_job` | Execute a job immediately (fire-and-forget) |
 | `job_logs` | View the latest logs from a job |
