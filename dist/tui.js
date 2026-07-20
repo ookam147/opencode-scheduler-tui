@@ -22735,7 +22735,7 @@ function Sidebar(props) {
       activateMouse(event, toggle);
   };
   return (() => {
-    var _el$ = _$createElement("box"), _el$2 = _$createElement("box"), _el$3 = _$createElement("text"), _el$4 = _$createElement("text"), _el$5 = _$createElement("b"), _el$7 = _$createElement("box"), _el$8 = _$createElement("box"), _el$9 = _$createElement("text"), _el$0 = _$createTextNode(`\u25CF Active `), _el$1 = _$createElement("text"), _el$10 = _$createTextNode(`\u2161 Paused `), _el$11 = _$createElement("text"), _el$12 = _$createTextNode(`\xD7 err `), _el$13 = _$createElement("box"), _el$14 = _$createElement("text"), _el$15 = _$createElement("b"), _el$16 = _$createTextNode(`\u2192 `);
+    var _el$ = _$createElement("box"), _el$2 = _$createElement("box"), _el$3 = _$createElement("text"), _el$4 = _$createElement("text"), _el$5 = _$createElement("b"), _el$7 = _$createElement("box"), _el$8 = _$createElement("text"), _el$9 = _$createTextNode(`\u25CF Active `), _el$0 = _$createElement("text"), _el$10 = _$createElement("text"), _el$11 = _$createTextNode(`\u2161 Paused `), _el$12 = _$createElement("text"), _el$14 = _$createElement("text"), _el$15 = _$createTextNode(`\xD7 err `), _el$16 = _$createElement("text"), _el$18 = _$createElement("box"), _el$19 = _$createElement("text"), _el$20 = _$createElement("b"), _el$21 = _$createTextNode(`\u2192 `);
     _$insertNode(_el$, _el$2);
     _$insertNode(_el$, _el$7);
     _$setProp(_el$, "gap", 0);
@@ -22763,44 +22763,54 @@ function Sidebar(props) {
     _$setProp(_el$4, "onMouseUp", handleToggle);
     _$insertNode(_el$5, _$createTextNode(`Scheduled tasks`));
     _$insertNode(_el$7, _el$8);
-    _$insertNode(_el$7, _el$13);
+    _$insertNode(_el$7, _el$0);
+    _$insertNode(_el$7, _el$10);
+    _$insertNode(_el$7, _el$12);
+    _$insertNode(_el$7, _el$14);
+    _$insertNode(_el$7, _el$16);
+    _$insertNode(_el$7, _el$18);
     _$setProp(_el$7, "id", "scheduler-sidebar-status");
     _$setProp(_el$7, "height", 1);
     _$setProp(_el$7, "flexShrink", 0);
     _$setProp(_el$7, "flexDirection", "row");
-    _$setProp(_el$7, "justifyContent", "space-between");
+    _$setProp(_el$7, "gap", 1);
     _$setProp(_el$7, "alignItems", "center");
     _$insertNode(_el$8, _el$9);
-    _$insertNode(_el$8, _el$1);
-    _$insertNode(_el$8, _el$11);
-    _$setProp(_el$8, "flexDirection", "row");
-    _$setProp(_el$8, "gap", 1);
-    _$setProp(_el$8, "minWidth", 0);
-    _$insertNode(_el$9, _el$0);
-    _$setProp(_el$9, "id", "scheduler-sidebar-active");
-    _$setProp(_el$9, "selectable", false);
-    _$setProp(_el$9, "wrapMode", "none");
-    _$insert(_el$9, active, null);
-    _$insertNode(_el$1, _el$10);
-    _$setProp(_el$1, "id", "scheduler-sidebar-paused");
-    _$setProp(_el$1, "selectable", false);
-    _$setProp(_el$1, "wrapMode", "none");
-    _$insert(_el$1, paused, null);
-    _$insertNode(_el$11, _el$12);
-    _$setProp(_el$11, "id", "scheduler-sidebar-err");
-    _$setProp(_el$11, "selectable", false);
-    _$setProp(_el$11, "wrapMode", "none");
-    _$insert(_el$11, problems, null);
-    _$insertNode(_el$13, _el$14);
-    _$setProp(_el$13, "id", "scheduler-sidebar-open");
-    _$setProp(_el$13, "flexShrink", 0);
-    _$setProp(_el$13, "paddingLeft", 1);
-    _$setProp(_el$13, "onMouseUp", (event) => activateMouse(event, openCenter));
+    _$setProp(_el$8, "id", "scheduler-sidebar-active");
+    _$setProp(_el$8, "selectable", false);
+    _$setProp(_el$8, "wrapMode", "none");
+    _$insert(_el$8, active, null);
+    _$insertNode(_el$0, _$createTextNode(`\xB7`));
+    _$setProp(_el$0, "id", "scheduler-sidebar-separator-active");
+    _$setProp(_el$0, "selectable", false);
+    _$setProp(_el$0, "wrapMode", "none");
+    _$insertNode(_el$10, _el$11);
+    _$setProp(_el$10, "id", "scheduler-sidebar-paused");
+    _$setProp(_el$10, "selectable", false);
+    _$setProp(_el$10, "wrapMode", "none");
+    _$insert(_el$10, paused, null);
+    _$insertNode(_el$12, _$createTextNode(`\xB7`));
+    _$setProp(_el$12, "id", "scheduler-sidebar-separator-paused");
+    _$setProp(_el$12, "selectable", false);
+    _$setProp(_el$12, "wrapMode", "none");
     _$insertNode(_el$14, _el$15);
+    _$setProp(_el$14, "id", "scheduler-sidebar-err");
     _$setProp(_el$14, "selectable", false);
     _$setProp(_el$14, "wrapMode", "none");
-    _$insertNode(_el$15, _el$16);
-    _$insert(_el$15, () => jobs().length, null);
+    _$insert(_el$14, problems, null);
+    _$insertNode(_el$16, _$createTextNode(`\xB7`));
+    _$setProp(_el$16, "id", "scheduler-sidebar-separator-err");
+    _$setProp(_el$16, "selectable", false);
+    _$setProp(_el$16, "wrapMode", "none");
+    _$insertNode(_el$18, _el$19);
+    _$setProp(_el$18, "id", "scheduler-sidebar-open");
+    _$setProp(_el$18, "flexShrink", 0);
+    _$setProp(_el$18, "onMouseUp", (event) => activateMouse(event, openCenter));
+    _$insertNode(_el$19, _el$20);
+    _$setProp(_el$19, "selectable", false);
+    _$setProp(_el$19, "wrapMode", "none");
+    _$insertNode(_el$20, _el$21);
+    _$insert(_el$20, () => jobs().length, null);
     _$insert(_el$, _$createComponent(Show, {
       get when() {
         return open();
@@ -22811,28 +22821,28 @@ function Sidebar(props) {
             return recentJobs();
           },
           children: (job) => (() => {
-            var _el$19 = _$createElement("box"), _el$20 = _$createElement("text"), _el$21 = _$createTextNode(` `), _el$22 = _$createElement("span"), _el$23 = _$createElement("text"), _el$24 = _$createTextNode(` \xB7 `);
-            _$insertNode(_el$19, _el$20);
-            _$insertNode(_el$19, _el$23);
-            _$setProp(_el$19, "paddingLeft", 1);
-            _$setProp(_el$19, "paddingRight", 1);
-            _$setProp(_el$19, "paddingTop", 1);
-            _$setProp(_el$19, "onMouseUp", (event) => activateMouse(event, () => openDetail(job.id)));
-            _$insertNode(_el$20, _el$21);
-            _$insertNode(_el$20, _el$22);
-            _$insert(_el$20, () => statusIcon(job.health), _el$21);
-            _$insert(_el$22, () => job.name);
-            _$insertNode(_el$23, _el$24);
-            _$insert(_el$23, () => job.scheduleText, _el$24);
-            _$insert(_el$23, () => relativeTime(job.nextRunAt), null);
+            var _el$24 = _$createElement("box"), _el$25 = _$createElement("text"), _el$26 = _$createTextNode(` `), _el$27 = _$createElement("span"), _el$28 = _$createElement("text"), _el$29 = _$createTextNode(` \xB7 `);
+            _$insertNode(_el$24, _el$25);
+            _$insertNode(_el$24, _el$28);
+            _$setProp(_el$24, "paddingLeft", 1);
+            _$setProp(_el$24, "paddingRight", 1);
+            _$setProp(_el$24, "paddingTop", 1);
+            _$setProp(_el$24, "onMouseUp", (event) => activateMouse(event, () => openDetail(job.id)));
+            _$insertNode(_el$25, _el$26);
+            _$insertNode(_el$25, _el$27);
+            _$insert(_el$25, () => statusIcon(job.health), _el$26);
+            _$insert(_el$27, () => job.name);
+            _$insertNode(_el$28, _el$29);
+            _$insert(_el$28, () => job.scheduleText, _el$29);
+            _$insert(_el$28, () => relativeTime(job.nextRunAt), null);
             _$effect((_p$) => {
-              var _v$7 = `scheduler-sidebar-job-${job.id}`, _v$8 = statusColor(props.api, job.health), _v$9 = {
+              var _v$0 = `scheduler-sidebar-job-${job.id}`, _v$1 = statusColor(props.api, job.health), _v$10 = {
                 fg: props.api.theme.current.text
-              }, _v$0 = props.api.theme.current.textMuted;
-              _v$7 !== _p$.e && (_p$.e = _$setProp(_el$19, "id", _v$7, _p$.e));
-              _v$8 !== _p$.t && (_p$.t = _$setProp(_el$20, "fg", _v$8, _p$.t));
-              _v$9 !== _p$.a && (_p$.a = _$setProp(_el$22, "style", _v$9, _p$.a));
-              _v$0 !== _p$.o && (_p$.o = _$setProp(_el$23, "fg", _v$0, _p$.o));
+              }, _v$11 = props.api.theme.current.textMuted;
+              _v$0 !== _p$.e && (_p$.e = _$setProp(_el$24, "id", _v$0, _p$.e));
+              _v$1 !== _p$.t && (_p$.t = _$setProp(_el$25, "fg", _v$1, _p$.t));
+              _v$10 !== _p$.a && (_p$.a = _$setProp(_el$27, "style", _v$10, _p$.a));
+              _v$11 !== _p$.o && (_p$.o = _$setProp(_el$28, "fg", _v$11, _p$.o));
               return _p$;
             }, {
               e: undefined,
@@ -22840,7 +22850,7 @@ function Sidebar(props) {
               a: undefined,
               o: undefined
             });
-            return _el$19;
+            return _el$24;
           })()
         }), _$createComponent(Show, {
           get when() {
@@ -22848,22 +22858,25 @@ function Sidebar(props) {
           },
           fallback: null,
           get children() {
-            var _el$17 = _$createElement("text");
-            _$insertNode(_el$17, _$createTextNode(`No tasks in this project`));
-            _$effect((_$p) => _$setProp(_el$17, "fg", props.api.theme.current.textMuted, _$p));
-            return _el$17;
+            var _el$22 = _$createElement("text");
+            _$insertNode(_el$22, _$createTextNode(`No tasks in this project`));
+            _$effect((_$p) => _$setProp(_el$22, "fg", props.api.theme.current.textMuted, _$p));
+            return _el$22;
           }
         })];
       }
     }), null);
     _$effect((_p$) => {
-      var _v$ = props.api.theme.current.text, _v$2 = props.api.theme.current.text, _v$3 = props.api.theme.current.success, _v$4 = props.api.theme.current.textMuted, _v$5 = props.api.theme.current.error, _v$6 = props.api.theme.current.primary;
+      var _v$ = props.api.theme.current.text, _v$2 = props.api.theme.current.text, _v$3 = props.api.theme.current.success, _v$4 = props.api.theme.current.textMuted, _v$5 = props.api.theme.current.textMuted, _v$6 = props.api.theme.current.textMuted, _v$7 = props.api.theme.current.error, _v$8 = props.api.theme.current.textMuted, _v$9 = props.api.theme.current.primary;
       _v$ !== _p$.e && (_p$.e = _$setProp(_el$3, "fg", _v$, _p$.e));
       _v$2 !== _p$.t && (_p$.t = _$setProp(_el$4, "fg", _v$2, _p$.t));
-      _v$3 !== _p$.a && (_p$.a = _$setProp(_el$9, "fg", _v$3, _p$.a));
-      _v$4 !== _p$.o && (_p$.o = _$setProp(_el$1, "fg", _v$4, _p$.o));
-      _v$5 !== _p$.i && (_p$.i = _$setProp(_el$11, "fg", _v$5, _p$.i));
-      _v$6 !== _p$.n && (_p$.n = _$setProp(_el$14, "fg", _v$6, _p$.n));
+      _v$3 !== _p$.a && (_p$.a = _$setProp(_el$8, "fg", _v$3, _p$.a));
+      _v$4 !== _p$.o && (_p$.o = _$setProp(_el$0, "fg", _v$4, _p$.o));
+      _v$5 !== _p$.i && (_p$.i = _$setProp(_el$10, "fg", _v$5, _p$.i));
+      _v$6 !== _p$.n && (_p$.n = _$setProp(_el$12, "fg", _v$6, _p$.n));
+      _v$7 !== _p$.s && (_p$.s = _$setProp(_el$14, "fg", _v$7, _p$.s));
+      _v$8 !== _p$.h && (_p$.h = _$setProp(_el$16, "fg", _v$8, _p$.h));
+      _v$9 !== _p$.r && (_p$.r = _$setProp(_el$19, "fg", _v$9, _p$.r));
       return _p$;
     }, {
       e: undefined,
@@ -22871,52 +22884,58 @@ function Sidebar(props) {
       a: undefined,
       o: undefined,
       i: undefined,
-      n: undefined
+      n: undefined,
+      s: undefined,
+      h: undefined,
+      r: undefined
     });
     return _el$;
   })();
 }
 function Header(props) {
   return (() => {
-    var _el$25 = _$createElement("box"), _el$26 = _$createElement("box"), _el$29 = _$createElement("text"), _el$30 = _$createElement("b"), _el$31 = _$createElement("text");
-    _$insertNode(_el$25, _el$26);
-    _$insertNode(_el$25, _el$31);
-    _$setProp(_el$25, "flexDirection", "row");
-    _$setProp(_el$25, "justifyContent", "space-between");
-    _$setProp(_el$25, "paddingBottom", 1);
-    _$insertNode(_el$26, _el$29);
-    _$setProp(_el$26, "flexDirection", "row");
-    _$setProp(_el$26, "gap", 2);
-    _$insert(_el$26, _$createComponent(Show, {
+    var _el$30 = _$createElement("box"), _el$33 = _$createElement("text"), _el$34 = _$createElement("b");
+    _$insertNode(_el$30, _el$33);
+    _$setProp(_el$30, "id", "scheduler-header");
+    _$setProp(_el$30, "height", 2);
+    _$setProp(_el$30, "minHeight", 2);
+    _$setProp(_el$30, "flexShrink", 0);
+    _$setProp(_el$30, "flexDirection", "row");
+    _$setProp(_el$30, "gap", 2);
+    _$insert(_el$30, _$createComponent(Show, {
       get when() {
         return props.back;
       },
       fallback: null,
       get children() {
-        var _el$27 = _$createElement("text");
-        _$insertNode(_el$27, _$createTextNode(`\u2190 Back`));
-        _$setProp(_el$27, "onMouseUp", () => props.back?.());
-        _$effect((_$p) => _$setProp(_el$27, "fg", props.api.theme.current.primary, _$p));
-        return _el$27;
+        var _el$31 = _$createElement("text");
+        _$insertNode(_el$31, _$createTextNode(`\u2190 Back`));
+        _$setProp(_el$31, "onMouseUp", () => props.back?.());
+        _$effect((_$p) => _$setProp(_el$31, "fg", props.api.theme.current.primary, _$p));
+        return _el$31;
       }
-    }), _el$29);
-    _$insertNode(_el$29, _el$30);
-    _$insert(_el$30, () => props.title);
-    _$insert(_el$31, () => props.loading ? "Refreshing\u2026" : "\u21BB Refresh");
-    _$effect((_p$) => {
-      var _v$1 = props.api.theme.current.text, _v$10 = props.refreshId, _v$11 = props.api.theme.current.textMuted, _v$12 = props.refresh;
-      _v$1 !== _p$.e && (_p$.e = _$setProp(_el$29, "fg", _v$1, _p$.e));
-      _v$10 !== _p$.t && (_p$.t = _$setProp(_el$31, "id", _v$10, _p$.t));
-      _v$11 !== _p$.a && (_p$.a = _$setProp(_el$31, "fg", _v$11, _p$.a));
-      _v$12 !== _p$.o && (_p$.o = _$setProp(_el$31, "onMouseUp", _v$12, _p$.o));
-      return _p$;
-    }, {
-      e: undefined,
-      t: undefined,
-      a: undefined,
-      o: undefined
-    });
-    return _el$25;
+    }), _el$33);
+    _$insertNode(_el$33, _el$34);
+    _$setProp(_el$33, "id", "scheduler-header-title");
+    _$insert(_el$34, () => props.title);
+    _$insert(_el$30, _$createComponent(Show, {
+      get when() {
+        return props.health;
+      },
+      fallback: null,
+      children: (health) => (() => {
+        var _el$35 = _$createElement("text"), _el$36 = _$createElement("b"), _el$37 = _$createTextNode(` `);
+        _$insertNode(_el$35, _el$36);
+        _$setProp(_el$35, "id", "scheduler-header-health");
+        _$insertNode(_el$36, _el$37);
+        _$insert(_el$36, () => statusIcon(health()), _el$37);
+        _$insert(_el$36, () => health().toUpperCase(), null);
+        _$effect((_$p) => _$setProp(_el$35, "fg", statusColor(props.api, health()), _$p));
+        return _el$35;
+      })()
+    }), null);
+    _$effect((_$p) => _$setProp(_el$33, "fg", props.api.theme.current.text, _$p));
+    return _el$30;
   })();
 }
 function TaskCenter(props) {
@@ -22929,6 +22948,7 @@ function TaskCenter(props) {
   const [controlIndex, setControlIndex] = createSignal(scope() === "all" ? 0 : 1);
   const [hoveredControl, setHoveredControl] = createSignal();
   let root;
+  let searchTarget;
   let searchInput;
   let taskScroll;
   const controlRefs = [];
@@ -23001,6 +23021,17 @@ function TaskCenter(props) {
     if (index >= 0)
       activateMouse(event, () => applyControl(index));
   };
+  const focusSearchFromMouse = (event) => {
+    if (event.button !== 0)
+      return;
+    event.preventDefault();
+    event.stopPropagation();
+    focusSearch();
+  };
+  const handleRootMouseDown = (event) => {
+    if (inside(searchTarget, event))
+      focusSearchFromMouse(event);
+  };
   const openSelected = () => {
     const selected = jobs()[selectedIndex()];
     if (selected)
@@ -23015,26 +23046,26 @@ function TaskCenter(props) {
   function ControlTab(tab) {
     const highlighted = () => tab.selected() || hoveredControl() === tab.index || focus() === "controls" && controlIndex() === tab.index;
     return (() => {
-      var _el$32 = _$createElement("box"), _el$33 = _$createElement("text");
-      _$insertNode(_el$32, _el$33);
-      _$use((element) => controlRefs[tab.index] = element, _el$32);
-      _$setProp(_el$32, "height", 1);
-      _$setProp(_el$32, "flexShrink", 0);
-      _$setProp(_el$32, "paddingLeft", 1);
-      _$setProp(_el$32, "paddingRight", 1);
-      _$setProp(_el$32, "onMouseUp", (event) => handleControlMouse(tab.index, event));
-      _$setProp(_el$32, "onMouseOver", () => setHoveredControl(tab.index));
-      _$setProp(_el$32, "onMouseOut", () => setHoveredControl((current) => current === tab.index ? undefined : current));
-      _$setProp(_el$33, "selectable", false);
-      _$setProp(_el$33, "wrapMode", "none");
-      _$setProp(_el$33, "onMouseUp", (event) => handleControlMouse(tab.index, event));
-      _$insert(_el$33, () => tab.label);
+      var _el$38 = _$createElement("box"), _el$39 = _$createElement("text");
+      _$insertNode(_el$38, _el$39);
+      _$use((element) => controlRefs[tab.index] = element, _el$38);
+      _$setProp(_el$38, "height", 1);
+      _$setProp(_el$38, "flexShrink", 0);
+      _$setProp(_el$38, "paddingLeft", 1);
+      _$setProp(_el$38, "paddingRight", 1);
+      _$setProp(_el$38, "onMouseUp", (event) => handleControlMouse(tab.index, event));
+      _$setProp(_el$38, "onMouseOver", () => setHoveredControl(tab.index));
+      _$setProp(_el$38, "onMouseOut", () => setHoveredControl((current) => current === tab.index ? undefined : current));
+      _$setProp(_el$39, "selectable", false);
+      _$setProp(_el$39, "wrapMode", "none");
+      _$setProp(_el$39, "onMouseUp", (event) => handleControlMouse(tab.index, event));
+      _$insert(_el$39, () => tab.label);
       _$effect((_p$) => {
-        var _v$13 = tab.id, _v$14 = highlighted() ? props.api.theme.current.backgroundElement : props.api.theme.current.background, _v$15 = `${tab.id}-label`, _v$16 = tab.selected() || focus() === "controls" && controlIndex() === tab.index ? props.api.theme.current.primary : props.api.theme.current.textMuted;
-        _v$13 !== _p$.e && (_p$.e = _$setProp(_el$32, "id", _v$13, _p$.e));
-        _v$14 !== _p$.t && (_p$.t = _$setProp(_el$32, "backgroundColor", _v$14, _p$.t));
-        _v$15 !== _p$.a && (_p$.a = _$setProp(_el$33, "id", _v$15, _p$.a));
-        _v$16 !== _p$.o && (_p$.o = _$setProp(_el$33, "fg", _v$16, _p$.o));
+        var _v$12 = tab.id, _v$13 = highlighted() ? props.api.theme.current.backgroundElement : props.api.theme.current.background, _v$14 = `${tab.id}-label`, _v$15 = tab.selected() || focus() === "controls" && controlIndex() === tab.index ? props.api.theme.current.primary : props.api.theme.current.textMuted;
+        _v$12 !== _p$.e && (_p$.e = _$setProp(_el$38, "id", _v$12, _p$.e));
+        _v$13 !== _p$.t && (_p$.t = _$setProp(_el$38, "backgroundColor", _v$13, _p$.t));
+        _v$14 !== _p$.a && (_p$.a = _$setProp(_el$39, "id", _v$14, _p$.a));
+        _v$15 !== _p$.o && (_p$.o = _$setProp(_el$39, "fg", _v$15, _p$.o));
         return _p$;
       }, {
         e: undefined,
@@ -23042,7 +23073,7 @@ function TaskCenter(props) {
         a: undefined,
         o: undefined
       });
-      return _el$32;
+      return _el$38;
     })();
   }
   createEffect(() => {
@@ -23205,128 +23236,134 @@ function TaskCenter(props) {
     props.store.refresh();
   });
   return (() => {
-    var _el$34 = _$createElement("box"), _el$35 = _$createElement("input"), _el$36 = _$createElement("box"), _el$37 = _$createElement("box"), _el$38 = _$createElement("text"), _el$40 = _$createElement("box"), _el$47 = _$createElement("text");
-    _$insertNode(_el$34, _el$35);
-    _$insertNode(_el$34, _el$36);
-    _$insertNode(_el$34, _el$37);
-    _$insertNode(_el$34, _el$40);
-    _$insertNode(_el$34, _el$47);
-    _$use((element) => root = element, _el$34);
-    _$setProp(_el$34, "id", "scheduler-task-center");
-    _$setProp(_el$34, "position", "absolute");
-    _$setProp(_el$34, "zIndex", 2500);
-    _$setProp(_el$34, "left", 0);
-    _$setProp(_el$34, "top", 0);
-    _$setProp(_el$34, "minHeight", 0);
-    _$setProp(_el$34, "padding", 2);
-    _$setProp(_el$34, "flexDirection", "column");
-    _$setProp(_el$34, "focusable", true);
-    _$setProp(_el$34, "onMouseUp", handleRootMouse);
-    _$insert(_el$34, _$createComponent(Header, {
+    var _el$40 = _$createElement("box"), _el$41 = _$createElement("box"), _el$42 = _$createElement("input"), _el$43 = _$createElement("box"), _el$44 = _$createElement("box"), _el$45 = _$createElement("text"), _el$47 = _$createElement("box"), _el$48 = _$createElement("box"), _el$55 = _$createElement("text");
+    _$insertNode(_el$40, _el$41);
+    _$insertNode(_el$40, _el$43);
+    _$insertNode(_el$40, _el$44);
+    _$insertNode(_el$40, _el$47);
+    _$insertNode(_el$40, _el$48);
+    _$insertNode(_el$40, _el$55);
+    _$use((element) => root = element, _el$40);
+    _$setProp(_el$40, "id", "scheduler-task-center");
+    _$setProp(_el$40, "position", "absolute");
+    _$setProp(_el$40, "zIndex", 2500);
+    _$setProp(_el$40, "left", 0);
+    _$setProp(_el$40, "top", 0);
+    _$setProp(_el$40, "minHeight", 0);
+    _$setProp(_el$40, "padding", 2);
+    _$setProp(_el$40, "flexDirection", "column");
+    _$setProp(_el$40, "focusable", true);
+    _$setProp(_el$40, "onMouseDown", handleRootMouseDown);
+    _$setProp(_el$40, "onMouseUp", handleRootMouse);
+    _$insert(_el$40, _$createComponent(Header, {
       get api() {
         return props.api;
       },
-      title: "Scheduled tasks",
-      refresh: () => void props.store.refresh(),
-      refreshId: "scheduler-refresh",
-      get loading() {
-        return props.store.loading();
-      }
-    }), _el$35);
-    _$use((element) => searchInput = element, _el$35);
-    _$setProp(_el$35, "id", "scheduler-search");
-    _$setProp(_el$35, "placeholder", "Search scheduled tasks");
-    _$setProp(_el$35, "onInput", (value) => {
+      title: "Scheduled tasks"
+    }), _el$41);
+    _$insertNode(_el$41, _el$42);
+    _$use((element) => searchTarget = element, _el$41);
+    _$setProp(_el$41, "id", "scheduler-search-hitbox");
+    _$setProp(_el$41, "width", "100%");
+    _$setProp(_el$41, "height", 1);
+    _$setProp(_el$41, "minHeight", 1);
+    _$setProp(_el$41, "flexShrink", 0);
+    _$setProp(_el$41, "onMouseDown", focusSearchFromMouse);
+    _$use((element) => searchInput = element, _el$42);
+    _$setProp(_el$42, "id", "scheduler-search");
+    _$setProp(_el$42, "width", "100%");
+    _$setProp(_el$42, "placeholder", "Search scheduled tasks");
+    _$setProp(_el$42, "onInput", (value) => {
       setQuery(String(value));
       setSelectedIndex(0);
     });
-    _$setProp(_el$35, "onSubmit", focusList);
-    _$setProp(_el$35, "onMouseDown", () => {
-      setFocus("search");
-      searchInput?.focus();
-    });
-    _$setProp(_el$36, "height", 1);
-    _$setProp(_el$36, "flexShrink", 0);
-    _$insertNode(_el$37, _el$38);
-    _$setProp(_el$37, "id", "scheduler-controls");
-    _$setProp(_el$37, "width", "100%");
-    _$setProp(_el$37, "height", 1);
-    _$setProp(_el$37, "minHeight", 1);
-    _$setProp(_el$37, "flexShrink", 0);
-    _$setProp(_el$37, "flexDirection", "row");
-    _$setProp(_el$37, "alignItems", "stretch");
-    _$setProp(_el$37, "gap", 1);
-    _$insert(_el$37, _$createComponent(ControlTab, {
+    _$setProp(_el$42, "onSubmit", focusList);
+    _$setProp(_el$43, "height", 1);
+    _$setProp(_el$43, "flexShrink", 0);
+    _$insertNode(_el$44, _el$45);
+    _$setProp(_el$44, "id", "scheduler-controls");
+    _$setProp(_el$44, "width", "100%");
+    _$setProp(_el$44, "height", 1);
+    _$setProp(_el$44, "minHeight", 1);
+    _$setProp(_el$44, "flexShrink", 0);
+    _$setProp(_el$44, "flexDirection", "row");
+    _$setProp(_el$44, "alignItems", "stretch");
+    _$setProp(_el$44, "gap", 1);
+    _$insert(_el$44, _$createComponent(ControlTab, {
       index: 0,
       id: "scheduler-scope-all",
       label: "All projects",
       selected: () => scope() === "all"
-    }), _el$38);
-    _$insert(_el$37, _$createComponent(ControlTab, {
+    }), _el$45);
+    _$insert(_el$44, _$createComponent(ControlTab, {
       index: 1,
       id: "scheduler-scope-current",
       label: "Current project",
       selected: () => scope() === "current"
-    }), _el$38);
-    _$insertNode(_el$38, _$createTextNode(`\u2502`));
-    _$setProp(_el$38, "selectable", false);
-    _$insert(_el$37, _$createComponent(ControlTab, {
+    }), _el$45);
+    _$insertNode(_el$45, _$createTextNode(`\u2502`));
+    _$setProp(_el$45, "selectable", false);
+    _$insert(_el$44, _$createComponent(ControlTab, {
       index: 2,
       id: "scheduler-filter-all",
       label: "All",
       selected: () => filter() === "all"
     }), null);
-    _$insert(_el$37, _$createComponent(ControlTab, {
+    _$insert(_el$44, _$createComponent(ControlTab, {
       index: 3,
       id: "scheduler-filter-active",
       label: "Active",
       selected: () => filter() === "active"
     }), null);
-    _$insert(_el$37, _$createComponent(ControlTab, {
+    _$insert(_el$44, _$createComponent(ControlTab, {
       index: 4,
       id: "scheduler-filter-paused",
       label: "Paused",
       selected: () => filter() === "paused"
     }), null);
-    _$insert(_el$37, _$createComponent(ControlTab, {
+    _$insert(_el$44, _$createComponent(ControlTab, {
       index: 5,
       id: "scheduler-filter-problems",
       label: "Problems",
       selected: () => filter() === "problems"
     }), null);
-    _$setProp(_el$40, "height", 1);
-    _$setProp(_el$40, "flexShrink", 0);
-    _$insert(_el$34, _$createComponent(Show, {
+    _$setProp(_el$47, "height", 1);
+    _$setProp(_el$47, "flexShrink", 0);
+    _$setProp(_el$48, "id", "scheduler-results");
+    _$setProp(_el$48, "flexGrow", 1);
+    _$setProp(_el$48, "minHeight", 0);
+    _$setProp(_el$48, "flexDirection", "column");
+    _$insert(_el$48, _$createComponent(Show, {
       get when() {
         return jobs().length;
       },
       get fallback() {
         return (() => {
-          var _el$49 = _$createElement("text");
-          _$insertNode(_el$49, _$createTextNode(`No matching tasks.`));
-          _$effect((_$p) => _$setProp(_el$49, "fg", props.api.theme.current.textMuted, _$p));
-          return _el$49;
+          var _el$57 = _$createElement("text");
+          _$insertNode(_el$57, _$createTextNode(`No matching tasks.`));
+          _$effect((_$p) => _$setProp(_el$57, "fg", props.api.theme.current.textMuted, _$p));
+          return _el$57;
         })();
       },
       get children() {
-        var _el$41 = _$createElement("scrollbox");
-        _$use((element) => taskScroll = element, _el$41);
-        _$setProp(_el$41, "id", "scheduler-task-list");
-        _$setProp(_el$41, "flexGrow", 1);
-        _$setProp(_el$41, "minHeight", 0);
-        _$insert(_el$41, _$createComponent(For, {
+        var _el$49 = _$createElement("scrollbox");
+        _$use((element) => taskScroll = element, _el$49);
+        _$setProp(_el$49, "id", "scheduler-task-list");
+        _$setProp(_el$49, "flexGrow", 1);
+        _$setProp(_el$49, "minHeight", 0);
+        _$insert(_el$49, _$createComponent(For, {
           get each() {
             return jobs();
           },
           children: (job, index) => (() => {
-            var _el$51 = _$createElement("box"), _el$52 = _$createElement("text"), _el$53 = _$createTextNode(` `), _el$54 = _$createTextNode(` `), _el$55 = _$createElement("span"), _el$56 = _$createElement("text"), _el$57 = _$createTextNode(` `), _el$58 = _$createTextNode(` \xB7 next `), _el$59 = _$createTextNode(` \xB7 `);
-            _$insertNode(_el$51, _el$52);
-            _$insertNode(_el$51, _el$56);
-            _$setProp(_el$51, "height", 2);
-            _$setProp(_el$51, "flexShrink", 0);
-            _$setProp(_el$51, "flexDirection", "column");
-            _$setProp(_el$51, "paddingLeft", 1);
-            _$setProp(_el$51, "onMouseUp", (event) => activateMouse(event, () => {
+            var _el$59 = _$createElement("box"), _el$60 = _$createElement("text"), _el$61 = _$createTextNode(` `), _el$62 = _$createTextNode(` `), _el$63 = _$createElement("span"), _el$64 = _$createElement("text"), _el$65 = _$createTextNode(` `), _el$66 = _$createTextNode(` \xB7 next `), _el$67 = _$createTextNode(` \xB7 `);
+            _$insertNode(_el$59, _el$60);
+            _$insertNode(_el$59, _el$64);
+            _$setProp(_el$59, "height", 2);
+            _$setProp(_el$59, "flexShrink", 0);
+            _$setProp(_el$59, "flexDirection", "column");
+            _$setProp(_el$59, "paddingLeft", 1);
+            _$setProp(_el$59, "onMouseUp", (event) => activateMouse(event, () => {
               setSelectedIndex(index());
               focusList();
               navigateToDetail(props.api, {
@@ -23336,29 +23373,29 @@ function TaskCenter(props) {
                 centerState: centerState()
               });
             }));
-            _$insertNode(_el$52, _el$53);
-            _$insertNode(_el$52, _el$54);
-            _$insertNode(_el$52, _el$55);
-            _$setProp(_el$52, "wrapMode", "none");
-            _$insert(_el$52, () => selectedIndex() === index() ? "\u25B6" : " ", _el$53);
-            _$insert(_el$52, () => statusIcon(job.health), _el$54);
-            _$insert(_el$55, () => job.name);
-            _$insertNode(_el$56, _el$57);
-            _$insertNode(_el$56, _el$58);
-            _$insertNode(_el$56, _el$59);
-            _$setProp(_el$56, "wrapMode", "none");
-            _$insert(_el$56, () => job.scheduleText, _el$58);
-            _$insert(_el$56, () => relativeTime(job.nextRunAt), _el$59);
-            _$insert(_el$56, () => job.workdir, null);
+            _$insertNode(_el$60, _el$61);
+            _$insertNode(_el$60, _el$62);
+            _$insertNode(_el$60, _el$63);
+            _$setProp(_el$60, "wrapMode", "none");
+            _$insert(_el$60, () => selectedIndex() === index() ? "\u25B6" : " ", _el$61);
+            _$insert(_el$60, () => statusIcon(job.health), _el$62);
+            _$insert(_el$63, () => job.name);
+            _$insertNode(_el$64, _el$65);
+            _$insertNode(_el$64, _el$66);
+            _$insertNode(_el$64, _el$67);
+            _$setProp(_el$64, "wrapMode", "none");
+            _$insert(_el$64, () => job.scheduleText, _el$66);
+            _$insert(_el$64, () => relativeTime(job.nextRunAt), _el$67);
+            _$insert(_el$64, () => job.workdir, null);
             _$effect((_p$) => {
-              var _v$29 = `scheduler-job-${job.id}`, _v$30 = selectedIndex() === index() ? props.api.theme.current.backgroundElement : props.api.theme.current.background, _v$31 = statusColor(props.api, job.health), _v$32 = {
+              var _v$28 = `scheduler-job-${job.id}`, _v$29 = selectedIndex() === index() ? props.api.theme.current.backgroundElement : props.api.theme.current.background, _v$30 = statusColor(props.api, job.health), _v$31 = {
                 fg: props.api.theme.current.text
-              }, _v$33 = props.api.theme.current.textMuted;
-              _v$29 !== _p$.e && (_p$.e = _$setProp(_el$51, "id", _v$29, _p$.e));
-              _v$30 !== _p$.t && (_p$.t = _$setProp(_el$51, "backgroundColor", _v$30, _p$.t));
-              _v$31 !== _p$.a && (_p$.a = _$setProp(_el$52, "fg", _v$31, _p$.a));
-              _v$32 !== _p$.o && (_p$.o = _$setProp(_el$55, "style", _v$32, _p$.o));
-              _v$33 !== _p$.i && (_p$.i = _$setProp(_el$56, "fg", _v$33, _p$.i));
+              }, _v$32 = props.api.theme.current.textMuted;
+              _v$28 !== _p$.e && (_p$.e = _$setProp(_el$59, "id", _v$28, _p$.e));
+              _v$29 !== _p$.t && (_p$.t = _$setProp(_el$59, "backgroundColor", _v$29, _p$.t));
+              _v$30 !== _p$.a && (_p$.a = _$setProp(_el$60, "fg", _v$30, _p$.a));
+              _v$31 !== _p$.o && (_p$.o = _$setProp(_el$63, "style", _v$31, _p$.o));
+              _v$32 !== _p$.i && (_p$.i = _$setProp(_el$64, "fg", _v$32, _p$.i));
               return _p$;
             }, {
               e: undefined,
@@ -23367,64 +23404,67 @@ function TaskCenter(props) {
               o: undefined,
               i: undefined
             });
-            return _el$51;
+            return _el$59;
           })()
         }));
-        _$effect((_$p) => _$setProp(_el$41, "verticalScrollbarOptions", {
+        _$effect((_$p) => _$setProp(_el$49, "verticalScrollbarOptions", {
           visible: jobs().length > 8
         }, _$p));
-        return _el$41;
+        return _el$49;
       }
-    }), _el$47);
-    _$insert(_el$34, _$createComponent(Show, {
+    }), null);
+    _$insert(_el$48, _$createComponent(Show, {
       get when() {
         return orphans().length;
       },
       fallback: null,
       get children() {
-        var _el$42 = _$createElement("box"), _el$43 = _$createElement("text"), _el$44 = _$createElement("b"), _el$45 = _$createTextNode(`Orphaned OS tasks (`), _el$46 = _$createTextNode(`)`);
-        _$insertNode(_el$42, _el$43);
-        _$setProp(_el$42, "paddingTop", 1);
-        _$insertNode(_el$43, _el$44);
-        _$insertNode(_el$44, _el$45);
-        _$insertNode(_el$44, _el$46);
-        _$insert(_el$44, () => orphans().length, _el$46);
-        _$insert(_el$42, _$createComponent(For, {
+        var _el$50 = _$createElement("box"), _el$51 = _$createElement("text"), _el$52 = _$createElement("b"), _el$53 = _$createTextNode(`Orphaned OS tasks (`), _el$54 = _$createTextNode(`)`);
+        _$insertNode(_el$50, _el$51);
+        _$setProp(_el$50, "paddingTop", 1);
+        _$insertNode(_el$51, _el$52);
+        _$insertNode(_el$52, _el$53);
+        _$insertNode(_el$52, _el$54);
+        _$insert(_el$52, () => orphans().length, _el$54);
+        _$insert(_el$50, _$createComponent(For, {
           get each() {
             return orphans();
           },
           children: (orphan) => (() => {
-            var _el$60 = _$createElement("text"), _el$61 = _$createTextNode(`! `), _el$62 = _$createTextNode(` \xB7 `), _el$63 = _$createTextNode(` \xB7 click to inspect`);
-            _$insertNode(_el$60, _el$61);
-            _$insertNode(_el$60, _el$62);
-            _$insertNode(_el$60, _el$63);
-            _$setProp(_el$60, "selectable", false);
-            _$setProp(_el$60, "onMouseUp", (event) => activateMouse(event, () => openOrphanDialog(props.api, props.store, orphan)));
-            _$insert(_el$60, () => orphan.slug, _el$62);
-            _$insert(_el$60, () => orphan.backend, _el$63);
-            _$effect((_$p) => _$setProp(_el$60, "fg", props.api.theme.current.warning, _$p));
-            return _el$60;
+            var _el$68 = _$createElement("text"), _el$69 = _$createTextNode(`! `), _el$70 = _$createTextNode(` \xB7 `), _el$71 = _$createTextNode(` \xB7 click to inspect`);
+            _$insertNode(_el$68, _el$69);
+            _$insertNode(_el$68, _el$70);
+            _$insertNode(_el$68, _el$71);
+            _$setProp(_el$68, "selectable", false);
+            _$setProp(_el$68, "onMouseUp", (event) => activateMouse(event, () => openOrphanDialog(props.api, props.store, orphan)));
+            _$insert(_el$68, () => orphan.slug, _el$70);
+            _$insert(_el$68, () => orphan.backend, _el$71);
+            _$effect((_$p) => _$setProp(_el$68, "fg", props.api.theme.current.warning, _$p));
+            return _el$68;
           })()
         }), null);
-        _$effect((_$p) => _$setProp(_el$43, "fg", props.api.theme.current.warning, _$p));
-        return _el$42;
+        _$effect((_$p) => _$setProp(_el$51, "fg", props.api.theme.current.warning, _$p));
+        return _el$50;
       }
-    }), _el$47);
-    _$insertNode(_el$47, _$createTextNode(`Mouse: click/scroll \xB7 Keyboard: Tab controls \xB7 \u2190/\u2192 select \xB7 Enter apply \xB7 / search \xB7 Esc back`));
+    }), null);
+    _$insertNode(_el$55, _$createTextNode(`Mouse: click/scroll \xB7 Keyboard: Tab controls \xB7 \u2190/\u2192 select \xB7 Enter apply \xB7 / search \xB7 Esc back`));
+    _$setProp(_el$55, "id", "scheduler-footer");
+    _$setProp(_el$55, "height", 1);
+    _$setProp(_el$55, "flexShrink", 0);
     _$effect((_p$) => {
-      var _v$17 = dimensions().width, _v$18 = dimensions().height, _v$19 = props.api.theme.current.background, _v$20 = !props.api.ui.dialog.open && focus() !== "search", _v$21 = query(), _v$22 = focus() === "search" && !props.api.ui.dialog.open, _v$23 = props.api.theme.current.backgroundElement, _v$24 = props.api.theme.current.text, _v$25 = props.api.theme.current.text, _v$26 = props.api.theme.current.background, _v$27 = props.api.theme.current.border, _v$28 = props.api.theme.current.textMuted;
-      _v$17 !== _p$.e && (_p$.e = _$setProp(_el$34, "width", _v$17, _p$.e));
-      _v$18 !== _p$.t && (_p$.t = _$setProp(_el$34, "height", _v$18, _p$.t));
-      _v$19 !== _p$.a && (_p$.a = _$setProp(_el$34, "backgroundColor", _v$19, _p$.a));
-      _v$20 !== _p$.o && (_p$.o = _$setProp(_el$34, "focused", _v$20, _p$.o));
-      _v$21 !== _p$.i && (_p$.i = _$setProp(_el$35, "value", _v$21, _p$.i));
-      _v$22 !== _p$.n && (_p$.n = _$setProp(_el$35, "focused", _v$22, _p$.n));
-      _v$23 !== _p$.s && (_p$.s = _$setProp(_el$35, "backgroundColor", _v$23, _p$.s));
-      _v$24 !== _p$.h && (_p$.h = _$setProp(_el$35, "textColor", _v$24, _p$.h));
-      _v$25 !== _p$.r && (_p$.r = _$setProp(_el$35, "focusedTextColor", _v$25, _p$.r));
-      _v$26 !== _p$.d && (_p$.d = _$setProp(_el$37, "backgroundColor", _v$26, _p$.d));
-      _v$27 !== _p$.l && (_p$.l = _$setProp(_el$38, "fg", _v$27, _p$.l));
-      _v$28 !== _p$.u && (_p$.u = _$setProp(_el$47, "fg", _v$28, _p$.u));
+      var _v$16 = dimensions().width, _v$17 = dimensions().height, _v$18 = props.api.theme.current.background, _v$19 = !props.api.ui.dialog.open && focus() !== "search", _v$20 = query(), _v$21 = focus() === "search" && !props.api.ui.dialog.open, _v$22 = props.api.theme.current.backgroundElement, _v$23 = props.api.theme.current.text, _v$24 = props.api.theme.current.text, _v$25 = props.api.theme.current.background, _v$26 = props.api.theme.current.border, _v$27 = props.api.theme.current.textMuted;
+      _v$16 !== _p$.e && (_p$.e = _$setProp(_el$40, "width", _v$16, _p$.e));
+      _v$17 !== _p$.t && (_p$.t = _$setProp(_el$40, "height", _v$17, _p$.t));
+      _v$18 !== _p$.a && (_p$.a = _$setProp(_el$40, "backgroundColor", _v$18, _p$.a));
+      _v$19 !== _p$.o && (_p$.o = _$setProp(_el$40, "focused", _v$19, _p$.o));
+      _v$20 !== _p$.i && (_p$.i = _$setProp(_el$42, "value", _v$20, _p$.i));
+      _v$21 !== _p$.n && (_p$.n = _$setProp(_el$42, "focused", _v$21, _p$.n));
+      _v$22 !== _p$.s && (_p$.s = _$setProp(_el$42, "backgroundColor", _v$22, _p$.s));
+      _v$23 !== _p$.h && (_p$.h = _$setProp(_el$42, "textColor", _v$23, _p$.h));
+      _v$24 !== _p$.r && (_p$.r = _$setProp(_el$42, "focusedTextColor", _v$24, _p$.r));
+      _v$25 !== _p$.d && (_p$.d = _$setProp(_el$44, "backgroundColor", _v$25, _p$.d));
+      _v$26 !== _p$.l && (_p$.l = _$setProp(_el$45, "fg", _v$26, _p$.l));
+      _v$27 !== _p$.u && (_p$.u = _$setProp(_el$55, "fg", _v$27, _p$.u));
       return _p$;
     }, {
       e: undefined,
@@ -23440,7 +23480,7 @@ function TaskCenter(props) {
       l: undefined,
       u: undefined
     });
-    return _el$34;
+    return _el$40;
   })();
 }
 function perform(api2, store, action, success2) {
@@ -23469,11 +23509,11 @@ function openScheduleDialog(api2, store, job) {
       return `Change schedule \xB7 ${job.name}`;
     },
     description: () => (() => {
-      var _el$64 = _$createElement("text"), _el$65 = _$createTextNode(`Five-field cron expression. Current: `);
-      _$insertNode(_el$64, _el$65);
-      _$insert(_el$64, () => job.schedule, null);
-      _$effect((_$p) => _$setProp(_el$64, "fg", api2.theme.current.textMuted, _$p));
-      return _el$64;
+      var _el$72 = _$createElement("text"), _el$73 = _$createTextNode(`Five-field cron expression. Current: `);
+      _$insertNode(_el$72, _el$73);
+      _$insert(_el$72, () => job.schedule, null);
+      _$effect((_$p) => _$setProp(_el$72, "fg", api2.theme.current.textMuted, _$p));
+      return _el$72;
     })(),
     get value() {
       return job.schedule;
@@ -23507,30 +23547,30 @@ function openLogs(api2, job) {
     size: "xlarge",
     onClose: () => api2.ui.dialog.clear(),
     get children() {
-      var _el$66 = _$createElement("box"), _el$67 = _$createElement("text"), _el$68 = _$createElement("b"), _el$69 = _$createTextNode(`Logs \xB7 `), _el$70 = _$createElement("text"), _el$71 = _$createElement("scrollbox"), _el$72 = _$createElement("text"), _el$73 = _$createElement("text");
-      _$insertNode(_el$66, _el$67);
-      _$insertNode(_el$66, _el$70);
-      _$insertNode(_el$66, _el$71);
-      _$insertNode(_el$66, _el$73);
-      _$setProp(_el$66, "flexDirection", "column");
-      _$setProp(_el$66, "width", "100%");
-      _$setProp(_el$66, "height", "100%");
-      _$setProp(_el$66, "gap", 1);
-      _$insertNode(_el$67, _el$68);
-      _$insertNode(_el$68, _el$69);
-      _$insert(_el$68, () => job.name, null);
-      _$insert(_el$70, () => result.logPath);
-      _$insertNode(_el$71, _el$72);
-      _$setProp(_el$71, "flexGrow", 1);
-      _$insert(_el$72, () => result.logs || "No logs yet.");
-      _$insertNode(_el$73, _$createTextNode(`esc \xB7 close`));
-      _$setProp(_el$73, "onMouseUp", () => api2.ui.dialog.clear());
+      var _el$74 = _$createElement("box"), _el$75 = _$createElement("text"), _el$76 = _$createElement("b"), _el$77 = _$createTextNode(`Logs \xB7 `), _el$78 = _$createElement("text"), _el$79 = _$createElement("scrollbox"), _el$80 = _$createElement("text"), _el$81 = _$createElement("text");
+      _$insertNode(_el$74, _el$75);
+      _$insertNode(_el$74, _el$78);
+      _$insertNode(_el$74, _el$79);
+      _$insertNode(_el$74, _el$81);
+      _$setProp(_el$74, "flexDirection", "column");
+      _$setProp(_el$74, "width", "100%");
+      _$setProp(_el$74, "height", "100%");
+      _$setProp(_el$74, "gap", 1);
+      _$insertNode(_el$75, _el$76);
+      _$insertNode(_el$76, _el$77);
+      _$insert(_el$76, () => job.name, null);
+      _$insert(_el$78, () => result.logPath);
+      _$insertNode(_el$79, _el$80);
+      _$setProp(_el$79, "flexGrow", 1);
+      _$insert(_el$80, () => result.logs || "No logs yet.");
+      _$insertNode(_el$81, _$createTextNode(`esc \xB7 close`));
+      _$setProp(_el$81, "onMouseUp", () => api2.ui.dialog.clear());
       _$effect((_p$) => {
-        var _v$34 = api2.theme.current.text, _v$35 = api2.theme.current.textMuted, _v$36 = api2.theme.current.text, _v$37 = api2.theme.current.textMuted;
-        _v$34 !== _p$.e && (_p$.e = _$setProp(_el$67, "fg", _v$34, _p$.e));
-        _v$35 !== _p$.t && (_p$.t = _$setProp(_el$70, "fg", _v$35, _p$.t));
-        _v$36 !== _p$.a && (_p$.a = _$setProp(_el$72, "fg", _v$36, _p$.a));
-        _v$37 !== _p$.o && (_p$.o = _$setProp(_el$73, "fg", _v$37, _p$.o));
+        var _v$33 = api2.theme.current.text, _v$34 = api2.theme.current.textMuted, _v$35 = api2.theme.current.text, _v$36 = api2.theme.current.textMuted;
+        _v$33 !== _p$.e && (_p$.e = _$setProp(_el$75, "fg", _v$33, _p$.e));
+        _v$34 !== _p$.t && (_p$.t = _$setProp(_el$78, "fg", _v$34, _p$.t));
+        _v$35 !== _p$.a && (_p$.a = _$setProp(_el$80, "fg", _v$35, _p$.a));
+        _v$36 !== _p$.o && (_p$.o = _$setProp(_el$81, "fg", _v$36, _p$.o));
         return _p$;
       }, {
         e: undefined,
@@ -23538,7 +23578,7 @@ function openLogs(api2, job) {
         a: undefined,
         o: undefined
       });
-      return _el$66;
+      return _el$74;
     }
   }));
   api2.ui.dialog.setSize("xlarge");
@@ -23630,25 +23670,25 @@ Only these exact scheduler artifacts will be removed.`;
 }
 function Action(props) {
   return (() => {
-    var _el$75 = _$createElement("box"), _el$76 = _$createElement("text");
-    _$insertNode(_el$75, _el$76);
-    _$setProp(_el$75, "paddingLeft", 1);
-    _$setProp(_el$75, "paddingRight", 1);
-    _$setProp(_el$75, "onMouseUp", (event) => activateMouse(event, props.onSelect));
-    _$setProp(_el$76, "selectable", false);
-    _$insert(_el$76, () => props.label);
+    var _el$83 = _$createElement("box"), _el$84 = _$createElement("text");
+    _$insertNode(_el$83, _el$84);
+    _$setProp(_el$83, "paddingLeft", 1);
+    _$setProp(_el$83, "paddingRight", 1);
+    _$setProp(_el$83, "onMouseUp", (event) => activateMouse(event, props.onSelect));
+    _$setProp(_el$84, "selectable", false);
+    _$insert(_el$84, () => props.label);
     _$effect((_p$) => {
-      var _v$38 = props.id, _v$39 = props.api.theme.current.backgroundElement, _v$40 = props.warning ? props.api.theme.current.warning : props.api.theme.current.primary;
-      _v$38 !== _p$.e && (_p$.e = _$setProp(_el$75, "id", _v$38, _p$.e));
-      _v$39 !== _p$.t && (_p$.t = _$setProp(_el$75, "backgroundColor", _v$39, _p$.t));
-      _v$40 !== _p$.a && (_p$.a = _$setProp(_el$76, "fg", _v$40, _p$.a));
+      var _v$37 = props.id, _v$38 = props.api.theme.current.backgroundElement, _v$39 = props.warning ? props.api.theme.current.warning : props.api.theme.current.primary;
+      _v$37 !== _p$.e && (_p$.e = _$setProp(_el$83, "id", _v$37, _p$.e));
+      _v$38 !== _p$.t && (_p$.t = _$setProp(_el$83, "backgroundColor", _v$38, _p$.t));
+      _v$39 !== _p$.a && (_p$.a = _$setProp(_el$84, "fg", _v$39, _p$.a));
       return _p$;
     }, {
       e: undefined,
       t: undefined,
       a: undefined
     });
-    return _el$75;
+    return _el$83;
   })();
 }
 function Detail(props) {
@@ -23702,18 +23742,18 @@ function Detail(props) {
     props.store.refresh();
   });
   return (() => {
-    var _el$77 = _$createElement("box");
-    _$use((element) => root = element, _el$77);
-    _$setProp(_el$77, "id", "scheduler-task-detail");
-    _$setProp(_el$77, "position", "absolute");
-    _$setProp(_el$77, "zIndex", 2500);
-    _$setProp(_el$77, "left", 0);
-    _$setProp(_el$77, "top", 0);
-    _$setProp(_el$77, "minHeight", 0);
-    _$setProp(_el$77, "padding", 2);
-    _$setProp(_el$77, "flexDirection", "column");
-    _$setProp(_el$77, "focusable", true);
-    _$insert(_el$77, _$createComponent(Header, {
+    var _el$85 = _$createElement("box");
+    _$use((element) => root = element, _el$85);
+    _$setProp(_el$85, "id", "scheduler-task-detail");
+    _$setProp(_el$85, "position", "absolute");
+    _$setProp(_el$85, "zIndex", 2500);
+    _$setProp(_el$85, "left", 0);
+    _$setProp(_el$85, "top", 0);
+    _$setProp(_el$85, "minHeight", 0);
+    _$setProp(_el$85, "padding", 2);
+    _$setProp(_el$85, "flexDirection", "column");
+    _$setProp(_el$85, "focusable", true);
+    _$insert(_el$85, _$createComponent(Header, {
       get api() {
         return props.api;
       },
@@ -23721,151 +23761,144 @@ function Detail(props) {
         return job()?.name || "Scheduled task";
       },
       back,
-      refresh: () => void props.store.refresh(),
-      refreshId: "scheduler-detail-refresh",
-      get loading() {
-        return props.store.loading();
+      get health() {
+        return job()?.health;
       }
     }), null);
-    _$insert(_el$77, _$createComponent(Show, {
+    _$insert(_el$85, _$createComponent(Show, {
       get when() {
         return job();
       },
       get fallback() {
         return (() => {
-          var _el$78 = _$createElement("text");
-          _$insertNode(_el$78, _$createTextNode(`Task not found. Refresh or return to the task center.`));
-          _$effect((_$p) => _$setProp(_el$78, "fg", props.api.theme.current.warning, _$p));
-          return _el$78;
+          var _el$86 = _$createElement("text");
+          _$insertNode(_el$86, _$createTextNode(`Task not found. Refresh or return to the task center.`));
+          _$effect((_$p) => _$setProp(_el$86, "fg", props.api.theme.current.warning, _$p));
+          return _el$86;
         })();
       },
       children: (item) => (() => {
-        var _el$80 = _$createElement("scrollbox"), _el$81 = _$createElement("box"), _el$82 = _$createElement("text"), _el$83 = _$createElement("b"), _el$84 = _$createTextNode(` `), _el$85 = _$createElement("box"), _el$86 = _$createElement("text"), _el$87 = _$createElement("b"), _el$89 = _$createElement("text"), _el$90 = _$createElement("box"), _el$91 = _$createElement("text"), _el$92 = _$createElement("b"), _el$94 = _$createElement("text"), _el$95 = _$createTextNode(`Project `), _el$96 = _$createElement("span"), _el$97 = _$createElement("text"), _el$98 = _$createTextNode(`Scope `), _el$99 = _$createElement("span"), _el$100 = _$createElement("text"), _el$101 = _$createTextNode(`Backend `), _el$102 = _$createElement("span"), _el$103 = _$createElement("text"), _el$104 = _$createTextNode(`Registered `), _el$105 = _$createElement("span"), _el$106 = _$createElement("text"), _el$107 = _$createTextNode(`Model `), _el$108 = _$createElement("span"), _el$109 = _$createElement("text"), _el$110 = _$createTextNode(`Agent `), _el$111 = _$createElement("span"), _el$112 = _$createElement("text"), _el$113 = _$createTextNode(`Timeout `), _el$114 = _$createElement("span"), _el$115 = _$createElement("box"), _el$116 = _$createElement("text"), _el$117 = _$createElement("b"), _el$119 = _$createElement("text"), _el$120 = _$createTextNode(`Cron `), _el$121 = _$createElement("span"), _el$122 = _$createElement("text"), _el$123 = _$createTextNode(`Readable `), _el$124 = _$createElement("span"), _el$125 = _$createElement("text"), _el$126 = _$createTextNode(`Timezone `), _el$127 = _$createElement("span"), _el$128 = _$createElement("text"), _el$129 = _$createTextNode(`Next run `), _el$130 = _$createElement("span"), _el$131 = _$createElement("text"), _el$132 = _$createTextNode(`Last run `), _el$133 = _$createElement("span"), _el$138 = _$createElement("box"), _el$139 = _$createElement("box"), _el$140 = _$createElement("text"), _el$141 = _$createElement("b");
-        _$insertNode(_el$80, _el$81);
-        _$setProp(_el$80, "flexGrow", 1);
-        _$insertNode(_el$81, _el$82);
-        _$insertNode(_el$81, _el$85);
-        _$insertNode(_el$81, _el$90);
-        _$insertNode(_el$81, _el$115);
-        _$insertNode(_el$81, _el$138);
-        _$insertNode(_el$81, _el$139);
-        _$setProp(_el$81, "gap", 1);
-        _$setProp(_el$81, "paddingRight", 1);
-        _$insertNode(_el$82, _el$83);
-        _$insertNode(_el$83, _el$84);
-        _$insert(_el$83, () => statusIcon(item().health), _el$84);
-        _$insert(_el$83, () => item().health.toUpperCase(), null);
-        _$insertNode(_el$85, _el$86);
-        _$insertNode(_el$85, _el$89);
-        _$setProp(_el$85, "border", true);
-        _$setProp(_el$85, "padding", 1);
-        _$insertNode(_el$86, _el$87);
-        _$insertNode(_el$87, _$createTextNode(`Task`));
-        _$insert(_el$89, () => item().prompt || item().command || "No prompt or command");
+        var _el$88 = _$createElement("scrollbox"), _el$89 = _$createElement("box"), _el$90 = _$createElement("box"), _el$91 = _$createElement("text"), _el$92 = _$createElement("b"), _el$94 = _$createElement("text"), _el$95 = _$createElement("box"), _el$96 = _$createElement("text"), _el$97 = _$createElement("b"), _el$99 = _$createElement("text"), _el$100 = _$createTextNode(`Project `), _el$101 = _$createElement("span"), _el$102 = _$createElement("text"), _el$103 = _$createTextNode(`Scope `), _el$104 = _$createElement("span"), _el$105 = _$createElement("text"), _el$106 = _$createTextNode(`Backend `), _el$107 = _$createElement("span"), _el$108 = _$createElement("text"), _el$109 = _$createTextNode(`Registered `), _el$110 = _$createElement("span"), _el$111 = _$createElement("text"), _el$112 = _$createTextNode(`Model `), _el$113 = _$createElement("span"), _el$114 = _$createElement("text"), _el$115 = _$createTextNode(`Agent `), _el$116 = _$createElement("span"), _el$117 = _$createElement("text"), _el$118 = _$createTextNode(`Timeout `), _el$119 = _$createElement("span"), _el$120 = _$createElement("box"), _el$121 = _$createElement("text"), _el$122 = _$createElement("b"), _el$124 = _$createElement("text"), _el$125 = _$createTextNode(`Cron `), _el$126 = _$createElement("span"), _el$127 = _$createElement("text"), _el$128 = _$createTextNode(`Readable `), _el$129 = _$createElement("span"), _el$130 = _$createElement("text"), _el$131 = _$createTextNode(`Timezone `), _el$132 = _$createElement("span"), _el$133 = _$createElement("text"), _el$134 = _$createTextNode(`Next run `), _el$135 = _$createElement("span"), _el$136 = _$createElement("text"), _el$137 = _$createTextNode(`Last run `), _el$138 = _$createElement("span"), _el$143 = _$createElement("box"), _el$144 = _$createElement("box"), _el$145 = _$createElement("text"), _el$146 = _$createElement("b");
+        _$insertNode(_el$88, _el$89);
+        _$setProp(_el$88, "flexGrow", 1);
+        _$insertNode(_el$89, _el$90);
+        _$insertNode(_el$89, _el$95);
+        _$insertNode(_el$89, _el$120);
+        _$insertNode(_el$89, _el$143);
+        _$insertNode(_el$89, _el$144);
+        _$setProp(_el$89, "gap", 1);
+        _$setProp(_el$89, "paddingRight", 1);
         _$insertNode(_el$90, _el$91);
         _$insertNode(_el$90, _el$94);
-        _$insertNode(_el$90, _el$97);
-        _$insertNode(_el$90, _el$100);
-        _$insertNode(_el$90, _el$103);
-        _$insertNode(_el$90, _el$106);
-        _$insertNode(_el$90, _el$109);
-        _$insertNode(_el$90, _el$112);
         _$setProp(_el$90, "border", true);
         _$setProp(_el$90, "padding", 1);
         _$insertNode(_el$91, _el$92);
-        _$insertNode(_el$92, _$createTextNode(`Details`));
-        _$insertNode(_el$94, _el$95);
-        _$insertNode(_el$94, _el$96);
-        _$insert(_el$96, () => item().workdir);
-        _$insertNode(_el$97, _el$98);
-        _$insertNode(_el$97, _el$99);
-        _$insert(_el$99, () => item().scopeId);
-        _$insertNode(_el$100, _el$101);
-        _$insertNode(_el$100, _el$102);
-        _$insert(_el$102, () => item().backend || "not registered");
-        _$insertNode(_el$103, _el$104);
-        _$insertNode(_el$103, _el$105);
-        _$insert(_el$105, () => item().artifacts.some((artifact) => artifact.registered) ? "yes" : "no");
-        _$insertNode(_el$106, _el$107);
-        _$insertNode(_el$106, _el$108);
-        _$insert(_el$108, () => item().model || "default");
-        _$insertNode(_el$109, _el$110);
-        _$insertNode(_el$109, _el$111);
-        _$insert(_el$111, () => item().agent || "default");
-        _$insertNode(_el$112, _el$113);
-        _$insertNode(_el$112, _el$114);
-        _$insert(_el$114, (() => {
+        _$insertNode(_el$92, _$createTextNode(`Task`));
+        _$insert(_el$94, () => item().prompt || item().command || "No prompt or command");
+        _$insertNode(_el$95, _el$96);
+        _$insertNode(_el$95, _el$99);
+        _$insertNode(_el$95, _el$102);
+        _$insertNode(_el$95, _el$105);
+        _$insertNode(_el$95, _el$108);
+        _$insertNode(_el$95, _el$111);
+        _$insertNode(_el$95, _el$114);
+        _$insertNode(_el$95, _el$117);
+        _$setProp(_el$95, "border", true);
+        _$setProp(_el$95, "padding", 1);
+        _$insertNode(_el$96, _el$97);
+        _$insertNode(_el$97, _$createTextNode(`Details`));
+        _$insertNode(_el$99, _el$100);
+        _$insertNode(_el$99, _el$101);
+        _$insert(_el$101, () => item().workdir);
+        _$insertNode(_el$102, _el$103);
+        _$insertNode(_el$102, _el$104);
+        _$insert(_el$104, () => item().scopeId);
+        _$insertNode(_el$105, _el$106);
+        _$insertNode(_el$105, _el$107);
+        _$insert(_el$107, () => item().backend || "not registered");
+        _$insertNode(_el$108, _el$109);
+        _$insertNode(_el$108, _el$110);
+        _$insert(_el$110, () => item().artifacts.some((artifact) => artifact.registered) ? "yes" : "no");
+        _$insertNode(_el$111, _el$112);
+        _$insertNode(_el$111, _el$113);
+        _$insert(_el$113, () => item().model || "default");
+        _$insertNode(_el$114, _el$115);
+        _$insertNode(_el$114, _el$116);
+        _$insert(_el$116, () => item().agent || "default");
+        _$insertNode(_el$117, _el$118);
+        _$insertNode(_el$117, _el$119);
+        _$insert(_el$119, (() => {
           var _c$ = _$memo(() => !!item().timeoutSeconds);
           return () => _c$() ? `${item().timeoutSeconds}s` : "default";
         })());
-        _$insertNode(_el$115, _el$116);
-        _$insertNode(_el$115, _el$119);
-        _$insertNode(_el$115, _el$122);
-        _$insertNode(_el$115, _el$125);
-        _$insertNode(_el$115, _el$128);
-        _$insertNode(_el$115, _el$131);
-        _$setProp(_el$115, "border", true);
-        _$setProp(_el$115, "padding", 1);
-        _$insertNode(_el$116, _el$117);
-        _$insertNode(_el$117, _$createTextNode(`Frequency`));
-        _$insertNode(_el$119, _el$120);
-        _$insertNode(_el$119, _el$121);
-        _$insert(_el$121, () => item().schedule);
-        _$insertNode(_el$122, _el$123);
-        _$insertNode(_el$122, _el$124);
-        _$insert(_el$124, () => item().scheduleText);
-        _$insertNode(_el$125, _el$126);
-        _$insertNode(_el$125, _el$127);
-        _$insert(_el$127, () => item().timezone);
-        _$insertNode(_el$128, _el$129);
-        _$insertNode(_el$128, _el$130);
-        _$insert(_el$130, () => item().nextRunAt || "\u2014");
-        _$insertNode(_el$131, _el$132);
-        _$insertNode(_el$131, _el$133);
-        _$insert(_el$133, (() => {
+        _$insertNode(_el$120, _el$121);
+        _$insertNode(_el$120, _el$124);
+        _$insertNode(_el$120, _el$127);
+        _$insertNode(_el$120, _el$130);
+        _$insertNode(_el$120, _el$133);
+        _$insertNode(_el$120, _el$136);
+        _$setProp(_el$120, "border", true);
+        _$setProp(_el$120, "padding", 1);
+        _$insertNode(_el$121, _el$122);
+        _$insertNode(_el$122, _$createTextNode(`Frequency`));
+        _$insertNode(_el$124, _el$125);
+        _$insertNode(_el$124, _el$126);
+        _$insert(_el$126, () => item().schedule);
+        _$insertNode(_el$127, _el$128);
+        _$insertNode(_el$127, _el$129);
+        _$insert(_el$129, () => item().scheduleText);
+        _$insertNode(_el$130, _el$131);
+        _$insertNode(_el$130, _el$132);
+        _$insert(_el$132, () => item().timezone);
+        _$insertNode(_el$133, _el$134);
+        _$insertNode(_el$133, _el$135);
+        _$insert(_el$135, () => item().nextRunAt || "\u2014");
+        _$insertNode(_el$136, _el$137);
+        _$insertNode(_el$136, _el$138);
+        _$insert(_el$138, (() => {
           var _c$2 = _$memo(() => !!item().lastRunAt);
           return () => _c$2() ? `${item().lastRunAt} \xB7 ${item().lastRunStatus || "unknown"}` : "\u2014";
         })());
-        _$insert(_el$81, _$createComponent(Show, {
+        _$insert(_el$89, _$createComponent(Show, {
           get when() {
             return item().diagnostics.length;
           },
           fallback: null,
           get children() {
-            var _el$134 = _$createElement("box"), _el$135 = _$createElement("text"), _el$136 = _$createElement("b");
-            _$insertNode(_el$134, _el$135);
-            _$setProp(_el$134, "border", true);
-            _$setProp(_el$134, "padding", 1);
-            _$insertNode(_el$135, _el$136);
-            _$insertNode(_el$136, _$createTextNode(`Diagnostics`));
-            _$insert(_el$134, _$createComponent(For, {
+            var _el$139 = _$createElement("box"), _el$140 = _$createElement("text"), _el$141 = _$createElement("b");
+            _$insertNode(_el$139, _el$140);
+            _$setProp(_el$139, "border", true);
+            _$setProp(_el$139, "padding", 1);
+            _$insertNode(_el$140, _el$141);
+            _$insertNode(_el$141, _$createTextNode(`Diagnostics`));
+            _$insert(_el$139, _$createComponent(For, {
               get each() {
                 return item().diagnostics;
               },
               children: (message) => (() => {
-                var _el$143 = _$createElement("text"), _el$144 = _$createTextNode(`! `);
-                _$insertNode(_el$143, _el$144);
-                _$insert(_el$143, message, null);
-                _$effect((_$p) => _$setProp(_el$143, "fg", props.api.theme.current.warning, _$p));
-                return _el$143;
+                var _el$148 = _$createElement("text"), _el$149 = _$createTextNode(`! `);
+                _$insertNode(_el$148, _el$149);
+                _$insert(_el$148, message, null);
+                _$effect((_$p) => _$setProp(_el$148, "fg", props.api.theme.current.warning, _$p));
+                return _el$148;
               })()
             }), null);
             _$effect((_p$) => {
-              var _v$45 = props.api.theme.current.warning, _v$46 = props.api.theme.current.warning;
-              _v$45 !== _p$.e && (_p$.e = _$setProp(_el$134, "borderColor", _v$45, _p$.e));
-              _v$46 !== _p$.t && (_p$.t = _$setProp(_el$135, "fg", _v$46, _p$.t));
+              var _v$44 = props.api.theme.current.warning, _v$45 = props.api.theme.current.warning;
+              _v$44 !== _p$.e && (_p$.e = _$setProp(_el$139, "borderColor", _v$44, _p$.e));
+              _v$45 !== _p$.t && (_p$.t = _$setProp(_el$140, "fg", _v$45, _p$.t));
               return _p$;
             }, {
               e: undefined,
               t: undefined
             });
-            return _el$134;
+            return _el$139;
           }
-        }), _el$138);
-        _$setProp(_el$138, "flexDirection", "row");
-        _$setProp(_el$138, "gap", 1);
-        _$setProp(_el$138, "flexWrap", "wrap");
-        _$insert(_el$138, _$createComponent(Action, {
+        }), _el$143);
+        _$setProp(_el$143, "flexDirection", "row");
+        _$setProp(_el$143, "gap", 1);
+        _$setProp(_el$143, "flexWrap", "wrap");
+        _$insert(_el$143, _$createComponent(Action, {
           id: "scheduler-action-run",
           get api() {
             return props.api;
@@ -23875,7 +23908,7 @@ function Detail(props) {
             id: item().id
           }), "Task started")
         }), null);
-        _$insert(_el$138, _$createComponent(Action, {
+        _$insert(_el$143, _$createComponent(Action, {
           id: "scheduler-action-toggle",
           get api() {
             return props.api;
@@ -23889,7 +23922,7 @@ function Detail(props) {
             id: item().id
           }), item().enabled ? "Task paused" : "Task resumed")
         }), null);
-        _$insert(_el$138, _$createComponent(Action, {
+        _$insert(_el$143, _$createComponent(Action, {
           id: "scheduler-action-schedule",
           get api() {
             return props.api;
@@ -23897,7 +23930,7 @@ function Detail(props) {
           label: "Edit frequency",
           onSelect: () => openScheduleDialog(props.api, props.store, item())
         }), null);
-        _$insert(_el$138, _$createComponent(Show, {
+        _$insert(_el$143, _$createComponent(Show, {
           get when() {
             return item().scopeId !== currentScopeId();
           },
@@ -23917,7 +23950,7 @@ function Detail(props) {
             });
           }
         }), null);
-        _$insert(_el$138, _$createComponent(Action, {
+        _$insert(_el$143, _$createComponent(Action, {
           id: "scheduler-action-logs",
           get api() {
             return props.api;
@@ -23925,7 +23958,7 @@ function Detail(props) {
           label: "View logs",
           onSelect: () => openLogs(props.api, item())
         }), null);
-        _$insert(_el$138, _$createComponent(Action, {
+        _$insert(_el$143, _$createComponent(Action, {
           id: "scheduler-action-delete",
           get api() {
             return props.api;
@@ -23934,20 +23967,20 @@ function Detail(props) {
           warning: true,
           onSelect: () => confirmDelete(props.api, props.store, item(), back)
         }), null);
-        _$insertNode(_el$139, _el$140);
-        _$setProp(_el$139, "paddingTop", 1);
-        _$insertNode(_el$140, _el$141);
-        _$insertNode(_el$141, _$createTextNode(`Run history`));
-        _$insert(_el$139, _$createComponent(Show, {
+        _$insertNode(_el$144, _el$145);
+        _$setProp(_el$144, "paddingTop", 1);
+        _$insertNode(_el$145, _el$146);
+        _$insertNode(_el$146, _$createTextNode(`Run history`));
+        _$insert(_el$144, _$createComponent(Show, {
           get when() {
             return item().runHistory.length;
           },
           get fallback() {
             return (() => {
-              var _el$145 = _$createElement("text");
-              _$insertNode(_el$145, _$createTextNode(`No recorded runs yet.`));
-              _$effect((_$p) => _$setProp(_el$145, "fg", props.api.theme.current.textMuted, _$p));
-              return _el$145;
+              var _el$150 = _$createElement("text");
+              _$insertNode(_el$150, _$createTextNode(`No recorded runs yet.`));
+              _$effect((_$p) => _$setProp(_el$150, "fg", props.api.theme.current.textMuted, _$p));
+              return _el$150;
             })();
           },
           get children() {
@@ -23956,24 +23989,26 @@ function Detail(props) {
                 return item().runHistory;
               },
               children: (run) => (() => {
-                var _el$147 = _$createElement("text"), _el$148 = _$createTextNode(`\u2022 `), _el$149 = _$createTextNode(` \xB7 `), _el$150 = _$createTextNode(` \xB7 `), _el$151 = _$createTextNode(` \xB7 `), _el$152 = _$createTextNode(`ms`);
-                _$insertNode(_el$147, _el$148);
-                _$insertNode(_el$147, _el$149);
-                _$insertNode(_el$147, _el$150);
-                _$insertNode(_el$147, _el$151);
-                _$insertNode(_el$147, _el$152);
-                _$insert(_el$147, () => run.startedAt || "unknown", _el$149);
-                _$insert(_el$147, () => run.source || "scheduled", _el$150);
-                _$insert(_el$147, () => run.status || "unknown", _el$151);
-                _$insert(_el$147, () => run.durationMs ?? 0, _el$152);
-                _$effect((_$p) => _$setProp(_el$147, "fg", run.status === "success" ? props.api.theme.current.success : props.api.theme.current.warning, _$p));
-                return _el$147;
+                var _el$152 = _$createElement("text"), _el$153 = _$createTextNode(`\u2022 `), _el$154 = _$createTextNode(` \xB7 `), _el$155 = _$createTextNode(` \xB7 `), _el$156 = _$createTextNode(` \xB7 `), _el$157 = _$createTextNode(`ms`);
+                _$insertNode(_el$152, _el$153);
+                _$insertNode(_el$152, _el$154);
+                _$insertNode(_el$152, _el$155);
+                _$insertNode(_el$152, _el$156);
+                _$insertNode(_el$152, _el$157);
+                _$insert(_el$152, () => run.startedAt || "unknown", _el$154);
+                _$insert(_el$152, () => run.source || "scheduled", _el$155);
+                _$insert(_el$152, () => run.status || "unknown", _el$156);
+                _$insert(_el$152, () => run.durationMs ?? 0, _el$157);
+                _$effect((_$p) => _$setProp(_el$152, "fg", run.status === "success" ? props.api.theme.current.success : props.api.theme.current.warning, _$p));
+                return _el$152;
               })()
             });
           }
         }), null);
         _$effect((_p$) => {
-          var _v$47 = statusColor(props.api, item().health), _v$48 = props.api.theme.current.border, _v$49 = props.api.theme.current.text, _v$50 = props.api.theme.current.text, _v$51 = props.api.theme.current.border, _v$52 = props.api.theme.current.text, _v$53 = props.api.theme.current.textMuted, _v$54 = {
+          var _v$46 = props.api.theme.current.border, _v$47 = props.api.theme.current.text, _v$48 = props.api.theme.current.text, _v$49 = props.api.theme.current.border, _v$50 = props.api.theme.current.text, _v$51 = props.api.theme.current.textMuted, _v$52 = {
+            fg: props.api.theme.current.text
+          }, _v$53 = props.api.theme.current.textMuted, _v$54 = {
             fg: props.api.theme.current.text
           }, _v$55 = props.api.theme.current.textMuted, _v$56 = {
             fg: props.api.theme.current.text
@@ -23985,9 +24020,9 @@ function Detail(props) {
             fg: props.api.theme.current.text
           }, _v$63 = props.api.theme.current.textMuted, _v$64 = {
             fg: props.api.theme.current.text
-          }, _v$65 = props.api.theme.current.textMuted, _v$66 = {
+          }, _v$65 = props.api.theme.current.border, _v$66 = props.api.theme.current.text, _v$67 = props.api.theme.current.textMuted, _v$68 = {
             fg: props.api.theme.current.text
-          }, _v$67 = props.api.theme.current.border, _v$68 = props.api.theme.current.text, _v$69 = props.api.theme.current.textMuted, _v$70 = {
+          }, _v$69 = props.api.theme.current.textMuted, _v$70 = {
             fg: props.api.theme.current.text
           }, _v$71 = props.api.theme.current.textMuted, _v$72 = {
             fg: props.api.theme.current.text
@@ -23995,42 +24030,39 @@ function Detail(props) {
             fg: props.api.theme.current.text
           }, _v$75 = props.api.theme.current.textMuted, _v$76 = {
             fg: props.api.theme.current.text
-          }, _v$77 = props.api.theme.current.textMuted, _v$78 = {
-            fg: props.api.theme.current.text
-          }, _v$79 = props.api.theme.current.text;
-          _v$47 !== _p$.e && (_p$.e = _$setProp(_el$82, "fg", _v$47, _p$.e));
-          _v$48 !== _p$.t && (_p$.t = _$setProp(_el$85, "borderColor", _v$48, _p$.t));
-          _v$49 !== _p$.a && (_p$.a = _$setProp(_el$86, "fg", _v$49, _p$.a));
-          _v$50 !== _p$.o && (_p$.o = _$setProp(_el$89, "fg", _v$50, _p$.o));
-          _v$51 !== _p$.i && (_p$.i = _$setProp(_el$90, "borderColor", _v$51, _p$.i));
-          _v$52 !== _p$.n && (_p$.n = _$setProp(_el$91, "fg", _v$52, _p$.n));
-          _v$53 !== _p$.s && (_p$.s = _$setProp(_el$94, "fg", _v$53, _p$.s));
-          _v$54 !== _p$.h && (_p$.h = _$setProp(_el$96, "style", _v$54, _p$.h));
-          _v$55 !== _p$.r && (_p$.r = _$setProp(_el$97, "fg", _v$55, _p$.r));
-          _v$56 !== _p$.d && (_p$.d = _$setProp(_el$99, "style", _v$56, _p$.d));
-          _v$57 !== _p$.l && (_p$.l = _$setProp(_el$100, "fg", _v$57, _p$.l));
-          _v$58 !== _p$.u && (_p$.u = _$setProp(_el$102, "style", _v$58, _p$.u));
-          _v$59 !== _p$.c && (_p$.c = _$setProp(_el$103, "fg", _v$59, _p$.c));
-          _v$60 !== _p$.w && (_p$.w = _$setProp(_el$105, "style", _v$60, _p$.w));
-          _v$61 !== _p$.m && (_p$.m = _$setProp(_el$106, "fg", _v$61, _p$.m));
-          _v$62 !== _p$.f && (_p$.f = _$setProp(_el$108, "style", _v$62, _p$.f));
-          _v$63 !== _p$.y && (_p$.y = _$setProp(_el$109, "fg", _v$63, _p$.y));
-          _v$64 !== _p$.g && (_p$.g = _$setProp(_el$111, "style", _v$64, _p$.g));
-          _v$65 !== _p$.p && (_p$.p = _$setProp(_el$112, "fg", _v$65, _p$.p));
-          _v$66 !== _p$.b && (_p$.b = _$setProp(_el$114, "style", _v$66, _p$.b));
-          _v$67 !== _p$.T && (_p$.T = _$setProp(_el$115, "borderColor", _v$67, _p$.T));
-          _v$68 !== _p$.A && (_p$.A = _$setProp(_el$116, "fg", _v$68, _p$.A));
-          _v$69 !== _p$.O && (_p$.O = _$setProp(_el$119, "fg", _v$69, _p$.O));
-          _v$70 !== _p$.I && (_p$.I = _$setProp(_el$121, "style", _v$70, _p$.I));
-          _v$71 !== _p$.S && (_p$.S = _$setProp(_el$122, "fg", _v$71, _p$.S));
-          _v$72 !== _p$.W && (_p$.W = _$setProp(_el$124, "style", _v$72, _p$.W));
-          _v$73 !== _p$.C && (_p$.C = _$setProp(_el$125, "fg", _v$73, _p$.C));
-          _v$74 !== _p$.B && (_p$.B = _$setProp(_el$127, "style", _v$74, _p$.B));
-          _v$75 !== _p$.v && (_p$.v = _$setProp(_el$128, "fg", _v$75, _p$.v));
-          _v$76 !== _p$.k && (_p$.k = _$setProp(_el$130, "style", _v$76, _p$.k));
-          _v$77 !== _p$.x && (_p$.x = _$setProp(_el$131, "fg", _v$77, _p$.x));
-          _v$78 !== _p$.j && (_p$.j = _$setProp(_el$133, "style", _v$78, _p$.j));
-          _v$79 !== _p$.q && (_p$.q = _$setProp(_el$140, "fg", _v$79, _p$.q));
+          }, _v$77 = props.api.theme.current.text;
+          _v$46 !== _p$.e && (_p$.e = _$setProp(_el$90, "borderColor", _v$46, _p$.e));
+          _v$47 !== _p$.t && (_p$.t = _$setProp(_el$91, "fg", _v$47, _p$.t));
+          _v$48 !== _p$.a && (_p$.a = _$setProp(_el$94, "fg", _v$48, _p$.a));
+          _v$49 !== _p$.o && (_p$.o = _$setProp(_el$95, "borderColor", _v$49, _p$.o));
+          _v$50 !== _p$.i && (_p$.i = _$setProp(_el$96, "fg", _v$50, _p$.i));
+          _v$51 !== _p$.n && (_p$.n = _$setProp(_el$99, "fg", _v$51, _p$.n));
+          _v$52 !== _p$.s && (_p$.s = _$setProp(_el$101, "style", _v$52, _p$.s));
+          _v$53 !== _p$.h && (_p$.h = _$setProp(_el$102, "fg", _v$53, _p$.h));
+          _v$54 !== _p$.r && (_p$.r = _$setProp(_el$104, "style", _v$54, _p$.r));
+          _v$55 !== _p$.d && (_p$.d = _$setProp(_el$105, "fg", _v$55, _p$.d));
+          _v$56 !== _p$.l && (_p$.l = _$setProp(_el$107, "style", _v$56, _p$.l));
+          _v$57 !== _p$.u && (_p$.u = _$setProp(_el$108, "fg", _v$57, _p$.u));
+          _v$58 !== _p$.c && (_p$.c = _$setProp(_el$110, "style", _v$58, _p$.c));
+          _v$59 !== _p$.w && (_p$.w = _$setProp(_el$111, "fg", _v$59, _p$.w));
+          _v$60 !== _p$.m && (_p$.m = _$setProp(_el$113, "style", _v$60, _p$.m));
+          _v$61 !== _p$.f && (_p$.f = _$setProp(_el$114, "fg", _v$61, _p$.f));
+          _v$62 !== _p$.y && (_p$.y = _$setProp(_el$116, "style", _v$62, _p$.y));
+          _v$63 !== _p$.g && (_p$.g = _$setProp(_el$117, "fg", _v$63, _p$.g));
+          _v$64 !== _p$.p && (_p$.p = _$setProp(_el$119, "style", _v$64, _p$.p));
+          _v$65 !== _p$.b && (_p$.b = _$setProp(_el$120, "borderColor", _v$65, _p$.b));
+          _v$66 !== _p$.T && (_p$.T = _$setProp(_el$121, "fg", _v$66, _p$.T));
+          _v$67 !== _p$.A && (_p$.A = _$setProp(_el$124, "fg", _v$67, _p$.A));
+          _v$68 !== _p$.O && (_p$.O = _$setProp(_el$126, "style", _v$68, _p$.O));
+          _v$69 !== _p$.I && (_p$.I = _$setProp(_el$127, "fg", _v$69, _p$.I));
+          _v$70 !== _p$.S && (_p$.S = _$setProp(_el$129, "style", _v$70, _p$.S));
+          _v$71 !== _p$.W && (_p$.W = _$setProp(_el$130, "fg", _v$71, _p$.W));
+          _v$72 !== _p$.C && (_p$.C = _$setProp(_el$132, "style", _v$72, _p$.C));
+          _v$73 !== _p$.B && (_p$.B = _$setProp(_el$133, "fg", _v$73, _p$.B));
+          _v$74 !== _p$.v && (_p$.v = _$setProp(_el$135, "style", _v$74, _p$.v));
+          _v$75 !== _p$.k && (_p$.k = _$setProp(_el$136, "fg", _v$75, _p$.k));
+          _v$76 !== _p$.x && (_p$.x = _$setProp(_el$138, "style", _v$76, _p$.x));
+          _v$77 !== _p$.j && (_p$.j = _$setProp(_el$145, "fg", _v$77, _p$.j));
           return _p$;
         }, {
           e: undefined,
@@ -24064,18 +24096,17 @@ function Detail(props) {
           v: undefined,
           k: undefined,
           x: undefined,
-          j: undefined,
-          q: undefined
+          j: undefined
         });
-        return _el$80;
+        return _el$88;
       })()
     }), null);
     _$effect((_p$) => {
-      var _v$41 = dimensions().width, _v$42 = dimensions().height, _v$43 = props.api.theme.current.background, _v$44 = !props.api.ui.dialog.open;
-      _v$41 !== _p$.e && (_p$.e = _$setProp(_el$77, "width", _v$41, _p$.e));
-      _v$42 !== _p$.t && (_p$.t = _$setProp(_el$77, "height", _v$42, _p$.t));
-      _v$43 !== _p$.a && (_p$.a = _$setProp(_el$77, "backgroundColor", _v$43, _p$.a));
-      _v$44 !== _p$.o && (_p$.o = _$setProp(_el$77, "focused", _v$44, _p$.o));
+      var _v$40 = dimensions().width, _v$41 = dimensions().height, _v$42 = props.api.theme.current.background, _v$43 = !props.api.ui.dialog.open;
+      _v$40 !== _p$.e && (_p$.e = _$setProp(_el$85, "width", _v$40, _p$.e));
+      _v$41 !== _p$.t && (_p$.t = _$setProp(_el$85, "height", _v$41, _p$.t));
+      _v$42 !== _p$.a && (_p$.a = _$setProp(_el$85, "backgroundColor", _v$42, _p$.a));
+      _v$43 !== _p$.o && (_p$.o = _$setProp(_el$85, "focused", _v$43, _p$.o));
       return _p$;
     }, {
       e: undefined,
@@ -24083,7 +24114,7 @@ function Detail(props) {
       a: undefined,
       o: undefined
     });
-    return _el$77;
+    return _el$85;
   })();
 }
 var tui = async (api2) => {

@@ -275,13 +275,14 @@ export function Sidebar(props: { api: TuiPluginApi; store: StatusStore }): JSX.E
         <text id="scheduler-sidebar-toggle-icon" selectable={false} fg={props.api.theme.current.text} onMouseUp={handleToggle}>{open() ? "▼" : "▶"}</text>
         <text id="scheduler-sidebar-toggle-label" selectable={false} fg={props.api.theme.current.text} onMouseUp={handleToggle}><b>Scheduled tasks</b></text>
       </box>
-      <box id="scheduler-sidebar-status" height={1} flexShrink={0} flexDirection="row" justifyContent="space-between" alignItems="center">
-        <box flexDirection="row" gap={1} minWidth={0}>
-          <text id="scheduler-sidebar-active" selectable={false} wrapMode="none" fg={props.api.theme.current.success}>● Active {active()}</text>
-          <text id="scheduler-sidebar-paused" selectable={false} wrapMode="none" fg={props.api.theme.current.textMuted}>Ⅱ Paused {paused()}</text>
-          <text id="scheduler-sidebar-err" selectable={false} wrapMode="none" fg={props.api.theme.current.error}>× err {problems()}</text>
-        </box>
-        <box id="scheduler-sidebar-open" flexShrink={0} paddingLeft={1} onMouseUp={(event) => activateMouse(event, openCenter)}>
+      <box id="scheduler-sidebar-status" height={1} flexShrink={0} flexDirection="row" gap={1} alignItems="center">
+        <text id="scheduler-sidebar-active" selectable={false} wrapMode="none" fg={props.api.theme.current.success}>● Active {active()}</text>
+        <text id="scheduler-sidebar-separator-active" selectable={false} wrapMode="none" fg={props.api.theme.current.textMuted}>·</text>
+        <text id="scheduler-sidebar-paused" selectable={false} wrapMode="none" fg={props.api.theme.current.textMuted}>Ⅱ Paused {paused()}</text>
+        <text id="scheduler-sidebar-separator-paused" selectable={false} wrapMode="none" fg={props.api.theme.current.textMuted}>·</text>
+        <text id="scheduler-sidebar-err" selectable={false} wrapMode="none" fg={props.api.theme.current.error}>× err {problems()}</text>
+        <text id="scheduler-sidebar-separator-err" selectable={false} wrapMode="none" fg={props.api.theme.current.textMuted}>·</text>
+        <box id="scheduler-sidebar-open" flexShrink={0} onMouseUp={(event) => activateMouse(event, openCenter)}>
           <text selectable={false} wrapMode="none" fg={props.api.theme.current.primary}><b>→ {jobs().length}</b></text>
         </box>
       </box>
@@ -302,14 +303,14 @@ export function Sidebar(props: { api: TuiPluginApi; store: StatusStore }): JSX.E
   )
 }
 
-function Header(props: { api: TuiPluginApi; title: string; back?: () => void; refresh: () => void; refreshId?: string; loading: boolean }) {
+function Header(props: { api: TuiPluginApi; title: string; back?: () => void; health?: SchedulerHealth }) {
   return (
-    <box flexDirection="row" justifyContent="space-between" paddingBottom={1}>
-      <box flexDirection="row" gap={2}>
-        <Show when={props.back} fallback={null}><text fg={props.api.theme.current.primary} onMouseUp={() => props.back?.()}>← Back</text></Show>
-        <text fg={props.api.theme.current.text}><b>{props.title}</b></text>
-      </box>
-      <text id={props.refreshId} fg={props.api.theme.current.textMuted} onMouseUp={props.refresh}>{props.loading ? "Refreshing…" : "↻ Refresh"}</text>
+    <box id="scheduler-header" height={2} minHeight={2} flexShrink={0} flexDirection="row" gap={2}>
+      <Show when={props.back} fallback={null}><text fg={props.api.theme.current.primary} onMouseUp={() => props.back?.()}>← Back</text></Show>
+      <text id="scheduler-header-title" fg={props.api.theme.current.text}><b>{props.title}</b></text>
+      <Show when={props.health} fallback={null}>
+        {(health) => <text id="scheduler-header-health" fg={statusColor(props.api, health())}><b>{statusIcon(health())} {health().toUpperCase()}</b></text>}
+      </Show>
     </box>
   )
 }
@@ -324,6 +325,7 @@ export function TaskCenter(props: { api: TuiPluginApi; store: StatusStore; retur
   const [controlIndex, setControlIndex] = createSignal(scope() === "all" ? 0 : 1)
   const [hoveredControl, setHoveredControl] = createSignal<number>()
   let root: BoxRenderable | undefined
+  let searchTarget: BoxRenderable | undefined
   let searchInput: InputRenderable | undefined
   let taskScroll: ScrollBoxRenderable | undefined
   const controlRefs: Array<BoxRenderable | undefined> = []
@@ -384,6 +386,15 @@ export function TaskCenter(props: { api: TuiPluginApi; store: StatusStore; retur
   const handleRootMouse = (event: OpenTuiMouseEvent) => {
     const index = controlRefs.findIndex((renderable) => inside(renderable, event))
     if (index >= 0) activateMouse(event, () => applyControl(index))
+  }
+  const focusSearchFromMouse = (event: OpenTuiMouseEvent) => {
+    if (event.button !== 0) return
+    event.preventDefault()
+    event.stopPropagation()
+    focusSearch()
+  }
+  const handleRootMouseDown = (event: OpenTuiMouseEvent) => {
+    if (inside(searchTarget, event)) focusSearchFromMouse(event)
   }
   const openSelected = () => {
     const selected = jobs()[selectedIndex()]
@@ -531,22 +542,33 @@ export function TaskCenter(props: { api: TuiPluginApi; store: StatusStore; retur
       backgroundColor={props.api.theme.current.background}
       focusable
       focused={!props.api.ui.dialog.open && focus() !== "search"}
+      onMouseDown={handleRootMouseDown}
       onMouseUp={handleRootMouse}
     >
-      <Header api={props.api} title="Scheduled tasks" refresh={() => void props.store.refresh()} refreshId="scheduler-refresh" loading={props.store.loading()} />
-      <input
-        id="scheduler-search"
-        ref={(element: InputRenderable) => (searchInput = element)}
-        value={query()}
-        placeholder="Search scheduled tasks"
-        onInput={(value) => { setQuery(String(value)); setSelectedIndex(0) }}
-        onSubmit={focusList}
-        onMouseDown={() => { setFocus("search"); searchInput?.focus() }}
-        focused={focus() === "search" && !props.api.ui.dialog.open}
-        backgroundColor={props.api.theme.current.backgroundElement}
-        textColor={props.api.theme.current.text}
-        focusedTextColor={props.api.theme.current.text}
-      />
+      <Header api={props.api} title="Scheduled tasks" />
+      <box
+        id="scheduler-search-hitbox"
+        ref={(element: BoxRenderable) => (searchTarget = element)}
+        width="100%"
+        height={1}
+        minHeight={1}
+        flexShrink={0}
+        onMouseDown={focusSearchFromMouse}
+      >
+        <input
+          id="scheduler-search"
+          ref={(element: InputRenderable) => (searchInput = element)}
+          width="100%"
+          value={query()}
+          placeholder="Search scheduled tasks"
+          onInput={(value) => { setQuery(String(value)); setSelectedIndex(0) }}
+          onSubmit={focusList}
+          focused={focus() === "search" && !props.api.ui.dialog.open}
+          backgroundColor={props.api.theme.current.backgroundElement}
+          textColor={props.api.theme.current.text}
+          focusedTextColor={props.api.theme.current.text}
+        />
+      </box>
       <box height={1} flexShrink={0} />
       <box
         id="scheduler-controls"
@@ -568,45 +590,47 @@ export function TaskCenter(props: { api: TuiPluginApi; store: StatusStore; retur
         <ControlTab index={5} id="scheduler-filter-problems" label="Problems" selected={() => filter() === "problems"} />
       </box>
       <box height={1} flexShrink={0} />
-      <Show when={jobs().length} fallback={<text fg={props.api.theme.current.textMuted}>No matching tasks.</text>}>
-        <scrollbox
-          id="scheduler-task-list"
-          ref={(element: ScrollBoxRenderable) => (taskScroll = element)}
-          flexGrow={1}
-          minHeight={0}
-          verticalScrollbarOptions={{ visible: jobs().length > 8 }}
-        >
-          <For each={jobs()}>
-            {(job, index) => (
-              <box
-                id={`scheduler-job-${job.id}`}
-                height={2}
-                flexShrink={0}
-                flexDirection="column"
-                paddingLeft={1}
-                backgroundColor={selectedIndex() === index() ? props.api.theme.current.backgroundElement : props.api.theme.current.background}
-                onMouseUp={(event) => activateMouse(event, () => {
-                  setSelectedIndex(index())
-                  focusList()
-                  navigateToDetail(props.api, { id: job.id, entry: "center", returnRoute: props.returnRoute, centerState: centerState() })
-                })}
-              >
-                <text wrapMode="none" fg={statusColor(props.api, job.health)}>{selectedIndex() === index() ? "▶" : " "} {statusIcon(job.health)} <span style={{ fg: props.api.theme.current.text }}>{job.name}</span></text>
-                <text wrapMode="none" fg={props.api.theme.current.textMuted}>    {job.scheduleText} · next {relativeTime(job.nextRunAt)} · {job.workdir}</text>
-              </box>
-            )}
-          </For>
-        </scrollbox>
-      </Show>
-      <Show when={orphans().length} fallback={null}>
-        <box paddingTop={1}>
-          <text fg={props.api.theme.current.warning}><b>Orphaned OS tasks ({orphans().length})</b></text>
-          <For each={orphans()}>
-            {(orphan) => <text selectable={false} fg={props.api.theme.current.warning} onMouseUp={(event) => activateMouse(event, () => openOrphanDialog(props.api, props.store, orphan))}>! {orphan.slug} · {orphan.backend} · click to inspect</text>}
-          </For>
-        </box>
-      </Show>
-      <text fg={props.api.theme.current.textMuted}>Mouse: click/scroll · Keyboard: Tab controls · ←/→ select · Enter apply · / search · Esc back</text>
+      <box id="scheduler-results" flexGrow={1} minHeight={0} flexDirection="column">
+        <Show when={jobs().length} fallback={<text fg={props.api.theme.current.textMuted}>No matching tasks.</text>}>
+          <scrollbox
+            id="scheduler-task-list"
+            ref={(element: ScrollBoxRenderable) => (taskScroll = element)}
+            flexGrow={1}
+            minHeight={0}
+            verticalScrollbarOptions={{ visible: jobs().length > 8 }}
+          >
+            <For each={jobs()}>
+              {(job, index) => (
+                <box
+                  id={`scheduler-job-${job.id}`}
+                  height={2}
+                  flexShrink={0}
+                  flexDirection="column"
+                  paddingLeft={1}
+                  backgroundColor={selectedIndex() === index() ? props.api.theme.current.backgroundElement : props.api.theme.current.background}
+                  onMouseUp={(event) => activateMouse(event, () => {
+                    setSelectedIndex(index())
+                    focusList()
+                    navigateToDetail(props.api, { id: job.id, entry: "center", returnRoute: props.returnRoute, centerState: centerState() })
+                  })}
+                >
+                  <text wrapMode="none" fg={statusColor(props.api, job.health)}>{selectedIndex() === index() ? "▶" : " "} {statusIcon(job.health)} <span style={{ fg: props.api.theme.current.text }}>{job.name}</span></text>
+                  <text wrapMode="none" fg={props.api.theme.current.textMuted}>    {job.scheduleText} · next {relativeTime(job.nextRunAt)} · {job.workdir}</text>
+                </box>
+              )}
+            </For>
+          </scrollbox>
+        </Show>
+        <Show when={orphans().length} fallback={null}>
+          <box paddingTop={1}>
+            <text fg={props.api.theme.current.warning}><b>Orphaned OS tasks ({orphans().length})</b></text>
+            <For each={orphans()}>
+              {(orphan) => <text selectable={false} fg={props.api.theme.current.warning} onMouseUp={(event) => activateMouse(event, () => openOrphanDialog(props.api, props.store, orphan))}>! {orphan.slug} · {orphan.backend} · click to inspect</text>}
+            </For>
+          </box>
+        </Show>
+      </box>
+      <text id="scheduler-footer" height={1} flexShrink={0} fg={props.api.theme.current.textMuted}>Mouse: click/scroll · Keyboard: Tab controls · ←/→ select · Enter apply · / search · Esc back</text>
     </box>
   )
 }
@@ -809,12 +833,11 @@ export function Detail(props: {
       focusable
       focused={!props.api.ui.dialog.open}
     >
-      <Header api={props.api} title={job()?.name || "Scheduled task"} back={back} refresh={() => void props.store.refresh()} refreshId="scheduler-detail-refresh" loading={props.store.loading()} />
+      <Header api={props.api} title={job()?.name || "Scheduled task"} back={back} health={job()?.health} />
       <Show when={job()} fallback={<text fg={props.api.theme.current.warning}>Task not found. Refresh or return to the task center.</text>}>
         {(item) => (
           <scrollbox flexGrow={1}>
             <box gap={1} paddingRight={1}>
-              <text fg={statusColor(props.api, item().health)}><b>{statusIcon(item().health)} {item().health.toUpperCase()}</b></text>
               <box border borderColor={props.api.theme.current.border} padding={1}>
                 <text fg={props.api.theme.current.text}><b>Task</b></text>
                 <text fg={props.api.theme.current.text}>{item().prompt || item().command || "No prompt or command"}</text>

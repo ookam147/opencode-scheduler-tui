@@ -137,7 +137,17 @@ describe("scheduler task center interaction", () => {
     const mounted = await mountTaskCenter([job("Daily report", 0), job("Backup task", 1)])
     try {
       const search = findRenderable(mounted.app.renderer.root, "scheduler-search")
+      const hitbox = findRenderable(mounted.app.renderer.root, "scheduler-search-hitbox")
       await mounted.app.mockMouse.click(search.x + 2, search.y)
+      await mounted.app.flush()
+      expect(mounted.app.renderer.currentFocusedRenderable).toBe(search)
+      expect(mounted.navigations).toHaveLength(0)
+
+      mounted.app.mockInput.pressTab()
+      hitbox.onMouseDown = undefined
+      await mounted.app.mockMouse.click(search.x + search.width - 1, search.y)
+      await mounted.app.flush()
+      expect(mounted.app.renderer.currentFocusedRenderable).toBe(search)
       await mounted.app.mockInput.typeText("backup")
       await mounted.app.flush()
       expect(mounted.app.captureCharFrame()).toContain("Backup task")
@@ -207,7 +217,7 @@ describe("scheduler task center interaction", () => {
     }
   })
 
-  test("keeps filters and refresh mouse-accessible", async () => {
+  test("keeps filters mouse-accessible and refresh available from the keyboard", async () => {
     const healthy = job("Healthy task", 0)
     const paused = { ...job("Paused task", 1), health: "paused" as const, enabled: false }
     const mounted = await mountTaskCenter([healthy, paused])
@@ -218,12 +228,39 @@ describe("scheduler task center interaction", () => {
       expect(mounted.app.captureCharFrame()).toContain("Paused task")
       expect(mounted.app.captureCharFrame()).not.toContain("Healthy task")
 
-      const refresh = findRenderable(mounted.app.renderer.root, "scheduler-refresh")
+      expect(findRenderable(mounted.app.renderer.root, "scheduler-refresh")).toBeUndefined()
       const before = mounted.refreshes()
-      await mounted.app.mockMouse.click(refresh.x, refresh.y)
+      mounted.app.mockInput.pressKey("r")
+      await mounted.app.flush()
       expect(mounted.refreshes()).toBeGreaterThan(before)
     } finally {
       mounted.app.renderer.destroy()
+    }
+  })
+
+  test("keeps search, controls, and footer fixed when the result list is empty", async () => {
+    const populated = await mountTaskCenter([job("Positioned task", 0)])
+    const populatedPositions = Object.fromEntries(
+      ["scheduler-search", "scheduler-controls", "scheduler-footer"].map((id) => [
+        id,
+        findRenderable(populated.app.renderer.root, id).y,
+      ]),
+    )
+    const populatedResultsHeight = findRenderable(populated.app.renderer.root, "scheduler-results").height
+    populated.app.renderer.destroy()
+
+    const empty = await mountTaskCenter([])
+    try {
+      const emptyPositions = Object.fromEntries(
+        ["scheduler-search", "scheduler-controls", "scheduler-footer"].map((id) => [
+          id,
+          findRenderable(empty.app.renderer.root, id).y,
+        ]),
+      )
+      expect(emptyPositions).toEqual(populatedPositions)
+      expect(findRenderable(empty.app.renderer.root, "scheduler-results").height).toBe(populatedResultsHeight)
+    } finally {
+      empty.app.renderer.destroy()
     }
   })
 
@@ -358,7 +395,7 @@ describe("scheduler task center interaction", () => {
       await app.flush()
       expect(app.captureCharFrame()).not.toContain("Sidebar current")
       expect(kvWrites).toBe(1)
-      expect(app.captureCharFrame()).toContain("● Active 1 Ⅱ Paused 0 × err 0")
+      expect(app.captureCharFrame()).toContain("● Active 1 · Ⅱ Paused 0 · × err 0 · → 1")
       expect(app.captureCharFrame()).toContain("→ 1")
       updateSnapshot?.()
       await app.flush()
@@ -445,6 +482,11 @@ describe("scheduler task center interaction", () => {
       const root = findRenderable(app.renderer.root, "scheduler-task-detail")
       expect(root).toBeDefined()
       expect(root.zIndex).toBe(2500)
+      const title = findRenderable(app.renderer.root, "scheduler-header-title")
+      const health = findRenderable(app.renderer.root, "scheduler-header-health")
+      expect(title.y).toBe(health.y)
+      expect(title.x).toBeLessThan(health.x)
+      expect(findRenderable(app.renderer.root, "scheduler-detail-refresh")).toBeUndefined()
 
       const dialogProbe = findRenderable(app.renderer.root, "scheduler-dialog-focus-probe")
       dialogProbe.focus()
