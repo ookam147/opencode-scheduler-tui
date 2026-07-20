@@ -47,12 +47,12 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/ookam147/opencode-scheduler.git"
+    "url": "git+https://github.com/ookam147/opencode-scheduler-tui.git"
   },
   "bugs": {
-    "url": "https://github.com/ookam147/opencode-scheduler/issues"
+    "url": "https://github.com/ookam147/opencode-scheduler-tui/issues"
   },
-  "homepage": "https://github.com/ookam147/opencode-scheduler#readme",
+  "homepage": "https://github.com/ookam147/opencode-scheduler-tui#readme",
   "dependencies": {
     "@opencode-ai/plugin": "^1.18.3",
     "cron-parser": "^5.4.0"
