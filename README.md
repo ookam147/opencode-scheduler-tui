@@ -32,6 +32,8 @@ Fresh installs through OpenCode's plugin installer discover both the server and 
 
 Restart OpenCode, then run `/scheduler` or choose **Open scheduled tasks** in the command palette. The task center supports mouse selection, search/filtering, run now, pause/resume, schedule editing, logs, run history, and confirmed deletion. A compact task summary also appears in the session sidebar.
 
+The task list receives focus by default. Use `↑`/`↓` or `j`/`k` to move, `Enter` to open, `/` to search, `Tab` to return to the list, `r` to refresh, and `Esc` to go back. Task rows, filters, actions, and scrolling also support the mouse.
+
 ## Examples
 
 **Daily deal hunting:**

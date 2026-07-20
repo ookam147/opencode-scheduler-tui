@@ -22390,7 +22390,8 @@ ${logs}`, { job, logPath, logs });
 var src_default = SchedulerPlugin;
 
 // src/tui.tsx
-import { For, Show, createMemo, createSignal, onMount } from "solid-js";
+import { useTerminalDimensions } from "@opentui/solid";
+import { For, Show, createEffect, createMemo, createSignal, onCleanup, onMount } from "solid-js";
 import { jsxDEV } from "@opentui/solid/jsx-dev-runtime";
 var id = "opencode-scheduler";
 var EMPTY = {
@@ -22401,6 +22402,22 @@ var EMPTY = {
   diagnostics: [],
   summary: { total: 0, healthy: 0, running: 0, paused: 0, disabled: 0, missing: 0, drifted: 0, orphaned: 0, error: 0 }
 };
+function routeParams(api2) {
+  if (!("params" in api2.route.current))
+    return {};
+  return api2.route.current.params || {};
+}
+function navigateBack(api2, returnRoute) {
+  const target = returnRoute || routeParams(api2).returnRoute;
+  if (target?.name === "scheduler" || target?.name === "scheduler-detail") {
+    api2.route.navigate("home");
+    return;
+  }
+  api2.route.navigate(target?.name || "home", target && "params" in target ? target.params : undefined);
+}
+function navigateToDetail(api2, id2, returnRoute) {
+  api2.route.navigate("scheduler-detail", { id: id2, returnRoute: returnRoute || routeParams(api2).returnRoute });
+}
 function filterSchedulerJobs(jobs, options) {
   const needle = options.query?.trim().toLowerCase() || "";
   const problems = new Set(["disabled", "missing", "drifted", "error"]);
@@ -22480,6 +22497,8 @@ function Sidebar(props) {
     const summary = props.store.snapshot().summary;
     return summary.disabled + summary.missing + summary.drifted + summary.orphaned + summary.error;
   });
+  const openCenter = () => props.api.route.navigate("scheduler", { returnRoute: props.api.route.current });
+  const openDetail = (id2) => props.api.route.navigate("scheduler-detail", { id: id2, returnRoute: props.api.route.current });
   return /* @__PURE__ */ jsxDEV("box", {
     gap: 1,
     paddingTop: 1,
@@ -22487,7 +22506,7 @@ function Sidebar(props) {
       /* @__PURE__ */ jsxDEV("box", {
         flexDirection: "row",
         justifyContent: "space-between",
-        onMouseUp: () => props.api.route.navigate("scheduler"),
+        onMouseUp: openCenter,
         children: [
           /* @__PURE__ */ jsxDEV("text", {
             fg: props.api.theme.current.text,
@@ -22508,7 +22527,7 @@ function Sidebar(props) {
         each: jobs(),
         children: (job) => /* @__PURE__ */ jsxDEV("box", {
           paddingLeft: 1,
-          onMouseUp: () => props.api.route.navigate("scheduler-detail", { id: job.id }),
+          onMouseUp: () => openDetail(job.id),
           children: [
             /* @__PURE__ */ jsxDEV("text", {
               fg: statusColor(props.api, job.health),
@@ -22534,6 +22553,7 @@ function Sidebar(props) {
       }, undefined, false, undefined, this),
       /* @__PURE__ */ jsxDEV(Show, {
         when: !jobs().length,
+        fallback: null,
         children: /* @__PURE__ */ jsxDEV("text", {
           fg: props.api.theme.current.textMuted,
           children: "No scheduled tasks"
@@ -22541,7 +22561,7 @@ function Sidebar(props) {
       }, undefined, false, undefined, this),
       /* @__PURE__ */ jsxDEV("text", {
         fg: props.api.theme.current.primary,
-        onMouseUp: () => props.api.route.navigate("scheduler"),
+        onMouseUp: openCenter,
         children: "Open task center \u2192"
       }, undefined, false, undefined, this)
     ]
@@ -22559,6 +22579,7 @@ function Header(props) {
         children: [
           /* @__PURE__ */ jsxDEV(Show, {
             when: props.back,
+            fallback: null,
             children: /* @__PURE__ */ jsxDEV("text", {
               fg: props.api.theme.current.primary,
               onMouseUp: () => props.back?.(),
@@ -22574,6 +22595,7 @@ function Header(props) {
         ]
       }, undefined, true, undefined, this),
       /* @__PURE__ */ jsxDEV("text", {
+        id: props.refreshId,
         fg: props.api.theme.current.textMuted,
         onMouseUp: props.refresh,
         children: props.loading ? "Refreshing\u2026" : "\u21BB Refresh"
@@ -22582,55 +22604,167 @@ function Header(props) {
   }, undefined, true, undefined, this);
 }
 function TaskCenter(props) {
+  const dimensions = useTerminalDimensions();
   const [query, setQuery] = createSignal("");
   const [filter, setFilter] = createSignal("all");
   const [scope, setScope] = createSignal("all");
+  const [focus, setFocus] = createSignal("list");
+  const [selectedIndex, setSelectedIndex] = createSignal(0);
+  let root;
+  let searchInput;
+  let taskScroll;
   const currentScopeId = createMemo(() => deriveStatusScopeId(props.api.state.path.directory));
   const jobs = createMemo(() => filterSchedulerJobs(props.store.snapshot().jobs, {
     query: query(),
     filter: filter(),
     scopeId: scope() === "current" ? currentScopeId() : undefined
   }));
-  const options = createMemo(() => jobs().map((job) => ({
-    name: `${statusIcon(job.health)} ${job.name}`,
-    description: `${job.scheduleText} \xB7 next ${relativeTime(job.nextRunAt)} \xB7 ${job.workdir}`,
-    value: job.id
-  })));
-  onMount(() => void props.store.refresh());
+  const focusList = () => {
+    setFocus("list");
+    root?.focus();
+  };
+  const focusSearch = () => {
+    setFocus("search");
+    searchInput?.focus();
+  };
+  const moveSelection = (delta) => {
+    const last = jobs().length - 1;
+    if (last < 0)
+      return;
+    setSelectedIndex((current) => Math.max(0, Math.min(last, current + delta)));
+  };
+  const openSelected = () => {
+    const selected = jobs()[selectedIndex()];
+    if (selected)
+      navigateToDetail(props.api, selected.id, props.returnRoute);
+  };
+  const close = () => navigateBack(props.api, props.returnRoute);
+  createEffect(() => {
+    const last = jobs().length - 1;
+    setSelectedIndex((current) => last < 0 ? 0 : Math.min(current, last));
+  });
+  createEffect(() => {
+    const scroll = taskScroll;
+    if (!scroll || jobs().length === 0)
+      return;
+    const rowTop = selectedIndex() * 2;
+    const rowBottom = rowTop + 2;
+    if (rowTop < scroll.scrollTop)
+      scroll.scrollTo(rowTop);
+    else if (rowBottom > scroll.scrollTop + scroll.viewport.height) {
+      scroll.scrollTo(Math.max(0, rowBottom - scroll.viewport.height));
+    }
+  });
+  createEffect(() => {
+    const target = root;
+    const activeFocus = focus();
+    if (!target)
+      return;
+    const commands = activeFocus === "list" ? [
+      { name: "scheduler.down", run: () => moveSelection(1) },
+      { name: "scheduler.up", run: () => moveSelection(-1) },
+      { name: "scheduler.task.open", run: openSelected },
+      { name: "scheduler.search", run: focusSearch },
+      { name: "scheduler.refresh", run: () => void props.store.refresh() },
+      { name: "scheduler.close", run: close }
+    ] : [
+      { name: "scheduler.search.done", run: focusList },
+      {
+        name: "scheduler.search.escape",
+        run: () => {
+          if (query())
+            setQuery("");
+          else
+            focusList();
+        }
+      }
+    ];
+    const bindings = activeFocus === "list" ? [
+      { key: "down", cmd: "scheduler.down" },
+      { key: "j", cmd: "scheduler.down" },
+      { key: "up", cmd: "scheduler.up" },
+      { key: "k", cmd: "scheduler.up" },
+      { key: "return", cmd: "scheduler.task.open" },
+      { key: "linefeed", cmd: "scheduler.task.open" },
+      { key: "/", cmd: "scheduler.search" },
+      { key: "tab", cmd: "scheduler.search" },
+      { key: "r", cmd: "scheduler.refresh" },
+      { key: "escape", cmd: "scheduler.close" }
+    ] : [
+      { key: "tab", cmd: "scheduler.search.done" },
+      { key: "escape", cmd: "scheduler.search.escape" }
+    ];
+    const dispose = props.api.keymap.registerLayer({
+      target,
+      targetMode: "focus-within",
+      priority: 100,
+      commands,
+      bindings
+    });
+    onCleanup(dispose);
+  });
+  onMount(() => {
+    root?.focus();
+    props.store.refresh();
+  });
   return /* @__PURE__ */ jsxDEV("box", {
-    width: "100%",
-    height: "100%",
+    id: "scheduler-task-center",
+    ref: (element) => root = element,
+    position: "absolute",
+    zIndex: 2500,
+    left: 0,
+    top: 0,
+    width: dimensions().width,
+    height: dimensions().height,
+    minHeight: 0,
     padding: 2,
     flexDirection: "column",
+    backgroundColor: props.api.theme.current.background,
+    focusable: true,
+    focused: focus() === "list",
     children: [
       /* @__PURE__ */ jsxDEV(Header, {
         api: props.api,
         title: "Scheduled tasks",
         refresh: () => void props.store.refresh(),
+        refreshId: "scheduler-refresh",
         loading: props.store.loading()
       }, undefined, false, undefined, this),
       /* @__PURE__ */ jsxDEV("input", {
+        ref: (element) => searchInput = element,
         value: query(),
         placeholder: "Search scheduled tasks",
         onInput: setQuery,
+        onSubmit: focusList,
+        onMouseUp: focusSearch,
+        focused: focus() === "search",
         backgroundColor: props.api.theme.current.backgroundElement,
         textColor: props.api.theme.current.text,
         focusedTextColor: props.api.theme.current.text
       }, undefined, false, undefined, this),
       /* @__PURE__ */ jsxDEV("box", {
         flexDirection: "row",
+        flexWrap: "wrap",
         gap: 2,
         paddingTop: 1,
         paddingBottom: 1,
         children: [
           /* @__PURE__ */ jsxDEV("text", {
+            id: "scheduler-scope-all",
             fg: scope() === "all" ? props.api.theme.current.primary : props.api.theme.current.textMuted,
-            onMouseUp: () => setScope("all"),
+            onMouseUp: () => {
+              setScope("all");
+              focusList();
+            },
             children: "All projects"
           }, undefined, false, undefined, this),
           /* @__PURE__ */ jsxDEV("text", {
+            id: "scheduler-scope-current",
             fg: scope() === "current" ? props.api.theme.current.primary : props.api.theme.current.textMuted,
-            onMouseUp: () => setScope("current"),
+            onMouseUp: () => {
+              setScope("current");
+              focusList();
+            },
             children: "Current project"
           }, undefined, false, undefined, this),
           /* @__PURE__ */ jsxDEV("text", {
@@ -22640,38 +22774,78 @@ function TaskCenter(props) {
           /* @__PURE__ */ jsxDEV(For, {
             each: ["all", "running", "paused", "problems"],
             children: (item) => /* @__PURE__ */ jsxDEV("text", {
+              id: `scheduler-filter-${item}`,
               fg: filter() === item ? props.api.theme.current.primary : props.api.theme.current.textMuted,
-              onMouseUp: () => setFilter(item),
+              onMouseUp: () => {
+                setFilter(item);
+                focusList();
+              },
               children: item === "all" ? "All" : item === "running" ? "Running" : item === "paused" ? "Paused" : "Problems"
             }, undefined, false, undefined, this)
           }, undefined, false, undefined, this)
         ]
       }, undefined, true, undefined, this),
       /* @__PURE__ */ jsxDEV(Show, {
-        when: options().length,
+        when: jobs().length,
         fallback: /* @__PURE__ */ jsxDEV("text", {
           fg: props.api.theme.current.textMuted,
           children: "No matching tasks."
         }, undefined, false, undefined, this),
-        children: /* @__PURE__ */ jsxDEV("select", {
-          options: options(),
-          focused: true,
+        children: /* @__PURE__ */ jsxDEV("scrollbox", {
+          id: "scheduler-task-list",
+          ref: (element) => taskScroll = element,
           flexGrow: 1,
-          showDescription: true,
-          showScrollIndicator: true,
-          backgroundColor: props.api.theme.current.background,
-          textColor: props.api.theme.current.text,
-          descriptionColor: props.api.theme.current.textMuted,
-          selectedBackgroundColor: props.api.theme.current.backgroundElement,
-          selectedTextColor: props.api.theme.current.text,
-          onSelect: (_, option) => {
-            if (typeof option?.value === "string")
-              props.api.route.navigate("scheduler-detail", { id: option.value });
-          }
+          minHeight: 0,
+          verticalScrollbarOptions: { visible: jobs().length > 8 },
+          children: /* @__PURE__ */ jsxDEV(For, {
+            each: jobs(),
+            children: (job, index) => /* @__PURE__ */ jsxDEV("box", {
+              id: `scheduler-job-${job.id}`,
+              height: 2,
+              flexShrink: 0,
+              flexDirection: "column",
+              paddingLeft: 1,
+              backgroundColor: selectedIndex() === index() ? props.api.theme.current.backgroundElement : props.api.theme.current.background,
+              onMouseUp: () => {
+                setSelectedIndex(index());
+                focusList();
+                navigateToDetail(props.api, job.id, props.returnRoute);
+              },
+              children: [
+                /* @__PURE__ */ jsxDEV("text", {
+                  wrapMode: "none",
+                  fg: statusColor(props.api, job.health),
+                  children: [
+                    selectedIndex() === index() ? "\u25B6" : " ",
+                    " ",
+                    statusIcon(job.health),
+                    " ",
+                    /* @__PURE__ */ jsxDEV("span", {
+                      style: { fg: props.api.theme.current.text },
+                      children: job.name
+                    }, undefined, false, undefined, this)
+                  ]
+                }, undefined, true, undefined, this),
+                /* @__PURE__ */ jsxDEV("text", {
+                  wrapMode: "none",
+                  fg: props.api.theme.current.textMuted,
+                  children: [
+                    "    ",
+                    job.scheduleText,
+                    " \xB7 next ",
+                    relativeTime(job.nextRunAt),
+                    " \xB7 ",
+                    job.workdir
+                  ]
+                }, undefined, true, undefined, this)
+              ]
+            }, undefined, true, undefined, this)
+          }, undefined, false, undefined, this)
         }, undefined, false, undefined, this)
       }, undefined, false, undefined, this),
       /* @__PURE__ */ jsxDEV(Show, {
         when: props.store.snapshot().orphans.length,
+        fallback: null,
         children: /* @__PURE__ */ jsxDEV("box", {
           paddingTop: 1,
           children: [
@@ -22704,7 +22878,7 @@ function TaskCenter(props) {
       }, undefined, false, undefined, this),
       /* @__PURE__ */ jsxDEV("text", {
         fg: props.api.theme.current.textMuted,
-        children: "Mouse: click task \xB7 Keyboard: \u2191/\u2193 and Enter \xB7 Refreshes every 10 seconds"
+        children: "Mouse: click/scroll \xB7 Keyboard: \u2191/\u2193 or j/k \xB7 Enter open \xB7 / search \xB7 Esc back"
       }, undefined, false, undefined, this)
     ]
   }, undefined, true, undefined, this);
@@ -22833,19 +23007,55 @@ function Action(props) {
   }, undefined, false, undefined, this);
 }
 function Detail(props) {
+  const dimensions = useTerminalDimensions();
+  let root;
   const job = createMemo(() => props.store.snapshot().jobs.find((item) => item.id === props.id));
-  onMount(() => void props.store.refresh());
+  const backToCenter = () => props.api.route.navigate("scheduler", { returnRoute: props.returnRoute });
+  createEffect(() => {
+    const target = root;
+    if (!target)
+      return;
+    const dispose = props.api.keymap.registerLayer({
+      target,
+      targetMode: "focus-within",
+      priority: 100,
+      commands: [
+        { name: "scheduler.detail.back", run: backToCenter },
+        { name: "scheduler.detail.refresh", run: () => void props.store.refresh() }
+      ],
+      bindings: [
+        { key: "escape", cmd: "scheduler.detail.back" },
+        { key: "r", cmd: "scheduler.detail.refresh" }
+      ]
+    });
+    onCleanup(dispose);
+  });
+  onMount(() => {
+    root?.focus();
+    props.store.refresh();
+  });
   return /* @__PURE__ */ jsxDEV("box", {
-    width: "100%",
-    height: "100%",
+    id: "scheduler-task-detail",
+    ref: (element) => root = element,
+    position: "absolute",
+    zIndex: 2500,
+    left: 0,
+    top: 0,
+    width: dimensions().width,
+    height: dimensions().height,
+    minHeight: 0,
     padding: 2,
     flexDirection: "column",
+    backgroundColor: props.api.theme.current.background,
+    focusable: true,
+    focused: true,
     children: [
       /* @__PURE__ */ jsxDEV(Header, {
         api: props.api,
         title: job()?.name || "Scheduled task",
-        back: () => props.api.route.navigate("scheduler"),
+        back: backToCenter,
         refresh: () => void props.store.refresh(),
+        refreshId: "scheduler-detail-refresh",
         loading: props.store.loading()
       }, undefined, false, undefined, this),
       /* @__PURE__ */ jsxDEV(Show, {
@@ -23035,6 +23245,7 @@ function Detail(props) {
               }, undefined, true, undefined, this),
               /* @__PURE__ */ jsxDEV(Show, {
                 when: item().diagnostics.length,
+                fallback: null,
                 children: /* @__PURE__ */ jsxDEV("box", {
                   border: true,
                   borderColor: props.api.theme.current.warning,
@@ -23148,15 +23359,23 @@ var tui = async (api2) => {
     }
   });
   api2.route.register([
-    { name: "scheduler", render: () => /* @__PURE__ */ jsxDEV(TaskCenter, {
-      api: api2,
-      store
-    }, undefined, false, undefined, this) },
-    { name: "scheduler-detail", render: ({ params }) => /* @__PURE__ */ jsxDEV(Detail, {
-      api: api2,
-      store,
-      id: typeof params?.id === "string" ? params.id : undefined
-    }, undefined, false, undefined, this) }
+    {
+      name: "scheduler",
+      render: ({ params }) => /* @__PURE__ */ jsxDEV(TaskCenter, {
+        api: api2,
+        store,
+        returnRoute: params?.returnRoute
+      }, undefined, false, undefined, this)
+    },
+    {
+      name: "scheduler-detail",
+      render: ({ params }) => /* @__PURE__ */ jsxDEV(Detail, {
+        api: api2,
+        store,
+        id: typeof params?.id === "string" ? params.id : undefined,
+        returnRoute: params?.returnRoute
+      }, undefined, false, undefined, this)
+    }
   ]);
   api2.command?.register(() => [{
     title: "Open scheduled tasks",
@@ -23166,8 +23385,9 @@ var tui = async (api2) => {
     suggested: true,
     slash: { name: "scheduler", aliases: ["schedules", "tasks"] },
     onSelect: () => {
+      const returnRoute = api2.route.current;
       api2.ui.dialog.clear();
-      api2.route.navigate("scheduler");
+      api2.route.navigate("scheduler", { returnRoute });
     }
   }]);
 };
@@ -23176,5 +23396,7 @@ export {
   tui,
   id,
   filterSchedulerJobs,
-  tui_default as default
+  tui_default as default,
+  TaskCenter,
+  Detail
 };
