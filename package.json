@@ -43,16 +43,16 @@
     "automation",
     "jobs"
   ],
-  "author": "Benjamin Shafii",
+  "author": "Benjamin Shafii, ookam147",
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/different-ai/opencode-scheduler.git"
+    "url": "git+https://github.com/ookam147/opencode-scheduler.git"
   },
   "bugs": {
-    "url": "https://github.com/different-ai/opencode-scheduler/issues"
+    "url": "https://github.com/ookam147/opencode-scheduler/issues"
   },
-  "homepage": "https://github.com/different-ai/opencode-scheduler#readme",
+  "homepage": "https://github.com/ookam147/opencode-scheduler#readme",
   "dependencies": {
     "@opencode-ai/plugin": "^1.18.3",
     "cron-parser": "^5.4.0"
