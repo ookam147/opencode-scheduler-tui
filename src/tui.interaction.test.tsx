@@ -228,11 +228,12 @@ describe("scheduler task center interaction", () => {
       expect(mounted.app.captureCharFrame()).toContain("Current task")
       expect(mounted.app.captureCharFrame()).not.toContain("External task")
       const all = findRenderable(mounted.app.renderer.root, "scheduler-scope-all")
+      all.onMouseDown = undefined
       await mounted.app.mockMouse.click(all.x + 1, all.y)
       await mounted.app.flush()
       expect(mounted.app.captureCharFrame()).toContain("External task")
       const currentTab = findRenderable(mounted.app.renderer.root, "scheduler-scope-current")
-      await mounted.app.mockMouse.click(currentTab.x + 1, currentTab.y)
+      await mounted.app.mockMouse.click(currentTab.x, currentTab.y)
       await mounted.app.flush()
       expect(mounted.app.captureCharFrame()).not.toContain("External task")
     } finally {
@@ -240,8 +241,50 @@ describe("scheduler task center interaction", () => {
     }
   })
 
+  test("navigates and applies task-center controls with the keyboard", async () => {
+    const current = job("Keyboard current", 0)
+    const paused = { ...job("Keyboard paused", 1), health: "paused" as const, enabled: false }
+    const external = {
+      ...job("Keyboard external", 2),
+      id: "external-scope:keyboard-external",
+      scopeId: "external-scope",
+      workdir: "/projects/external",
+    }
+    const mounted = await mountTaskCenter([current, paused, external])
+    try {
+      mounted.app.mockInput.pressTab()
+      mounted.app.mockInput.pressArrow("left")
+      mounted.app.mockInput.pressEnter()
+      await mounted.app.flush()
+      expect(mounted.app.captureCharFrame()).toContain("Keyboard external")
+
+      mounted.app.mockInput.pressKey("l")
+      mounted.app.mockInput.pressEnter()
+      await mounted.app.flush()
+      expect(mounted.app.captureCharFrame()).not.toContain("Keyboard external")
+
+      mounted.app.mockInput.pressKey("l")
+      mounted.app.mockInput.pressKey("l")
+      mounted.app.mockInput.pressKey("l")
+      mounted.app.mockInput.pressEnter()
+      await mounted.app.flush()
+      expect(mounted.app.captureCharFrame()).toContain("Keyboard paused")
+      expect(mounted.app.captureCharFrame()).not.toContain("Keyboard current")
+
+      mounted.app.mockInput.pressTab()
+      await mounted.app.mockInput.typeText("paused")
+      mounted.app.mockInput.pressTab()
+      mounted.app.mockInput.pressEnter()
+      expect(mounted.navigations.at(-1)?.params?.id).toBe(`${CURRENT_SCOPE}:keyboard-paused`)
+    } finally {
+      mounted.app.renderer.destroy()
+    }
+  })
+
   test("sidebar stays scoped to the current project and keeps counters when collapsed", async () => {
     const navigations: Array<{ name: string; params?: Record<string, unknown> }> = []
+    const values = new Map<string, unknown>()
+    let updateSnapshot: (() => void) | undefined
     const current = job("Sidebar current", 0)
     const external = {
       ...job("Sidebar external", 1),
@@ -258,9 +301,9 @@ describe("scheduler task center interaction", () => {
         diagnostics: [],
         summary: { total: 2, healthy: 2, running: 0, paused: 0, disabled: 0, missing: 0, drifted: 0, orphaned: 0, error: 0 },
       }
-      const [status] = createSignal(snapshot)
+      const [status, setStatus] = createSignal(snapshot)
+      updateSnapshot = () => setStatus({ ...snapshot, scannedAt: "2026-07-20T00:00:01.000Z" })
       const [loading] = createSignal(false)
-      const values = new Map<string, unknown>()
       const api = {
         state: { path: { directory: CURRENT_DIRECTORY } },
         route: {
@@ -276,25 +319,55 @@ describe("scheduler task center interaction", () => {
     const app = await testRender(() => <Harness />, { width: 80, height: 16 })
     try {
       await app.flush()
-      expect(app.captureCharFrame()).toContain("Sidebar current")
-      expect(app.captureCharFrame()).not.toContain("Sidebar external")
+      const expandedFrame = app.captureCharFrame()
+      expect(expandedFrame).toContain("Sidebar current")
+      expect(expandedFrame).not.toContain("Sidebar external")
+      expect(expandedFrame.indexOf("● Active 1")).toBeLessThan(expandedFrame.indexOf("Sidebar current"))
       const toggle = findRenderable(app.renderer.root, "scheduler-sidebar-toggle")
-      await app.mockMouse.click(toggle.x + 1, toggle.y)
+      await app.mockMouse.click(toggle.x, toggle.y)
       await app.flush()
       expect(app.captureCharFrame()).not.toContain("Sidebar current")
-      expect(app.captureCharFrame()).toContain("Σ All 1")
+      expect(app.captureCharFrame()).toContain("● Active 1 Ⅱ Paused 0 × err 0")
+      expect(app.captureCharFrame()).toContain("→ 1")
+      updateSnapshot?.()
+      await app.flush()
+      expect(app.captureCharFrame()).not.toContain("Sidebar current")
+
+      await app.mockMouse.click(toggle.x + 3, toggle.y)
+      await app.flush()
+      expect(app.captureCharFrame()).toContain("Sidebar current")
+      await app.mockMouse.click(toggle.x + toggle.width - 1, toggle.y)
+      await app.flush()
+      expect(app.captureCharFrame()).not.toContain("Sidebar current")
+
       const active = findRenderable(app.renderer.root, "scheduler-sidebar-active")
       await app.mockMouse.click(active.x + 1, active.y)
+      const paused = findRenderable(app.renderer.root, "scheduler-sidebar-paused")
+      await app.mockMouse.click(paused.x + 1, paused.y)
+      const err = findRenderable(app.renderer.root, "scheduler-sidebar-err")
+      await app.mockMouse.click(err.x + 1, err.y)
+      expect(navigations).toHaveLength(0)
+      const arrow = findRenderable(app.renderer.root, "scheduler-sidebar-open")
+      await app.mockMouse.click(arrow.x + 1, arrow.y)
       expect(navigations.at(-1)).toEqual({
         name: "scheduler",
         params: {
           entry: "command",
           returnRoute: { name: "session", params: { sessionID: "session-1" } },
-          centerState: { scope: "current", filter: "active" },
+          centerState: { scope: "current", filter: "all" },
         },
       })
     } finally {
       app.renderer.destroy()
+    }
+
+    const restored = await testRender(() => <Harness />, { width: 80, height: 16 })
+    try {
+      await restored.flush()
+      expect(restored.captureCharFrame()).not.toContain("Sidebar current")
+      expect(restored.captureCharFrame()).toContain("→ 1")
+    } finally {
+      restored.renderer.destroy()
     }
   })
 

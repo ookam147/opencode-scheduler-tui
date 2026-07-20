@@ -1,5 +1,5 @@
 import type { TuiPlugin, TuiPluginApi, TuiRouteCurrent } from "@opencode-ai/plugin/tui"
-import type { BoxRenderable, InputRenderable, ScrollBoxRenderable } from "@opentui/core"
+import type { BoxRenderable, InputRenderable, MouseEvent as OpenTuiMouseEvent, ScrollBoxRenderable } from "@opentui/core"
 import { useTerminalDimensions } from "@opentui/solid"
 import { existsSync, watch, type FSWatcher } from "fs"
 import { homedir } from "os"
@@ -30,7 +30,7 @@ const EMPTY: SchedulerStatusSnapshot = {
 
 export type Filter = "all" | "active" | "paused" | "problems"
 export type ScopeMode = "all" | "current"
-type TaskCenterFocus = "list" | "search"
+type TaskCenterFocus = "list" | "controls" | "search"
 
 export type SchedulerCenterState = {
   scope?: ScopeMode
@@ -198,8 +198,24 @@ function relativeTime(value: string | null) {
   return `${Math.round(abs / 86_400_000)}d ${suffix}`
 }
 
+function inside(renderable: BoxRenderable | undefined, event: OpenTuiMouseEvent) {
+  if (!renderable) return false
+  return event.x >= renderable.x
+    && event.x < renderable.x + renderable.width
+    && event.y >= renderable.y
+    && event.y < renderable.y + renderable.height
+}
+
+function consumeMouse(event: OpenTuiMouseEvent, action: () => void) {
+  if (event.button !== 0) return
+  event.preventDefault()
+  event.stopPropagation()
+  action()
+}
+
 export function Sidebar(props: { api: TuiPluginApi; store: ReturnType<typeof createStatusStore> }) {
   const [open, setOpen] = createSignal(props.api.kv?.get("scheduler.sidebar.expanded", true) ?? true)
+  let toggleArea: BoxRenderable | undefined
   const currentScopeId = createMemo(() => deriveStatusScopeId(props.api.state.path.directory))
   const jobs = createMemo(() => props.store.snapshot().jobs.filter((job) => job.scopeId === currentScopeId()))
   const recentJobs = createMemo(() => jobs().slice(0, 5))
@@ -215,32 +231,48 @@ export function Sidebar(props: { api: TuiPluginApi; store: ReturnType<typeof cre
     setOpen(next)
     props.api.kv?.set("scheduler.sidebar.expanded", next)
   }
-  const openCenter = (filter: Filter = "all") => props.api.route.navigate("scheduler", {
+  const openCenter = () => props.api.route.navigate("scheduler", {
     entry: "command",
     returnRoute: props.api.route.current,
-    centerState: { scope: "current", filter },
+    centerState: { scope: "current", filter: "all" },
   })
   const openDetail = (jobId: string) => navigateToDetail(props.api, {
     id: jobId,
     entry: "sidebar",
     returnRoute: props.api.route.current,
   })
-  const counters: Array<{ id: string; label: string; value: () => number; filter: Filter; color: () => unknown }> = [
-    { id: "all", label: "Σ All", value: () => jobs().length, filter: "all", color: () => props.api.theme.current.text },
-    { id: "active", label: "● Active", value: active, filter: "active", color: () => props.api.theme.current.success },
-    { id: "paused", label: "Ⅱ Paused", value: paused, filter: "paused", color: () => props.api.theme.current.textMuted },
-    { id: "problems", label: "! Problems", value: problems, filter: "problems", color: () => problems() ? props.api.theme.current.warning : props.api.theme.current.textMuted },
-  ]
+  const handleToggle = (event: OpenTuiMouseEvent) => consumeMouse(event, toggle)
+  const handleRootMouse = (event: OpenTuiMouseEvent) => {
+    if (inside(toggleArea, event)) consumeMouse(event, toggle)
+  }
   return (
-    <box gap={1} paddingTop={1}>
-      <box id="scheduler-sidebar-toggle" flexDirection="row" gap={1} paddingRight={1} onMouseDown={toggle}>
-        <text fg={props.api.theme.current.text}>{open() ? "▼" : "▶"}</text>
-        <text fg={props.api.theme.current.text}><b>Scheduled tasks</b></text>
+    <box gap={0} paddingTop={1} onMouseDown={handleRootMouse}>
+      <box
+        id="scheduler-sidebar-toggle"
+        ref={(element: BoxRenderable) => (toggleArea = element)}
+        width="100%"
+        flexDirection="row"
+        gap={1}
+        paddingRight={1}
+        onMouseDown={handleToggle}
+      >
+        <text selectable={false} fg={props.api.theme.current.text}>{open() ? "▼" : "▶"}</text>
+        <text selectable={false} fg={props.api.theme.current.text}><b>Scheduled tasks</b></text>
+      </box>
+      <box id="scheduler-sidebar-status" height={1} flexShrink={0} flexDirection="row" justifyContent="space-between" alignItems="center">
+        <box flexDirection="row" gap={1} minWidth={0}>
+          <text id="scheduler-sidebar-active" selectable={false} wrapMode="none" fg={props.api.theme.current.success}>● Active {active()}</text>
+          <text id="scheduler-sidebar-paused" selectable={false} wrapMode="none" fg={props.api.theme.current.textMuted}>Ⅱ Paused {paused()}</text>
+          <text id="scheduler-sidebar-err" selectable={false} wrapMode="none" fg={props.api.theme.current.error}>× err {problems()}</text>
+        </box>
+        <box id="scheduler-sidebar-open" flexShrink={0} paddingLeft={1} onMouseDown={(event) => consumeMouse(event, openCenter)}>
+          <text selectable={false} wrapMode="none" fg={props.api.theme.current.primary}><b>→ {jobs().length}</b></text>
+        </box>
       </box>
       <Show when={open()}>
         <For each={recentJobs()}>
           {(job) => (
-            <box id={`scheduler-sidebar-job-${job.id}`} paddingLeft={1} paddingRight={1} onMouseDown={() => openDetail(job.id)}>
+            <box id={`scheduler-sidebar-job-${job.id}`} paddingLeft={1} paddingRight={1} paddingTop={1} onMouseDown={(event) => consumeMouse(event, () => openDetail(job.id))}>
               <text fg={statusColor(props.api, job.health)}>{statusIcon(job.health)} <span style={{ fg: props.api.theme.current.text }}>{job.name}</span></text>
               <text fg={props.api.theme.current.textMuted}>{job.scheduleText} · {relativeTime(job.nextRunAt)}</text>
             </box>
@@ -250,20 +282,6 @@ export function Sidebar(props: { api: TuiPluginApi; store: ReturnType<typeof cre
           <text fg={props.api.theme.current.textMuted}>No tasks in this project</text>
         </Show>
       </Show>
-      <box flexDirection="row" justifyContent="space-between" alignItems="center">
-        <box flexDirection="row" flexWrap="wrap" gap={1} flexGrow={1}>
-          <For each={counters}>
-            {(item) => (
-              <box id={`scheduler-sidebar-${item.id}`} paddingRight={1} onMouseDown={() => openCenter(item.filter)}>
-                <text fg={item.color() as never}>{item.label} {item.value()}</text>
-              </box>
-            )}
-          </For>
-        </box>
-        <box id="scheduler-sidebar-open" paddingLeft={1} paddingRight={1} onMouseDown={() => openCenter("all")}>
-          <text fg={props.api.theme.current.primary}><b>→</b></text>
-        </box>
-      </box>
     </box>
   )
 }
@@ -287,9 +305,12 @@ export function TaskCenter(props: { api: TuiPluginApi; store: ReturnType<typeof 
   const [scope, setScope] = createSignal<ScopeMode>(props.initialState?.scope || "current")
   const [focus, setFocus] = createSignal<TaskCenterFocus>("list")
   const [selectedIndex, setSelectedIndex] = createSignal(0)
+  const [controlIndex, setControlIndex] = createSignal(scope() === "all" ? 0 : 1)
+  const [hoveredControl, setHoveredControl] = createSignal<number>()
   let root: BoxRenderable | undefined
   let searchInput: InputRenderable | undefined
   let taskScroll: ScrollBoxRenderable | undefined
+  const controlRefs: Array<BoxRenderable | undefined> = []
   const currentScopeId = createMemo(() => deriveStatusScopeId(props.api.state.path.directory))
   const jobs = createMemo(() => filterSchedulerJobs(props.store.snapshot().jobs, {
     query: query(),
@@ -315,6 +336,10 @@ export function TaskCenter(props: { api: TuiPluginApi; store: ReturnType<typeof 
     setFocus("list")
     root?.focus()
   }
+  const focusControls = () => {
+    setFocus("controls")
+    root?.focus()
+  }
   const focusSearch = () => {
     setFocus("search")
     searchInput?.focus()
@@ -323,6 +348,24 @@ export function TaskCenter(props: { api: TuiPluginApi; store: ReturnType<typeof 
     const last = jobs().length - 1
     if (last < 0) return
     setSelectedIndex((current) => Math.max(0, Math.min(last, current + delta)))
+  }
+  const applyControl = (index: number) => {
+    setControlIndex(index)
+    if (index === 0) setScope("all")
+    if (index === 1) setScope("current")
+    if (index === 2) setFilter("all")
+    if (index === 3) setFilter("active")
+    if (index === 4) setFilter("paused")
+    if (index === 5) setFilter("problems")
+    setSelectedIndex(0)
+    taskScroll?.scrollTo(0)
+    focusControls()
+  }
+  const moveControl = (delta: number) => setControlIndex((current) => (current + delta + 6) % 6)
+  const handleControlMouse = (index: number, event: OpenTuiMouseEvent) => consumeMouse(event, () => applyControl(index))
+  const handleRootMouse = (event: OpenTuiMouseEvent) => {
+    const index = controlRefs.findIndex((renderable) => inside(renderable, event))
+    if (index >= 0) consumeMouse(event, () => applyControl(index))
   }
   const openSelected = () => {
     const selected = jobs()[selectedIndex()]
@@ -357,20 +400,30 @@ export function TaskCenter(props: { api: TuiPluginApi; store: ReturnType<typeof 
           { name: "scheduler.down", run: () => moveSelection(1) },
           { name: "scheduler.up", run: () => moveSelection(-1) },
           { name: "scheduler.task.open", run: openSelected },
+          { name: "scheduler.controls.focus", run: focusControls },
           { name: "scheduler.search", run: focusSearch },
           { name: "scheduler.refresh", run: () => void props.store.refresh() },
           { name: "scheduler.close", run: close },
         ]
-      : [
-          { name: "scheduler.search.done", run: focusList },
-          {
-            name: "scheduler.search.escape",
-            run: () => {
-              if (query()) setQuery("")
-              else focusList()
+      : activeFocus === "controls"
+        ? [
+            { name: "scheduler.controls.left", run: () => moveControl(-1) },
+            { name: "scheduler.controls.right", run: () => moveControl(1) },
+            { name: "scheduler.controls.apply", run: () => applyControl(controlIndex()) },
+            { name: "scheduler.controls.done", run: focusList },
+            { name: "scheduler.search", run: focusSearch },
+            { name: "scheduler.refresh", run: () => void props.store.refresh() },
+          ]
+        : [
+            { name: "scheduler.search.done", run: focusList },
+            {
+              name: "scheduler.search.escape",
+              run: () => {
+                if (query()) setQuery("")
+                else focusList()
+              },
             },
-          },
-        ]
+          ]
     const bindings = activeFocus === "list"
       ? [
           { key: "down", cmd: "scheduler.down" },
@@ -380,14 +433,27 @@ export function TaskCenter(props: { api: TuiPluginApi; store: ReturnType<typeof 
           { key: "return", cmd: "scheduler.task.open" },
           { key: "linefeed", cmd: "scheduler.task.open" },
           { key: "/", cmd: "scheduler.search" },
-          { key: "tab", cmd: "scheduler.search" },
+          { key: "tab", cmd: "scheduler.controls.focus" },
           { key: "r", cmd: "scheduler.refresh" },
           { key: "escape", cmd: "scheduler.close" },
         ]
-      : [
-          { key: "tab", cmd: "scheduler.search.done" },
-          { key: "escape", cmd: "scheduler.search.escape" },
-        ]
+      : activeFocus === "controls"
+        ? [
+            { key: "left", cmd: "scheduler.controls.left" },
+            { key: "h", cmd: "scheduler.controls.left" },
+            { key: "right", cmd: "scheduler.controls.right" },
+            { key: "l", cmd: "scheduler.controls.right" },
+            { key: "return", cmd: "scheduler.controls.apply" },
+            { key: "linefeed", cmd: "scheduler.controls.apply" },
+            { key: "tab", cmd: "scheduler.search" },
+            { key: "/", cmd: "scheduler.search" },
+            { key: "r", cmd: "scheduler.refresh" },
+            { key: "escape", cmd: "scheduler.controls.done" },
+          ]
+        : [
+            { key: "tab", cmd: "scheduler.search.done" },
+            { key: "escape", cmd: "scheduler.search.escape" },
+          ]
     const dispose = props.api.keymap.registerLayer({
       target,
       targetMode: "focus-within",
@@ -417,7 +483,8 @@ export function TaskCenter(props: { api: TuiPluginApi; store: ReturnType<typeof 
       flexDirection="column"
       backgroundColor={props.api.theme.current.background}
       focusable
-      focused={focus() === "list"}
+      focused={focus() !== "search"}
+      onMouseDown={handleRootMouse}
     >
       <Header api={props.api} title="Scheduled tasks" refresh={() => void props.store.refresh()} refreshId="scheduler-refresh" loading={props.store.loading()} />
       <input
@@ -433,24 +500,46 @@ export function TaskCenter(props: { api: TuiPluginApi; store: ReturnType<typeof 
         textColor={props.api.theme.current.text}
         focusedTextColor={props.api.theme.current.text}
       />
-      <box flexDirection="row" flexWrap="wrap" gap={1} paddingTop={1} paddingBottom={1}>
-        <box id="scheduler-scope-all" paddingLeft={1} paddingRight={1} backgroundColor={scope() === "all" ? props.api.theme.current.backgroundElement : undefined} onMouseDown={() => { setScope("all"); setSelectedIndex(0); focusList() }}>
-          <text fg={scope() === "all" ? props.api.theme.current.primary : props.api.theme.current.textMuted}>All projects</text>
-        </box>
-        <box id="scheduler-scope-current" paddingLeft={1} paddingRight={1} backgroundColor={scope() === "current" ? props.api.theme.current.backgroundElement : undefined} onMouseDown={() => { setScope("current"); setSelectedIndex(0); focusList() }}>
-          <text fg={scope() === "current" ? props.api.theme.current.primary : props.api.theme.current.textMuted}>Current project</text>
-        </box>
-        <text fg={props.api.theme.current.border}>│</text>
-        <For each={["all", "active", "paused", "problems"] as Filter[]}>
-          {(item) => (
-            <box
-              id={`scheduler-filter-${item}`}
-              paddingLeft={1}
-              paddingRight={1}
-              backgroundColor={filter() === item ? props.api.theme.current.backgroundElement : undefined}
-              onMouseDown={() => { setFilter(item); setSelectedIndex(0); focusList() }}
-            ><text fg={filter() === item ? props.api.theme.current.primary : props.api.theme.current.textMuted}>{item === "all" ? "All" : item === "active" ? "Active" : item === "paused" ? "Paused" : "Problems"}</text></box>
-          )}
+      <box id="scheduler-controls" flexDirection="row" flexWrap="wrap" gap={1} paddingTop={1} paddingBottom={1}>
+        <For each={[
+          { id: "scheduler-scope-all", label: "All projects" },
+          { id: "scheduler-scope-current", label: "Current project" },
+          { id: "scheduler-filter-all", label: "All" },
+          { id: "scheduler-filter-active", label: "Active" },
+          { id: "scheduler-filter-paused", label: "Paused" },
+          { id: "scheduler-filter-problems", label: "Problems" },
+        ]}>
+          {(item, index) => {
+            const selected = () => index() === 0
+              ? scope() === "all"
+              : index() === 1
+                ? scope() === "current"
+                : index() === 2
+                  ? filter() === "all"
+                  : index() === 3
+                    ? filter() === "active"
+                    : index() === 4
+                      ? filter() === "paused"
+                      : filter() === "problems"
+            const highlighted = () => selected() || hoveredControl() === index() || (focus() === "controls" && controlIndex() === index())
+            return (
+              <>
+                <Show when={index() === 2}><text selectable={false} fg={props.api.theme.current.border}>│</text></Show>
+                <box
+                  id={item.id}
+                  ref={(element: BoxRenderable) => (controlRefs[index()] = element)}
+                  paddingLeft={1}
+                  paddingRight={1}
+                  backgroundColor={highlighted() ? props.api.theme.current.backgroundElement : undefined}
+                  onMouseDown={(event) => handleControlMouse(index(), event)}
+                  onMouseOver={() => setHoveredControl(index())}
+                  onMouseOut={() => setHoveredControl((current) => current === index() ? undefined : current)}
+                >
+                  <text selectable={false} wrapMode="none" fg={selected() || (focus() === "controls" && controlIndex() === index()) ? props.api.theme.current.primary : props.api.theme.current.textMuted}>{item.label}</text>
+                </box>
+              </>
+            )
+          }}
         </For>
       </box>
       <Show when={jobs().length} fallback={<text fg={props.api.theme.current.textMuted}>No matching tasks.</text>}>
@@ -491,7 +580,7 @@ export function TaskCenter(props: { api: TuiPluginApi; store: ReturnType<typeof 
           </For>
         </box>
       </Show>
-      <text fg={props.api.theme.current.textMuted}>Mouse: click/scroll · Keyboard: ↑/↓ or j/k · Enter open · / search · Esc back</text>
+      <text fg={props.api.theme.current.textMuted}>Mouse: click/scroll · Keyboard: Tab controls · ←/→ select · Enter apply · / search · Esc back</text>
     </box>
   )
 }

@@ -22488,7 +22488,7 @@ import { existsSync as existsSync3, watch } from "fs";
 import { homedir as homedir3 } from "os";
 import { join as join3 } from "path";
 import { For, Show, createEffect, createMemo, createSignal, onCleanup, onMount } from "solid-js";
-import { jsxDEV } from "@opentui/solid/jsx-dev-runtime";
+import { jsxDEV, Fragment } from "@opentui/solid/jsx-dev-runtime";
 var id = "opencode-scheduler";
 var EMPTY = {
   scannedAt: "",
@@ -22648,8 +22648,21 @@ function relativeTime(value) {
     return `${Math.round(abs / 3600000)}h ${suffix}`;
   return `${Math.round(abs / 86400000)}d ${suffix}`;
 }
+function inside(renderable, event) {
+  if (!renderable)
+    return false;
+  return event.x >= renderable.x && event.x < renderable.x + renderable.width && event.y >= renderable.y && event.y < renderable.y + renderable.height;
+}
+function consumeMouse(event, action) {
+  if (event.button !== 0)
+    return;
+  event.preventDefault();
+  event.stopPropagation();
+  action();
+}
 function Sidebar(props) {
   const [open, setOpen] = createSignal(props.api.kv?.get("scheduler.sidebar.expanded", true) ?? true);
+  let toggleArea;
   const currentScopeId = createMemo(() => deriveStatusScopeId(props.api.state.path.directory));
   const jobs = createMemo(() => props.store.snapshot().jobs.filter((job) => job.scopeId === currentScopeId()));
   const recentJobs = createMemo(() => jobs().slice(0, 5));
@@ -22665,41 +22678,109 @@ function Sidebar(props) {
     setOpen(next);
     props.api.kv?.set("scheduler.sidebar.expanded", next);
   };
-  const openCenter = (filter = "all") => props.api.route.navigate("scheduler", {
+  const openCenter = () => props.api.route.navigate("scheduler", {
     entry: "command",
     returnRoute: props.api.route.current,
-    centerState: { scope: "current", filter }
+    centerState: { scope: "current", filter: "all" }
   });
   const openDetail = (jobId) => navigateToDetail(props.api, {
     id: jobId,
     entry: "sidebar",
     returnRoute: props.api.route.current
   });
-  const counters = [
-    { id: "all", label: "\u03A3 All", value: () => jobs().length, filter: "all", color: () => props.api.theme.current.text },
-    { id: "active", label: "\u25CF Active", value: active, filter: "active", color: () => props.api.theme.current.success },
-    { id: "paused", label: "\u2161 Paused", value: paused, filter: "paused", color: () => props.api.theme.current.textMuted },
-    { id: "problems", label: "! Problems", value: problems, filter: "problems", color: () => problems() ? props.api.theme.current.warning : props.api.theme.current.textMuted }
-  ];
+  const handleToggle = (event) => consumeMouse(event, toggle);
+  const handleRootMouse = (event) => {
+    if (inside(toggleArea, event))
+      consumeMouse(event, toggle);
+  };
   return /* @__PURE__ */ jsxDEV("box", {
-    gap: 1,
+    gap: 0,
     paddingTop: 1,
+    onMouseDown: handleRootMouse,
     children: [
       /* @__PURE__ */ jsxDEV("box", {
         id: "scheduler-sidebar-toggle",
+        ref: (element) => toggleArea = element,
+        width: "100%",
         flexDirection: "row",
         gap: 1,
         paddingRight: 1,
-        onMouseDown: toggle,
+        onMouseDown: handleToggle,
         children: [
           /* @__PURE__ */ jsxDEV("text", {
+            selectable: false,
             fg: props.api.theme.current.text,
             children: open() ? "\u25BC" : "\u25B6"
           }, undefined, false, undefined, this),
           /* @__PURE__ */ jsxDEV("text", {
+            selectable: false,
             fg: props.api.theme.current.text,
             children: /* @__PURE__ */ jsxDEV("b", {
               children: "Scheduled tasks"
+            }, undefined, false, undefined, this)
+          }, undefined, false, undefined, this)
+        ]
+      }, undefined, true, undefined, this),
+      /* @__PURE__ */ jsxDEV("box", {
+        id: "scheduler-sidebar-status",
+        height: 1,
+        flexShrink: 0,
+        flexDirection: "row",
+        justifyContent: "space-between",
+        alignItems: "center",
+        children: [
+          /* @__PURE__ */ jsxDEV("box", {
+            flexDirection: "row",
+            gap: 1,
+            minWidth: 0,
+            children: [
+              /* @__PURE__ */ jsxDEV("text", {
+                id: "scheduler-sidebar-active",
+                selectable: false,
+                wrapMode: "none",
+                fg: props.api.theme.current.success,
+                children: [
+                  "\u25CF Active ",
+                  active()
+                ]
+              }, undefined, true, undefined, this),
+              /* @__PURE__ */ jsxDEV("text", {
+                id: "scheduler-sidebar-paused",
+                selectable: false,
+                wrapMode: "none",
+                fg: props.api.theme.current.textMuted,
+                children: [
+                  "\u2161 Paused ",
+                  paused()
+                ]
+              }, undefined, true, undefined, this),
+              /* @__PURE__ */ jsxDEV("text", {
+                id: "scheduler-sidebar-err",
+                selectable: false,
+                wrapMode: "none",
+                fg: props.api.theme.current.error,
+                children: [
+                  "\xD7 err ",
+                  problems()
+                ]
+              }, undefined, true, undefined, this)
+            ]
+          }, undefined, true, undefined, this),
+          /* @__PURE__ */ jsxDEV("box", {
+            id: "scheduler-sidebar-open",
+            flexShrink: 0,
+            paddingLeft: 1,
+            onMouseDown: (event) => consumeMouse(event, openCenter),
+            children: /* @__PURE__ */ jsxDEV("text", {
+              selectable: false,
+              wrapMode: "none",
+              fg: props.api.theme.current.primary,
+              children: /* @__PURE__ */ jsxDEV("b", {
+                children: [
+                  "\u2192 ",
+                  jobs().length
+                ]
+              }, undefined, true, undefined, this)
             }, undefined, false, undefined, this)
           }, undefined, false, undefined, this)
         ]
@@ -22713,7 +22794,8 @@ function Sidebar(props) {
               id: `scheduler-sidebar-job-${job.id}`,
               paddingLeft: 1,
               paddingRight: 1,
-              onMouseDown: () => openDetail(job.id),
+              paddingTop: 1,
+              onMouseDown: (event) => consumeMouse(event, () => openDetail(job.id)),
               children: [
                 /* @__PURE__ */ jsxDEV("text", {
                   fg: statusColor(props.api, job.health),
@@ -22743,47 +22825,6 @@ function Sidebar(props) {
             children: /* @__PURE__ */ jsxDEV("text", {
               fg: props.api.theme.current.textMuted,
               children: "No tasks in this project"
-            }, undefined, false, undefined, this)
-          }, undefined, false, undefined, this)
-        ]
-      }, undefined, true, undefined, this),
-      /* @__PURE__ */ jsxDEV("box", {
-        flexDirection: "row",
-        justifyContent: "space-between",
-        alignItems: "center",
-        children: [
-          /* @__PURE__ */ jsxDEV("box", {
-            flexDirection: "row",
-            flexWrap: "wrap",
-            gap: 1,
-            flexGrow: 1,
-            children: /* @__PURE__ */ jsxDEV(For, {
-              each: counters,
-              children: (item) => /* @__PURE__ */ jsxDEV("box", {
-                id: `scheduler-sidebar-${item.id}`,
-                paddingRight: 1,
-                onMouseDown: () => openCenter(item.filter),
-                children: /* @__PURE__ */ jsxDEV("text", {
-                  fg: item.color(),
-                  children: [
-                    item.label,
-                    " ",
-                    item.value()
-                  ]
-                }, undefined, true, undefined, this)
-              }, undefined, false, undefined, this)
-            }, undefined, false, undefined, this)
-          }, undefined, false, undefined, this),
-          /* @__PURE__ */ jsxDEV("box", {
-            id: "scheduler-sidebar-open",
-            paddingLeft: 1,
-            paddingRight: 1,
-            onMouseDown: () => openCenter("all"),
-            children: /* @__PURE__ */ jsxDEV("text", {
-              fg: props.api.theme.current.primary,
-              children: /* @__PURE__ */ jsxDEV("b", {
-                children: "\u2192"
-              }, undefined, false, undefined, this)
             }, undefined, false, undefined, this)
           }, undefined, false, undefined, this)
         ]
@@ -22834,9 +22875,12 @@ function TaskCenter(props) {
   const [scope, setScope] = createSignal(props.initialState?.scope || "current");
   const [focus, setFocus] = createSignal("list");
   const [selectedIndex, setSelectedIndex] = createSignal(0);
+  const [controlIndex, setControlIndex] = createSignal(scope() === "all" ? 0 : 1);
+  const [hoveredControl, setHoveredControl] = createSignal();
   let root;
   let searchInput;
   let taskScroll;
+  const controlRefs = [];
   const currentScopeId = createMemo(() => deriveStatusScopeId(props.api.state.path.directory));
   const jobs = createMemo(() => filterSchedulerJobs(props.store.snapshot().jobs, {
     query: query(),
@@ -22865,6 +22909,10 @@ function TaskCenter(props) {
     setFocus("list");
     root?.focus();
   };
+  const focusControls = () => {
+    setFocus("controls");
+    root?.focus();
+  };
   const focusSearch = () => {
     setFocus("search");
     searchInput?.focus();
@@ -22874,6 +22922,31 @@ function TaskCenter(props) {
     if (last < 0)
       return;
     setSelectedIndex((current) => Math.max(0, Math.min(last, current + delta)));
+  };
+  const applyControl = (index) => {
+    setControlIndex(index);
+    if (index === 0)
+      setScope("all");
+    if (index === 1)
+      setScope("current");
+    if (index === 2)
+      setFilter("all");
+    if (index === 3)
+      setFilter("active");
+    if (index === 4)
+      setFilter("paused");
+    if (index === 5)
+      setFilter("problems");
+    setSelectedIndex(0);
+    taskScroll?.scrollTo(0);
+    focusControls();
+  };
+  const moveControl = (delta) => setControlIndex((current) => (current + delta + 6) % 6);
+  const handleControlMouse = (index, event) => consumeMouse(event, () => applyControl(index));
+  const handleRootMouse = (event) => {
+    const index = controlRefs.findIndex((renderable) => inside(renderable, event));
+    if (index >= 0)
+      consumeMouse(event, () => applyControl(index));
   };
   const openSelected = () => {
     const selected = jobs()[selectedIndex()];
@@ -22908,9 +22981,17 @@ function TaskCenter(props) {
       { name: "scheduler.down", run: () => moveSelection(1) },
       { name: "scheduler.up", run: () => moveSelection(-1) },
       { name: "scheduler.task.open", run: openSelected },
+      { name: "scheduler.controls.focus", run: focusControls },
       { name: "scheduler.search", run: focusSearch },
       { name: "scheduler.refresh", run: () => void props.store.refresh() },
       { name: "scheduler.close", run: close }
+    ] : activeFocus === "controls" ? [
+      { name: "scheduler.controls.left", run: () => moveControl(-1) },
+      { name: "scheduler.controls.right", run: () => moveControl(1) },
+      { name: "scheduler.controls.apply", run: () => applyControl(controlIndex()) },
+      { name: "scheduler.controls.done", run: focusList },
+      { name: "scheduler.search", run: focusSearch },
+      { name: "scheduler.refresh", run: () => void props.store.refresh() }
     ] : [
       { name: "scheduler.search.done", run: focusList },
       {
@@ -22931,9 +23012,20 @@ function TaskCenter(props) {
       { key: "return", cmd: "scheduler.task.open" },
       { key: "linefeed", cmd: "scheduler.task.open" },
       { key: "/", cmd: "scheduler.search" },
-      { key: "tab", cmd: "scheduler.search" },
+      { key: "tab", cmd: "scheduler.controls.focus" },
       { key: "r", cmd: "scheduler.refresh" },
       { key: "escape", cmd: "scheduler.close" }
+    ] : activeFocus === "controls" ? [
+      { key: "left", cmd: "scheduler.controls.left" },
+      { key: "h", cmd: "scheduler.controls.left" },
+      { key: "right", cmd: "scheduler.controls.right" },
+      { key: "l", cmd: "scheduler.controls.right" },
+      { key: "return", cmd: "scheduler.controls.apply" },
+      { key: "linefeed", cmd: "scheduler.controls.apply" },
+      { key: "tab", cmd: "scheduler.search" },
+      { key: "/", cmd: "scheduler.search" },
+      { key: "r", cmd: "scheduler.refresh" },
+      { key: "escape", cmd: "scheduler.controls.done" }
     ] : [
       { key: "tab", cmd: "scheduler.search.done" },
       { key: "escape", cmd: "scheduler.search.escape" }
@@ -22965,7 +23057,8 @@ function TaskCenter(props) {
     flexDirection: "column",
     backgroundColor: props.api.theme.current.background,
     focusable: true,
-    focused: focus() === "list",
+    focused: focus() !== "search",
+    onMouseDown: handleRootMouse,
     children: [
       /* @__PURE__ */ jsxDEV(Header, {
         api: props.api,
@@ -22994,66 +23087,55 @@ function TaskCenter(props) {
         focusedTextColor: props.api.theme.current.text
       }, undefined, false, undefined, this),
       /* @__PURE__ */ jsxDEV("box", {
+        id: "scheduler-controls",
         flexDirection: "row",
         flexWrap: "wrap",
         gap: 1,
         paddingTop: 1,
         paddingBottom: 1,
-        children: [
-          /* @__PURE__ */ jsxDEV("box", {
-            id: "scheduler-scope-all",
-            paddingLeft: 1,
-            paddingRight: 1,
-            backgroundColor: scope() === "all" ? props.api.theme.current.backgroundElement : undefined,
-            onMouseDown: () => {
-              setScope("all");
-              setSelectedIndex(0);
-              focusList();
-            },
-            children: /* @__PURE__ */ jsxDEV("text", {
-              fg: scope() === "all" ? props.api.theme.current.primary : props.api.theme.current.textMuted,
-              children: "All projects"
-            }, undefined, false, undefined, this)
-          }, undefined, false, undefined, this),
-          /* @__PURE__ */ jsxDEV("box", {
-            id: "scheduler-scope-current",
-            paddingLeft: 1,
-            paddingRight: 1,
-            backgroundColor: scope() === "current" ? props.api.theme.current.backgroundElement : undefined,
-            onMouseDown: () => {
-              setScope("current");
-              setSelectedIndex(0);
-              focusList();
-            },
-            children: /* @__PURE__ */ jsxDEV("text", {
-              fg: scope() === "current" ? props.api.theme.current.primary : props.api.theme.current.textMuted,
-              children: "Current project"
-            }, undefined, false, undefined, this)
-          }, undefined, false, undefined, this),
-          /* @__PURE__ */ jsxDEV("text", {
-            fg: props.api.theme.current.border,
-            children: "\u2502"
-          }, undefined, false, undefined, this),
-          /* @__PURE__ */ jsxDEV(For, {
-            each: ["all", "active", "paused", "problems"],
-            children: (item) => /* @__PURE__ */ jsxDEV("box", {
-              id: `scheduler-filter-${item}`,
-              paddingLeft: 1,
-              paddingRight: 1,
-              backgroundColor: filter() === item ? props.api.theme.current.backgroundElement : undefined,
-              onMouseDown: () => {
-                setFilter(item);
-                setSelectedIndex(0);
-                focusList();
-              },
-              children: /* @__PURE__ */ jsxDEV("text", {
-                fg: filter() === item ? props.api.theme.current.primary : props.api.theme.current.textMuted,
-                children: item === "all" ? "All" : item === "active" ? "Active" : item === "paused" ? "Paused" : "Problems"
-              }, undefined, false, undefined, this)
-            }, undefined, false, undefined, this)
-          }, undefined, false, undefined, this)
-        ]
-      }, undefined, true, undefined, this),
+        children: /* @__PURE__ */ jsxDEV(For, {
+          each: [
+            { id: "scheduler-scope-all", label: "All projects" },
+            { id: "scheduler-scope-current", label: "Current project" },
+            { id: "scheduler-filter-all", label: "All" },
+            { id: "scheduler-filter-active", label: "Active" },
+            { id: "scheduler-filter-paused", label: "Paused" },
+            { id: "scheduler-filter-problems", label: "Problems" }
+          ],
+          children: (item, index) => {
+            const selected = () => index() === 0 ? scope() === "all" : index() === 1 ? scope() === "current" : index() === 2 ? filter() === "all" : index() === 3 ? filter() === "active" : index() === 4 ? filter() === "paused" : filter() === "problems";
+            const highlighted = () => selected() || hoveredControl() === index() || focus() === "controls" && controlIndex() === index();
+            return /* @__PURE__ */ jsxDEV(Fragment, {
+              children: [
+                /* @__PURE__ */ jsxDEV(Show, {
+                  when: index() === 2,
+                  children: /* @__PURE__ */ jsxDEV("text", {
+                    selectable: false,
+                    fg: props.api.theme.current.border,
+                    children: "\u2502"
+                  }, undefined, false, undefined, this)
+                }, undefined, false, undefined, this),
+                /* @__PURE__ */ jsxDEV("box", {
+                  id: item.id,
+                  ref: (element) => controlRefs[index()] = element,
+                  paddingLeft: 1,
+                  paddingRight: 1,
+                  backgroundColor: highlighted() ? props.api.theme.current.backgroundElement : undefined,
+                  onMouseDown: (event) => handleControlMouse(index(), event),
+                  onMouseOver: () => setHoveredControl(index()),
+                  onMouseOut: () => setHoveredControl((current) => current === index() ? undefined : current),
+                  children: /* @__PURE__ */ jsxDEV("text", {
+                    selectable: false,
+                    wrapMode: "none",
+                    fg: selected() || focus() === "controls" && controlIndex() === index() ? props.api.theme.current.primary : props.api.theme.current.textMuted,
+                    children: item.label
+                  }, undefined, false, undefined, this)
+                }, undefined, false, undefined, this)
+              ]
+            }, undefined, true, undefined, this);
+          }
+        }, undefined, false, undefined, this)
+      }, undefined, false, undefined, this),
       /* @__PURE__ */ jsxDEV(Show, {
         when: jobs().length,
         fallback: /* @__PURE__ */ jsxDEV("text", {
@@ -23147,7 +23229,7 @@ function TaskCenter(props) {
       }, undefined, false, undefined, this),
       /* @__PURE__ */ jsxDEV("text", {
         fg: props.api.theme.current.textMuted,
-        children: "Mouse: click/scroll \xB7 Keyboard: \u2191/\u2193 or j/k \xB7 Enter open \xB7 / search \xB7 Esc back"
+        children: "Mouse: click/scroll \xB7 Keyboard: Tab controls \xB7 \u2190/\u2192 select \xB7 Enter apply \xB7 / search \xB7 Esc back"
       }, undefined, false, undefined, this)
     ]
   }, undefined, true, undefined, this);
