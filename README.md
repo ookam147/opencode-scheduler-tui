@@ -1,5 +1,9 @@
 # opencode-scheduler
 
+> 📖 English | [简体中文](./README.zh-CN.md)
+
+> Forked from [different-ai/opencode-scheduler](https://github.com/different-ai/opencode-scheduler) with TUI task center and observability enhancements.
+
 Run AI agents on a schedule. Set up recurring tasks that execute autonomously—even when you're away.
 
 ```
