@@ -206,16 +206,24 @@ function inside(renderable: BoxRenderable | undefined, event: OpenTuiMouseEvent)
     && event.y < renderable.y + renderable.height
 }
 
-function consumeMouse(event: OpenTuiMouseEvent, action: () => void) {
+const handledMouseReleases = new WeakSet<OpenTuiMouseEvent>()
+
+function activateMouse(event: OpenTuiMouseEvent, action: () => void, requestRender?: () => void) {
   if (event.button !== 0) return
+  if (handledMouseReleases.has(event)) return
+  handledMouseReleases.add(event)
   event.preventDefault()
   event.stopPropagation()
+  const target = event.target
   action()
+  setTimeout(() => {
+    target?.requestRender()
+    requestRender?.()
+  }, 0)
 }
 
 export function Sidebar(props: { api: TuiPluginApi; store: ReturnType<typeof createStatusStore> }) {
   const [open, setOpen] = createSignal(props.api.kv?.get("scheduler.sidebar.expanded", true) ?? true)
-  let toggleArea: BoxRenderable | undefined
   const currentScopeId = createMemo(() => deriveStatusScopeId(props.api.state.path.directory))
   const jobs = createMemo(() => props.store.snapshot().jobs.filter((job) => job.scopeId === currentScopeId()))
   const recentJobs = createMemo(() => jobs().slice(0, 5))
@@ -226,6 +234,7 @@ export function Sidebar(props: { api: TuiPluginApi; store: ReturnType<typeof cre
     const bad = new Set<SchedulerHealth>(["disabled", "missing", "drifted", "error"])
     return jobs().filter((job) => bad.has(job.health)).length + scopedOrphans().length
   })
+  let toggleTarget: BoxRenderable | undefined
   const toggle = () => {
     const next = !open()
     setOpen(next)
@@ -241,23 +250,27 @@ export function Sidebar(props: { api: TuiPluginApi; store: ReturnType<typeof cre
     entry: "sidebar",
     returnRoute: props.api.route.current,
   })
-  const handleToggle = (event: OpenTuiMouseEvent) => consumeMouse(event, toggle)
+  const requestRender = () => props.api.renderer?.requestRender()
+  const handleToggle = (event: OpenTuiMouseEvent) => activateMouse(event, toggle, requestRender)
   const handleRootMouse = (event: OpenTuiMouseEvent) => {
-    if (inside(toggleArea, event)) consumeMouse(event, toggle)
+    if (inside(toggleTarget, event)) activateMouse(event, toggle, requestRender)
   }
   return (
-    <box gap={0} paddingTop={1} onMouseDown={handleRootMouse}>
+    <box gap={0} paddingTop={1} onMouseUp={handleRootMouse}>
       <box
         id="scheduler-sidebar-toggle"
-        ref={(element: BoxRenderable) => (toggleArea = element)}
+        ref={(element: BoxRenderable) => (toggleTarget = element)}
         width="100%"
+        height={1}
+        minHeight={1}
+        flexShrink={0}
         flexDirection="row"
         gap={1}
         paddingRight={1}
-        onMouseDown={handleToggle}
+        onMouseUp={handleToggle}
       >
-        <text selectable={false} fg={props.api.theme.current.text}>{open() ? "▼" : "▶"}</text>
-        <text selectable={false} fg={props.api.theme.current.text}><b>Scheduled tasks</b></text>
+        <text id="scheduler-sidebar-toggle-icon" selectable={false} fg={props.api.theme.current.text} onMouseUp={handleToggle}>{open() ? "▼" : "▶"}</text>
+        <text id="scheduler-sidebar-toggle-label" selectable={false} fg={props.api.theme.current.text} onMouseUp={handleToggle}><b>Scheduled tasks</b></text>
       </box>
       <box id="scheduler-sidebar-status" height={1} flexShrink={0} flexDirection="row" justifyContent="space-between" alignItems="center">
         <box flexDirection="row" gap={1} minWidth={0}>
@@ -265,14 +278,14 @@ export function Sidebar(props: { api: TuiPluginApi; store: ReturnType<typeof cre
           <text id="scheduler-sidebar-paused" selectable={false} wrapMode="none" fg={props.api.theme.current.textMuted}>Ⅱ Paused {paused()}</text>
           <text id="scheduler-sidebar-err" selectable={false} wrapMode="none" fg={props.api.theme.current.error}>× err {problems()}</text>
         </box>
-        <box id="scheduler-sidebar-open" flexShrink={0} paddingLeft={1} onMouseDown={(event) => consumeMouse(event, openCenter)}>
+        <box id="scheduler-sidebar-open" flexShrink={0} paddingLeft={1} onMouseUp={(event) => activateMouse(event, openCenter, requestRender)}>
           <text selectable={false} wrapMode="none" fg={props.api.theme.current.primary}><b>→ {jobs().length}</b></text>
         </box>
       </box>
       <Show when={open()}>
         <For each={recentJobs()}>
           {(job) => (
-            <box id={`scheduler-sidebar-job-${job.id}`} paddingLeft={1} paddingRight={1} paddingTop={1} onMouseDown={(event) => consumeMouse(event, () => openDetail(job.id))}>
+            <box id={`scheduler-sidebar-job-${job.id}`} paddingLeft={1} paddingRight={1} paddingTop={1} onMouseUp={(event) => activateMouse(event, () => openDetail(job.id), requestRender)}>
               <text fg={statusColor(props.api, job.health)}>{statusIcon(job.health)} <span style={{ fg: props.api.theme.current.text }}>{job.name}</span></text>
               <text fg={props.api.theme.current.textMuted}>{job.scheduleText} · {relativeTime(job.nextRunAt)}</text>
             </box>
@@ -362,16 +375,56 @@ export function TaskCenter(props: { api: TuiPluginApi; store: ReturnType<typeof 
     focusControls()
   }
   const moveControl = (delta: number) => setControlIndex((current) => (current + delta + 6) % 6)
-  const handleControlMouse = (index: number, event: OpenTuiMouseEvent) => consumeMouse(event, () => applyControl(index))
+  const remountCenter = () => props.api.route.navigate("scheduler", {
+    entry: "command",
+    returnRoute: props.returnRoute,
+    centerState: centerState(),
+  })
+  const handleControlMouse = (index: number, event: OpenTuiMouseEvent) => {
+    activateMouse(event, () => {
+      applyControl(index)
+      remountCenter()
+    }, () => props.api.renderer?.requestRender())
+  }
   const handleRootMouse = (event: OpenTuiMouseEvent) => {
     const index = controlRefs.findIndex((renderable) => inside(renderable, event))
-    if (index >= 0) consumeMouse(event, () => applyControl(index))
+    if (index >= 0) {
+      activateMouse(event, () => {
+        applyControl(index)
+        remountCenter()
+      }, () => props.api.renderer?.requestRender())
+    }
   }
   const openSelected = () => {
     const selected = jobs()[selectedIndex()]
     if (selected) navigateToDetail(props.api, { id: selected.id, entry: "center", returnRoute: props.returnRoute, centerState: centerState() })
   }
   const close = () => navigateBack(props.api, props.returnRoute)
+  function ControlTab(tab: { index: number; id: string; label: string; selected: () => boolean }) {
+    const highlighted = () => tab.selected() || hoveredControl() === tab.index || (focus() === "controls" && controlIndex() === tab.index)
+    return (
+      <box
+        id={tab.id}
+        ref={(element: BoxRenderable) => (controlRefs[tab.index] = element)}
+        height={1}
+        flexShrink={0}
+        paddingLeft={1}
+        paddingRight={1}
+        backgroundColor={highlighted() ? props.api.theme.current.backgroundElement : props.api.theme.current.background}
+        onMouseUp={(event) => handleControlMouse(tab.index, event)}
+        onMouseOver={() => setHoveredControl(tab.index)}
+        onMouseOut={() => setHoveredControl((current) => current === tab.index ? undefined : current)}
+      >
+        <text
+          id={`${tab.id}-label`}
+          selectable={false}
+          wrapMode="none"
+          fg={tab.selected() || (focus() === "controls" && controlIndex() === tab.index) ? props.api.theme.current.primary : props.api.theme.current.textMuted}
+          onMouseUp={(event) => handleControlMouse(tab.index, event)}
+        >{tab.label}</text>
+      </box>
+    )
+  }
 
   createEffect(() => {
     const last = jobs().length - 1
@@ -394,7 +447,7 @@ export function TaskCenter(props: { api: TuiPluginApi; store: ReturnType<typeof 
   createEffect(() => {
     const target = root
     const activeFocus = focus()
-    if (!target) return
+    if (!target || props.api.ui.dialog.open) return
     const commands = activeFocus === "list"
       ? [
           { name: "scheduler.down", run: () => moveSelection(1) },
@@ -466,6 +519,10 @@ export function TaskCenter(props: { api: TuiPluginApi; store: ReturnType<typeof 
 
   onMount(() => {
     root?.focus()
+    const focusTimer = setTimeout(() => {
+      if (!props.api.ui.dialog.open) root?.focus()
+    }, 1)
+    onCleanup(() => clearTimeout(focusTimer))
     void props.store.refresh()
   })
   return (
@@ -483,8 +540,8 @@ export function TaskCenter(props: { api: TuiPluginApi; store: ReturnType<typeof 
       flexDirection="column"
       backgroundColor={props.api.theme.current.background}
       focusable
-      focused={focus() !== "search"}
-      onMouseDown={handleRootMouse}
+      focused={!props.api.ui.dialog.open && focus() !== "search"}
+      onMouseUp={handleRootMouse}
     >
       <Header api={props.api} title="Scheduled tasks" refresh={() => void props.store.refresh()} refreshId="scheduler-refresh" loading={props.store.loading()} />
       <input
@@ -495,53 +552,32 @@ export function TaskCenter(props: { api: TuiPluginApi; store: ReturnType<typeof 
         onInput={(value) => { setQuery(String(value)); setSelectedIndex(0) }}
         onSubmit={focusList}
         onMouseDown={() => { setFocus("search"); searchInput?.focus() }}
-        focused={focus() === "search"}
+        focused={focus() === "search" && !props.api.ui.dialog.open}
         backgroundColor={props.api.theme.current.backgroundElement}
         textColor={props.api.theme.current.text}
         focusedTextColor={props.api.theme.current.text}
       />
-      <box id="scheduler-controls" flexDirection="row" flexWrap="wrap" gap={1} paddingTop={1} paddingBottom={1}>
-        <For each={[
-          { id: "scheduler-scope-all", label: "All projects" },
-          { id: "scheduler-scope-current", label: "Current project" },
-          { id: "scheduler-filter-all", label: "All" },
-          { id: "scheduler-filter-active", label: "Active" },
-          { id: "scheduler-filter-paused", label: "Paused" },
-          { id: "scheduler-filter-problems", label: "Problems" },
-        ]}>
-          {(item, index) => {
-            const selected = () => index() === 0
-              ? scope() === "all"
-              : index() === 1
-                ? scope() === "current"
-                : index() === 2
-                  ? filter() === "all"
-                  : index() === 3
-                    ? filter() === "active"
-                    : index() === 4
-                      ? filter() === "paused"
-                      : filter() === "problems"
-            const highlighted = () => selected() || hoveredControl() === index() || (focus() === "controls" && controlIndex() === index())
-            return (
-              <>
-                <Show when={index() === 2}><text selectable={false} fg={props.api.theme.current.border}>│</text></Show>
-                <box
-                  id={item.id}
-                  ref={(element: BoxRenderable) => (controlRefs[index()] = element)}
-                  paddingLeft={1}
-                  paddingRight={1}
-                  backgroundColor={highlighted() ? props.api.theme.current.backgroundElement : undefined}
-                  onMouseDown={(event) => handleControlMouse(index(), event)}
-                  onMouseOver={() => setHoveredControl(index())}
-                  onMouseOut={() => setHoveredControl((current) => current === index() ? undefined : current)}
-                >
-                  <text selectable={false} wrapMode="none" fg={selected() || (focus() === "controls" && controlIndex() === index()) ? props.api.theme.current.primary : props.api.theme.current.textMuted}>{item.label}</text>
-                </box>
-              </>
-            )
-          }}
-        </For>
+      <box height={1} flexShrink={0} />
+      <box
+        id="scheduler-controls"
+        width="100%"
+        height={1}
+        minHeight={1}
+        flexShrink={0}
+        flexDirection="row"
+        alignItems="stretch"
+        gap={1}
+        backgroundColor={props.api.theme.current.background}
+      >
+        <ControlTab index={0} id="scheduler-scope-all" label="All projects" selected={() => scope() === "all"} />
+        <ControlTab index={1} id="scheduler-scope-current" label="Current project" selected={() => scope() === "current"} />
+        <text selectable={false} fg={props.api.theme.current.border}>│</text>
+        <ControlTab index={2} id="scheduler-filter-all" label="All" selected={() => filter() === "all"} />
+        <ControlTab index={3} id="scheduler-filter-active" label="Active" selected={() => filter() === "active"} />
+        <ControlTab index={4} id="scheduler-filter-paused" label="Paused" selected={() => filter() === "paused"} />
+        <ControlTab index={5} id="scheduler-filter-problems" label="Problems" selected={() => filter() === "problems"} />
       </box>
+      <box height={1} flexShrink={0} />
       <Show when={jobs().length} fallback={<text fg={props.api.theme.current.textMuted}>No matching tasks.</text>}>
         <scrollbox
           id="scheduler-task-list"
@@ -559,11 +595,11 @@ export function TaskCenter(props: { api: TuiPluginApi; store: ReturnType<typeof 
                 flexDirection="column"
                 paddingLeft={1}
                 backgroundColor={selectedIndex() === index() ? props.api.theme.current.backgroundElement : props.api.theme.current.background}
-                onMouseDown={() => {
+                onMouseUp={(event) => activateMouse(event, () => {
                   setSelectedIndex(index())
                   focusList()
                   navigateToDetail(props.api, { id: job.id, entry: "center", returnRoute: props.returnRoute, centerState: centerState() })
-                }}
+                }, () => props.api.renderer?.requestRender())}
               >
                 <text wrapMode="none" fg={statusColor(props.api, job.health)}>{selectedIndex() === index() ? "▶" : " "} {statusIcon(job.health)} <span style={{ fg: props.api.theme.current.text }}>{job.name}</span></text>
                 <text wrapMode="none" fg={props.api.theme.current.textMuted}>    {job.scheduleText} · next {relativeTime(job.nextRunAt)} · {job.workdir}</text>
@@ -576,7 +612,7 @@ export function TaskCenter(props: { api: TuiPluginApi; store: ReturnType<typeof 
         <box paddingTop={1}>
           <text fg={props.api.theme.current.warning}><b>Orphaned OS tasks ({orphans().length})</b></text>
           <For each={orphans()}>
-            {(orphan) => <text fg={props.api.theme.current.warning} onMouseUp={() => openOrphanDialog(props.api, props.store, orphan)}>! {orphan.slug} · {orphan.backend} · click to inspect</text>}
+            {(orphan) => <text selectable={false} fg={props.api.theme.current.warning} onMouseUp={(event) => activateMouse(event, () => openOrphanDialog(props.api, props.store, orphan), () => props.api.renderer?.requestRender())}>! {orphan.slug} · {orphan.backend} · click to inspect</text>}
           </For>
         </box>
       </Show>
@@ -590,8 +626,10 @@ function perform(api: TuiPluginApi, store: ReturnType<typeof createStatusStore>,
     action()
     api.ui.toast({ variant: "success", title: "Scheduler", message: success })
     void store.refresh()
+    return true
   } catch (error) {
     api.ui.toast({ variant: "error", title: "Scheduler", message: error instanceof Error ? error.message : String(error) })
+    return false
   }
 }
 
@@ -603,8 +641,9 @@ function openScheduleDialog(api: TuiPluginApi, store: ReturnType<typeof createSt
       description={() => <text fg={api.theme.current.textMuted}>Five-field cron expression. Current: {job.schedule}</text>}
       value={job.schedule}
       onConfirm={(value) => {
-        perform(api, store, () => updateSchedulerJobSchedule({ id: job.id }, value), "Schedule updated")
-        api.ui.dialog.clear()
+        if (perform(api, store, () => updateSchedulerJobSchedule({ id: job.id }, value), "Schedule updated")) {
+          api.ui.dialog.clear()
+        }
       }}
       onCancel={() => api.ui.dialog.clear()}
     />
@@ -644,9 +683,10 @@ function confirmDelete(api: TuiPluginApi, store: ReturnType<typeof createStatusS
       title={`Delete ${job.name}?`}
       message="This removes the job configuration and its OS scheduler entry. Logs are retained."
       onConfirm={() => {
-        perform(api, store, () => deleteSchedulerJob({ id: job.id }), "Task deleted")
-        api.ui.dialog.clear()
-        onDeleted()
+        if (perform(api, store, () => deleteSchedulerJob({ id: job.id }), "Task deleted")) {
+          api.ui.dialog.clear()
+          onDeleted()
+        }
       }}
       onCancel={() => api.ui.dialog.clear()}
     />
@@ -694,23 +734,25 @@ function openOrphanDialog(api: TuiPluginApi, store: ReturnType<typeof createStat
       title={`Remove orphan ${orphan.slug}?`}
       message={`Backend: ${orphan.backend}\nArtifacts:\n${ids}\n\nOnly these exact scheduler artifacts will be removed.`}
       onConfirm={() => {
-        perform(api, store, () => orphan.artifactIds.forEach((artifactId) => removeOrphanArtifact(artifactId, true)), "Orphan removed")
-        api.ui.dialog.clear()
+        if (perform(api, store, () => orphan.artifactIds.forEach((artifactId) => removeOrphanArtifact(artifactId, true)), "Orphan removed")) {
+          api.ui.dialog.clear()
+        }
       }}
       onCancel={() => api.ui.dialog.clear()}
     />
   ))
 }
 
-function Action(props: { api: TuiPluginApi; label: string; onSelect: () => void; warning?: boolean }) {
+function Action(props: { api: TuiPluginApi; id: string; label: string; onSelect: () => void; warning?: boolean }) {
   return (
     <box
+      id={props.id}
       paddingLeft={1}
       paddingRight={1}
       backgroundColor={props.api.theme.current.backgroundElement}
-      onMouseDown={props.onSelect}
+      onMouseUp={(event) => activateMouse(event, props.onSelect, () => props.api.renderer?.requestRender())}
     >
-      <text fg={props.warning ? props.api.theme.current.warning : props.api.theme.current.primary}>{props.label}</text>
+      <text selectable={false} fg={props.warning ? props.api.theme.current.warning : props.api.theme.current.primary}>{props.label}</text>
     </box>
   )
 }
@@ -736,7 +778,7 @@ export function Detail(props: {
   }
   createEffect(() => {
     const target = root
-    if (!target) return
+    if (!target || props.api.ui.dialog.open) return
     const dispose = props.api.keymap.registerLayer({
       target,
       targetMode: "focus-within",
@@ -754,6 +796,10 @@ export function Detail(props: {
   })
   onMount(() => {
     root?.focus()
+    const focusTimer = setTimeout(() => {
+      if (!props.api.ui.dialog.open) root?.focus()
+    }, 1)
+    onCleanup(() => clearTimeout(focusTimer))
     void props.store.refresh()
   })
   return (
@@ -771,7 +817,7 @@ export function Detail(props: {
       flexDirection="column"
       backgroundColor={props.api.theme.current.background}
       focusable
-      focused
+      focused={!props.api.ui.dialog.open}
     >
       <Header api={props.api} title={job()?.name || "Scheduled task"} back={back} refresh={() => void props.store.refresh()} refreshId="scheduler-detail-refresh" loading={props.store.loading()} />
       <Show when={job()} fallback={<text fg={props.api.theme.current.warning}>Task not found. Refresh or return to the task center.</text>}>
@@ -808,22 +854,23 @@ export function Detail(props: {
                 </box>
               </Show>
               <box flexDirection="row" gap={1} flexWrap="wrap">
-                <Action api={props.api} label="Run now" onSelect={() => perform(props.api, props.store, () => runSchedulerJob({ id: item().id }), "Task started")} />
+                <Action id="scheduler-action-run" api={props.api} label="Run now" onSelect={() => perform(props.api, props.store, () => runSchedulerJob({ id: item().id }), "Task started")} />
                 <Action
+                  id="scheduler-action-toggle"
                   api={props.api}
                   label={item().enabled ? "Pause" : "Resume"}
                   onSelect={() => perform(props.api, props.store, () => item().enabled ? pauseSchedulerJob({ id: item().id }) : resumeSchedulerJob({ id: item().id }), item().enabled ? "Task paused" : "Task resumed")}
                 />
-                <Action api={props.api} label="Edit frequency" onSelect={() => openScheduleDialog(props.api, props.store, item())} />
+                <Action id="scheduler-action-schedule" api={props.api} label="Edit frequency" onSelect={() => openScheduleDialog(props.api, props.store, item())} />
                 <Show when={item().scopeId !== currentScopeId()} fallback={null}>
-                  <Action api={props.api} label="Move to current project" onSelect={() => confirmMove(props.api, props.store, item(), props.api.state.path.directory, {
+                  <Action id="scheduler-action-move" api={props.api} label="Move to current project" onSelect={() => confirmMove(props.api, props.store, item(), props.api.state.path.directory, {
                     entry: props.entry,
                     returnRoute: props.returnRoute,
                     centerState: props.centerState,
                   })} />
                 </Show>
-                <Action api={props.api} label="View logs" onSelect={() => openLogs(props.api, item())} />
-                <Action api={props.api} label="Delete" warning onSelect={() => confirmDelete(props.api, props.store, item(), back)} />
+                <Action id="scheduler-action-logs" api={props.api} label="View logs" onSelect={() => openLogs(props.api, item())} />
+                <Action id="scheduler-action-delete" api={props.api} label="Delete" warning onSelect={() => confirmDelete(props.api, props.store, item(), back)} />
               </box>
               <box paddingTop={1}>
                 <text fg={props.api.theme.current.text}><b>Run history</b></text>

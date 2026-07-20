@@ -22488,7 +22488,7 @@ import { existsSync as existsSync3, watch } from "fs";
 import { homedir as homedir3 } from "os";
 import { join as join3 } from "path";
 import { For, Show, createEffect, createMemo, createSignal, onCleanup, onMount } from "solid-js";
-import { jsxDEV, Fragment } from "@opentui/solid/jsx-dev-runtime";
+import { jsxDEV } from "@opentui/solid/jsx-dev-runtime";
 var id = "opencode-scheduler";
 var EMPTY = {
   scannedAt: "",
@@ -22653,16 +22653,24 @@ function inside(renderable, event) {
     return false;
   return event.x >= renderable.x && event.x < renderable.x + renderable.width && event.y >= renderable.y && event.y < renderable.y + renderable.height;
 }
-function consumeMouse(event, action) {
+var handledMouseReleases = new WeakSet;
+function activateMouse(event, action, requestRender) {
   if (event.button !== 0)
     return;
+  if (handledMouseReleases.has(event))
+    return;
+  handledMouseReleases.add(event);
   event.preventDefault();
   event.stopPropagation();
+  const target = event.target;
   action();
+  setTimeout(() => {
+    target?.requestRender();
+    requestRender?.();
+  }, 0);
 }
 function Sidebar(props) {
   const [open, setOpen] = createSignal(props.api.kv?.get("scheduler.sidebar.expanded", true) ?? true);
-  let toggleArea;
   const currentScopeId = createMemo(() => deriveStatusScopeId(props.api.state.path.directory));
   const jobs = createMemo(() => props.store.snapshot().jobs.filter((job) => job.scopeId === currentScopeId()));
   const recentJobs = createMemo(() => jobs().slice(0, 5));
@@ -22673,6 +22681,7 @@ function Sidebar(props) {
     const bad = new Set(["disabled", "missing", "drifted", "error"]);
     return jobs().filter((job) => bad.has(job.health)).length + scopedOrphans().length;
   });
+  let toggleTarget;
   const toggle = () => {
     const next = !open();
     setOpen(next);
@@ -22688,33 +22697,41 @@ function Sidebar(props) {
     entry: "sidebar",
     returnRoute: props.api.route.current
   });
-  const handleToggle = (event) => consumeMouse(event, toggle);
+  const requestRender = () => props.api.renderer?.requestRender();
+  const handleToggle = (event) => activateMouse(event, toggle, requestRender);
   const handleRootMouse = (event) => {
-    if (inside(toggleArea, event))
-      consumeMouse(event, toggle);
+    if (inside(toggleTarget, event))
+      activateMouse(event, toggle, requestRender);
   };
   return /* @__PURE__ */ jsxDEV("box", {
     gap: 0,
     paddingTop: 1,
-    onMouseDown: handleRootMouse,
+    onMouseUp: handleRootMouse,
     children: [
       /* @__PURE__ */ jsxDEV("box", {
         id: "scheduler-sidebar-toggle",
-        ref: (element) => toggleArea = element,
+        ref: (element) => toggleTarget = element,
         width: "100%",
+        height: 1,
+        minHeight: 1,
+        flexShrink: 0,
         flexDirection: "row",
         gap: 1,
         paddingRight: 1,
-        onMouseDown: handleToggle,
+        onMouseUp: handleToggle,
         children: [
           /* @__PURE__ */ jsxDEV("text", {
+            id: "scheduler-sidebar-toggle-icon",
             selectable: false,
             fg: props.api.theme.current.text,
+            onMouseUp: handleToggle,
             children: open() ? "\u25BC" : "\u25B6"
           }, undefined, false, undefined, this),
           /* @__PURE__ */ jsxDEV("text", {
+            id: "scheduler-sidebar-toggle-label",
             selectable: false,
             fg: props.api.theme.current.text,
+            onMouseUp: handleToggle,
             children: /* @__PURE__ */ jsxDEV("b", {
               children: "Scheduled tasks"
             }, undefined, false, undefined, this)
@@ -22770,7 +22787,7 @@ function Sidebar(props) {
             id: "scheduler-sidebar-open",
             flexShrink: 0,
             paddingLeft: 1,
-            onMouseDown: (event) => consumeMouse(event, openCenter),
+            onMouseUp: (event) => activateMouse(event, openCenter, requestRender),
             children: /* @__PURE__ */ jsxDEV("text", {
               selectable: false,
               wrapMode: "none",
@@ -22795,7 +22812,7 @@ function Sidebar(props) {
               paddingLeft: 1,
               paddingRight: 1,
               paddingTop: 1,
-              onMouseDown: (event) => consumeMouse(event, () => openDetail(job.id)),
+              onMouseUp: (event) => activateMouse(event, () => openDetail(job.id), requestRender),
               children: [
                 /* @__PURE__ */ jsxDEV("text", {
                   fg: statusColor(props.api, job.health),
@@ -22942,11 +22959,25 @@ function TaskCenter(props) {
     focusControls();
   };
   const moveControl = (delta) => setControlIndex((current) => (current + delta + 6) % 6);
-  const handleControlMouse = (index, event) => consumeMouse(event, () => applyControl(index));
+  const remountCenter = () => props.api.route.navigate("scheduler", {
+    entry: "command",
+    returnRoute: props.returnRoute,
+    centerState: centerState()
+  });
+  const handleControlMouse = (index, event) => {
+    activateMouse(event, () => {
+      applyControl(index);
+      remountCenter();
+    }, () => props.api.renderer?.requestRender());
+  };
   const handleRootMouse = (event) => {
     const index = controlRefs.findIndex((renderable) => inside(renderable, event));
-    if (index >= 0)
-      consumeMouse(event, () => applyControl(index));
+    if (index >= 0) {
+      activateMouse(event, () => {
+        applyControl(index);
+        remountCenter();
+      }, () => props.api.renderer?.requestRender());
+    }
   };
   const openSelected = () => {
     const selected = jobs()[selectedIndex()];
@@ -22954,6 +22985,29 @@ function TaskCenter(props) {
       navigateToDetail(props.api, { id: selected.id, entry: "center", returnRoute: props.returnRoute, centerState: centerState() });
   };
   const close = () => navigateBack(props.api, props.returnRoute);
+  function ControlTab(tab) {
+    const highlighted = () => tab.selected() || hoveredControl() === tab.index || focus() === "controls" && controlIndex() === tab.index;
+    return /* @__PURE__ */ jsxDEV("box", {
+      id: tab.id,
+      ref: (element) => controlRefs[tab.index] = element,
+      height: 1,
+      flexShrink: 0,
+      paddingLeft: 1,
+      paddingRight: 1,
+      backgroundColor: highlighted() ? props.api.theme.current.backgroundElement : props.api.theme.current.background,
+      onMouseUp: (event) => handleControlMouse(tab.index, event),
+      onMouseOver: () => setHoveredControl(tab.index),
+      onMouseOut: () => setHoveredControl((current) => current === tab.index ? undefined : current),
+      children: /* @__PURE__ */ jsxDEV("text", {
+        id: `${tab.id}-label`,
+        selectable: false,
+        wrapMode: "none",
+        fg: tab.selected() || focus() === "controls" && controlIndex() === tab.index ? props.api.theme.current.primary : props.api.theme.current.textMuted,
+        onMouseUp: (event) => handleControlMouse(tab.index, event),
+        children: tab.label
+      }, undefined, false, undefined, this)
+    }, undefined, false, undefined, this);
+  }
   createEffect(() => {
     const last = jobs().length - 1;
     const requested = props.initialState?.selectedId;
@@ -22975,7 +23029,7 @@ function TaskCenter(props) {
   createEffect(() => {
     const target = root;
     const activeFocus = focus();
-    if (!target)
+    if (!target || props.api.ui.dialog.open)
       return;
     const commands = activeFocus === "list" ? [
       { name: "scheduler.down", run: () => moveSelection(1) },
@@ -23041,6 +23095,11 @@ function TaskCenter(props) {
   });
   onMount(() => {
     root?.focus();
+    const focusTimer = setTimeout(() => {
+      if (!props.api.ui.dialog.open)
+        root?.focus();
+    }, 1);
+    onCleanup(() => clearTimeout(focusTimer));
     props.store.refresh();
   });
   return /* @__PURE__ */ jsxDEV("box", {
@@ -23057,8 +23116,8 @@ function TaskCenter(props) {
     flexDirection: "column",
     backgroundColor: props.api.theme.current.background,
     focusable: true,
-    focused: focus() !== "search",
-    onMouseDown: handleRootMouse,
+    focused: !props.api.ui.dialog.open && focus() !== "search",
+    onMouseUp: handleRootMouse,
     children: [
       /* @__PURE__ */ jsxDEV(Header, {
         api: props.api,
@@ -23081,60 +23140,72 @@ function TaskCenter(props) {
           setFocus("search");
           searchInput?.focus();
         },
-        focused: focus() === "search",
+        focused: focus() === "search" && !props.api.ui.dialog.open,
         backgroundColor: props.api.theme.current.backgroundElement,
         textColor: props.api.theme.current.text,
         focusedTextColor: props.api.theme.current.text
       }, undefined, false, undefined, this),
       /* @__PURE__ */ jsxDEV("box", {
+        height: 1,
+        flexShrink: 0
+      }, undefined, false, undefined, this),
+      /* @__PURE__ */ jsxDEV("box", {
         id: "scheduler-controls",
+        width: "100%",
+        height: 1,
+        minHeight: 1,
+        flexShrink: 0,
         flexDirection: "row",
-        flexWrap: "wrap",
+        alignItems: "stretch",
         gap: 1,
-        paddingTop: 1,
-        paddingBottom: 1,
-        children: /* @__PURE__ */ jsxDEV(For, {
-          each: [
-            { id: "scheduler-scope-all", label: "All projects" },
-            { id: "scheduler-scope-current", label: "Current project" },
-            { id: "scheduler-filter-all", label: "All" },
-            { id: "scheduler-filter-active", label: "Active" },
-            { id: "scheduler-filter-paused", label: "Paused" },
-            { id: "scheduler-filter-problems", label: "Problems" }
-          ],
-          children: (item, index) => {
-            const selected = () => index() === 0 ? scope() === "all" : index() === 1 ? scope() === "current" : index() === 2 ? filter() === "all" : index() === 3 ? filter() === "active" : index() === 4 ? filter() === "paused" : filter() === "problems";
-            const highlighted = () => selected() || hoveredControl() === index() || focus() === "controls" && controlIndex() === index();
-            return /* @__PURE__ */ jsxDEV(Fragment, {
-              children: [
-                /* @__PURE__ */ jsxDEV(Show, {
-                  when: index() === 2,
-                  children: /* @__PURE__ */ jsxDEV("text", {
-                    selectable: false,
-                    fg: props.api.theme.current.border,
-                    children: "\u2502"
-                  }, undefined, false, undefined, this)
-                }, undefined, false, undefined, this),
-                /* @__PURE__ */ jsxDEV("box", {
-                  id: item.id,
-                  ref: (element) => controlRefs[index()] = element,
-                  paddingLeft: 1,
-                  paddingRight: 1,
-                  backgroundColor: highlighted() ? props.api.theme.current.backgroundElement : undefined,
-                  onMouseDown: (event) => handleControlMouse(index(), event),
-                  onMouseOver: () => setHoveredControl(index()),
-                  onMouseOut: () => setHoveredControl((current) => current === index() ? undefined : current),
-                  children: /* @__PURE__ */ jsxDEV("text", {
-                    selectable: false,
-                    wrapMode: "none",
-                    fg: selected() || focus() === "controls" && controlIndex() === index() ? props.api.theme.current.primary : props.api.theme.current.textMuted,
-                    children: item.label
-                  }, undefined, false, undefined, this)
-                }, undefined, false, undefined, this)
-              ]
-            }, undefined, true, undefined, this);
-          }
-        }, undefined, false, undefined, this)
+        backgroundColor: props.api.theme.current.background,
+        children: [
+          /* @__PURE__ */ jsxDEV(ControlTab, {
+            index: 0,
+            id: "scheduler-scope-all",
+            label: "All projects",
+            selected: () => scope() === "all"
+          }, undefined, false, undefined, this),
+          /* @__PURE__ */ jsxDEV(ControlTab, {
+            index: 1,
+            id: "scheduler-scope-current",
+            label: "Current project",
+            selected: () => scope() === "current"
+          }, undefined, false, undefined, this),
+          /* @__PURE__ */ jsxDEV("text", {
+            selectable: false,
+            fg: props.api.theme.current.border,
+            children: "\u2502"
+          }, undefined, false, undefined, this),
+          /* @__PURE__ */ jsxDEV(ControlTab, {
+            index: 2,
+            id: "scheduler-filter-all",
+            label: "All",
+            selected: () => filter() === "all"
+          }, undefined, false, undefined, this),
+          /* @__PURE__ */ jsxDEV(ControlTab, {
+            index: 3,
+            id: "scheduler-filter-active",
+            label: "Active",
+            selected: () => filter() === "active"
+          }, undefined, false, undefined, this),
+          /* @__PURE__ */ jsxDEV(ControlTab, {
+            index: 4,
+            id: "scheduler-filter-paused",
+            label: "Paused",
+            selected: () => filter() === "paused"
+          }, undefined, false, undefined, this),
+          /* @__PURE__ */ jsxDEV(ControlTab, {
+            index: 5,
+            id: "scheduler-filter-problems",
+            label: "Problems",
+            selected: () => filter() === "problems"
+          }, undefined, false, undefined, this)
+        ]
+      }, undefined, true, undefined, this),
+      /* @__PURE__ */ jsxDEV("box", {
+        height: 1,
+        flexShrink: 0
       }, undefined, false, undefined, this),
       /* @__PURE__ */ jsxDEV(Show, {
         when: jobs().length,
@@ -23157,11 +23228,11 @@ function TaskCenter(props) {
               flexDirection: "column",
               paddingLeft: 1,
               backgroundColor: selectedIndex() === index() ? props.api.theme.current.backgroundElement : props.api.theme.current.background,
-              onMouseDown: () => {
+              onMouseUp: (event) => activateMouse(event, () => {
                 setSelectedIndex(index());
                 focusList();
                 navigateToDetail(props.api, { id: job.id, entry: "center", returnRoute: props.returnRoute, centerState: centerState() });
-              },
+              }, () => props.api.renderer?.requestRender()),
               children: [
                 /* @__PURE__ */ jsxDEV("text", {
                   wrapMode: "none",
@@ -23213,8 +23284,9 @@ function TaskCenter(props) {
             /* @__PURE__ */ jsxDEV(For, {
               each: orphans(),
               children: (orphan) => /* @__PURE__ */ jsxDEV("text", {
+                selectable: false,
                 fg: props.api.theme.current.warning,
-                onMouseUp: () => openOrphanDialog(props.api, props.store, orphan),
+                onMouseUp: (event) => activateMouse(event, () => openOrphanDialog(props.api, props.store, orphan), () => props.api.renderer?.requestRender()),
                 children: [
                   "! ",
                   orphan.slug,
@@ -23239,8 +23311,10 @@ function perform(api2, store, action, success2) {
     action();
     api2.ui.toast({ variant: "success", title: "Scheduler", message: success2 });
     store.refresh();
+    return true;
   } catch (error45) {
     api2.ui.toast({ variant: "error", title: "Scheduler", message: error45 instanceof Error ? error45.message : String(error45) });
+    return false;
   }
 }
 function openScheduleDialog(api2, store, job) {
@@ -23256,8 +23330,9 @@ function openScheduleDialog(api2, store, job) {
     }, undefined, true, undefined, this),
     value: job.schedule,
     onConfirm: (value) => {
-      perform(api2, store, () => updateSchedulerJobSchedule({ id: job.id }, value), "Schedule updated");
-      api2.ui.dialog.clear();
+      if (perform(api2, store, () => updateSchedulerJobSchedule({ id: job.id }, value), "Schedule updated")) {
+        api2.ui.dialog.clear();
+      }
     },
     onCancel: () => api2.ui.dialog.clear()
   }, undefined, false, undefined, this));
@@ -23320,9 +23395,10 @@ function confirmDelete(api2, store, job, onDeleted) {
     title: `Delete ${job.name}?`,
     message: "This removes the job configuration and its OS scheduler entry. Logs are retained.",
     onConfirm: () => {
-      perform(api2, store, () => deleteSchedulerJob({ id: job.id }), "Task deleted");
-      api2.ui.dialog.clear();
-      onDeleted();
+      if (perform(api2, store, () => deleteSchedulerJob({ id: job.id }), "Task deleted")) {
+        api2.ui.dialog.clear();
+        onDeleted();
+      }
     },
     onCancel: () => api2.ui.dialog.clear()
   }, undefined, false, undefined, this));
@@ -23366,19 +23442,22 @@ ${ids}
 
 Only these exact scheduler artifacts will be removed.`,
     onConfirm: () => {
-      perform(api2, store, () => orphan.artifactIds.forEach((artifactId2) => removeOrphanArtifact(artifactId2, true)), "Orphan removed");
-      api2.ui.dialog.clear();
+      if (perform(api2, store, () => orphan.artifactIds.forEach((artifactId2) => removeOrphanArtifact(artifactId2, true)), "Orphan removed")) {
+        api2.ui.dialog.clear();
+      }
     },
     onCancel: () => api2.ui.dialog.clear()
   }, undefined, false, undefined, this));
 }
 function Action(props) {
   return /* @__PURE__ */ jsxDEV("box", {
+    id: props.id,
     paddingLeft: 1,
     paddingRight: 1,
     backgroundColor: props.api.theme.current.backgroundElement,
-    onMouseDown: props.onSelect,
+    onMouseUp: (event) => activateMouse(event, props.onSelect, () => props.api.renderer?.requestRender()),
     children: /* @__PURE__ */ jsxDEV("text", {
+      selectable: false,
       fg: props.warning ? props.api.theme.current.warning : props.api.theme.current.primary,
       children: props.label
     }, undefined, false, undefined, this)
@@ -23398,7 +23477,7 @@ function Detail(props) {
   };
   createEffect(() => {
     const target = root;
-    if (!target)
+    if (!target || props.api.ui.dialog.open)
       return;
     const dispose = props.api.keymap.registerLayer({
       target,
@@ -23417,6 +23496,11 @@ function Detail(props) {
   });
   onMount(() => {
     root?.focus();
+    const focusTimer = setTimeout(() => {
+      if (!props.api.ui.dialog.open)
+        root?.focus();
+    }, 1);
+    onCleanup(() => clearTimeout(focusTimer));
     props.store.refresh();
   });
   return /* @__PURE__ */ jsxDEV("box", {
@@ -23433,7 +23517,7 @@ function Detail(props) {
     flexDirection: "column",
     backgroundColor: props.api.theme.current.background,
     focusable: true,
-    focused: true,
+    focused: !props.api.ui.dialog.open,
     children: [
       /* @__PURE__ */ jsxDEV(Header, {
         api: props.api,
@@ -23661,16 +23745,19 @@ function Detail(props) {
                 flexWrap: "wrap",
                 children: [
                   /* @__PURE__ */ jsxDEV(Action, {
+                    id: "scheduler-action-run",
                     api: props.api,
                     label: "Run now",
                     onSelect: () => perform(props.api, props.store, () => runSchedulerJob({ id: item().id }), "Task started")
                   }, undefined, false, undefined, this),
                   /* @__PURE__ */ jsxDEV(Action, {
+                    id: "scheduler-action-toggle",
                     api: props.api,
                     label: item().enabled ? "Pause" : "Resume",
                     onSelect: () => perform(props.api, props.store, () => item().enabled ? pauseSchedulerJob({ id: item().id }) : resumeSchedulerJob({ id: item().id }), item().enabled ? "Task paused" : "Task resumed")
                   }, undefined, false, undefined, this),
                   /* @__PURE__ */ jsxDEV(Action, {
+                    id: "scheduler-action-schedule",
                     api: props.api,
                     label: "Edit frequency",
                     onSelect: () => openScheduleDialog(props.api, props.store, item())
@@ -23679,6 +23766,7 @@ function Detail(props) {
                     when: item().scopeId !== currentScopeId(),
                     fallback: null,
                     children: /* @__PURE__ */ jsxDEV(Action, {
+                      id: "scheduler-action-move",
                       api: props.api,
                       label: "Move to current project",
                       onSelect: () => confirmMove(props.api, props.store, item(), props.api.state.path.directory, {
@@ -23689,11 +23777,13 @@ function Detail(props) {
                     }, undefined, false, undefined, this)
                   }, undefined, false, undefined, this),
                   /* @__PURE__ */ jsxDEV(Action, {
+                    id: "scheduler-action-logs",
                     api: props.api,
                     label: "View logs",
                     onSelect: () => openLogs(props.api, item())
                   }, undefined, false, undefined, this),
                   /* @__PURE__ */ jsxDEV(Action, {
+                    id: "scheduler-action-delete",
                     api: props.api,
                     label: "Delete",
                     warning: true,

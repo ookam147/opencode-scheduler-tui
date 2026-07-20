@@ -1,7 +1,8 @@
 import { describe, expect, test } from "bun:test"
+import { MouseEvent as OpenTuiMouseEvent } from "@opentui/core"
 import { createDefaultOpenTuiKeymap } from "@opentui/keymap/opentui"
 import { testRender, useRenderer } from "@opentui/solid"
-import { createSignal } from "solid-js"
+import { createSignal, onMount, Show } from "solid-js"
 import { Detail, Sidebar, TaskCenter } from "./tui"
 import { deriveStatusScopeId, type SchedulerJobStatus, type SchedulerStatusSnapshot } from "./status"
 
@@ -21,6 +22,16 @@ async function settle(app: Awaited<ReturnType<typeof testRender>>) {
   await app.flush()
 }
 
+function dispatchMouse(target: any, type: "down" | "up") {
+  target.processMouseEvent(new OpenTuiMouseEvent(target, {
+    type,
+    button: 0,
+    x: target.x + 1,
+    y: target.y,
+    modifiers: { shift: false, alt: false, ctrl: false },
+  }))
+}
+
 const theme = {
   background: "#101010",
   backgroundElement: "#303030",
@@ -31,6 +42,7 @@ const theme = {
   success: "#22cc88",
   info: "#55aaff",
   warning: "#ffaa33",
+  error: "#ff5555",
 }
 
 function job(name: string, index: number): SchedulerJobStatus {
@@ -228,14 +240,22 @@ describe("scheduler task center interaction", () => {
       expect(mounted.app.captureCharFrame()).toContain("Current task")
       expect(mounted.app.captureCharFrame()).not.toContain("External task")
       const all = findRenderable(mounted.app.renderer.root, "scheduler-scope-all")
-      all.onMouseDown = undefined
-      await mounted.app.mockMouse.click(all.x + 1, all.y)
+      const allLabel = findRenderable(mounted.app.renderer.root, "scheduler-scope-all-label")
+      expect(all.height).toBe(1)
+      await mounted.app.mockMouse.pressDown(allLabel.x, allLabel.y)
+      await mounted.app.flush()
+      expect(mounted.app.captureCharFrame()).not.toContain("External task")
+      await mounted.app.mockMouse.release(allLabel.x, allLabel.y)
       await mounted.app.flush()
       expect(mounted.app.captureCharFrame()).toContain("External task")
       const currentTab = findRenderable(mounted.app.renderer.root, "scheduler-scope-current")
       await mounted.app.mockMouse.click(currentTab.x, currentTab.y)
       await mounted.app.flush()
       expect(mounted.app.captureCharFrame()).not.toContain("External task")
+      all.onMouseUp = undefined
+      await mounted.app.mockMouse.click(all.x, all.y)
+      await mounted.app.flush()
+      expect(mounted.app.captureCharFrame()).toContain("External task")
     } finally {
       mounted.app.renderer.destroy()
     }
@@ -284,6 +304,7 @@ describe("scheduler task center interaction", () => {
   test("sidebar stays scoped to the current project and keeps counters when collapsed", async () => {
     const navigations: Array<{ name: string; params?: Record<string, unknown> }> = []
     const values = new Map<string, unknown>()
+    let kvWrites = 0
     let updateSnapshot: (() => void) | undefined
     const current = job("Sidebar current", 0)
     const external = {
@@ -311,7 +332,10 @@ describe("scheduler task center interaction", () => {
           navigate(name: string, params?: Record<string, unknown>) { navigations.push({ name, params }) },
         },
         theme: { current: theme },
-        kv: { get: (key: string, fallback: unknown) => values.get(key) ?? fallback, set: (key: string, value: unknown) => values.set(key, value) },
+        kv: {
+          get: (key: string, fallback: unknown) => values.get(key) ?? fallback,
+          set: (key: string, value: unknown) => { kvWrites += 1; values.set(key, value) },
+        },
       }
       const store = { snapshot: status, loading, error: () => undefined, refresh: async () => {}, scheduleRefresh() {} }
       return <Sidebar api={api as never} store={store as never} />
@@ -324,16 +348,23 @@ describe("scheduler task center interaction", () => {
       expect(expandedFrame).not.toContain("Sidebar external")
       expect(expandedFrame.indexOf("● Active 1")).toBeLessThan(expandedFrame.indexOf("Sidebar current"))
       const toggle = findRenderable(app.renderer.root, "scheduler-sidebar-toggle")
-      await app.mockMouse.click(toggle.x, toggle.y)
+      expect(toggle.height).toBe(1)
+      await app.mockMouse.pressDown(toggle.x, toggle.y)
+      await app.flush()
+      expect(app.captureCharFrame()).toContain("Sidebar current")
+      expect(kvWrites).toBe(0)
+      await app.mockMouse.release(toggle.x, toggle.y)
       await app.flush()
       expect(app.captureCharFrame()).not.toContain("Sidebar current")
+      expect(kvWrites).toBe(1)
       expect(app.captureCharFrame()).toContain("● Active 1 Ⅱ Paused 0 × err 0")
       expect(app.captureCharFrame()).toContain("→ 1")
       updateSnapshot?.()
       await app.flush()
       expect(app.captureCharFrame()).not.toContain("Sidebar current")
 
-      await app.mockMouse.click(toggle.x + 3, toggle.y)
+      const toggleLabel = findRenderable(app.renderer.root, "scheduler-sidebar-toggle-label")
+      await app.mockMouse.click(toggleLabel.x, toggleLabel.y)
       await app.flush()
       expect(app.captureCharFrame()).toContain("Sidebar current")
       await app.mockMouse.click(toggle.x + toggle.width - 1, toggle.y)
@@ -427,6 +458,110 @@ describe("scheduler task center interaction", () => {
         name: "scheduler",
         params: { entry: "command", returnRoute: { name: "home" }, centerState: { scope: "current", filter: "paused" } },
       })
+    } finally {
+      app.renderer.destroy()
+    }
+  })
+
+  test("opens detail dialogs only after mouse release and keeps them modal", async () => {
+    const navigations: Array<{ name: string; params?: Record<string, unknown> }> = []
+    const toasts: Array<{ variant?: string; message?: string }> = []
+    const detailJob = job("Modal task", 0)
+    let promptProps: any
+    let clearCount = 0
+    let closeDialog: (() => void) | undefined
+
+    function Harness() {
+      const renderer = useRenderer()
+      const keymap = createDefaultOpenTuiKeymap(renderer)
+      const snapshot: SchedulerStatusSnapshot = {
+        scannedAt: "2026-07-20T00:00:00.000Z",
+        timezone: "UTC",
+        jobs: [detailJob],
+        orphans: [],
+        diagnostics: [],
+        summary: { total: 1, healthy: 1, running: 0, paused: 0, disabled: 0, missing: 0, drifted: 0, orphaned: 0, error: 0 },
+      }
+      const [status] = createSignal(snapshot)
+      const [loading] = createSignal(false)
+      const [dialogView, setDialogView] = createSignal<(() => any)>()
+      const store = { snapshot: status, loading, error: () => undefined, refresh: async () => {} }
+      const dialog = {
+        replace(render: () => any) { setDialogView(() => render) },
+        clear() { clearCount += 1; setDialogView(undefined) },
+        get open() { return Boolean(dialogView()) },
+      }
+      closeDialog = () => dialog.clear()
+      function DialogPrompt(props: any) {
+        let input: any
+        promptProps = props
+        onMount(() => input?.focus())
+        return <input id="scheduler-test-dialog-input" ref={(element: any) => (input = element)} value={props.value || ""} />
+      }
+      function DialogConfirm(props: any) {
+        return <text id="scheduler-test-dialog-confirm">{props.title}</text>
+      }
+      const api = {
+        keymap,
+        state: { path: { directory: CURRENT_DIRECTORY } },
+        route: {
+          current: { name: "scheduler-detail" },
+          navigate(name: string, params?: Record<string, unknown>) { navigations.push({ name, params }) },
+        },
+        theme: { current: theme },
+        ui: {
+          toast(input: { variant?: string; message?: string }) { toasts.push(input) },
+          DialogPrompt,
+          DialogConfirm,
+          dialog,
+        },
+      }
+      return (
+        <>
+          <Detail api={api as never} store={store as never} id={detailJob.id} entry="sidebar" returnRoute={{ name: "home" }} />
+          <Show when={dialogView()}>
+            {(render) => (
+              <box id="scheduler-test-dialog-backdrop" position="absolute" zIndex={3000} width="100%" height="100%" onMouseUp={() => dialog.clear()}>
+                <box onMouseUp={(event) => event.stopPropagation()}>{render()()}</box>
+              </box>
+            )}
+          </Show>
+        </>
+      )
+    }
+
+    const app = await testRender(() => <Harness />, { width: 100, height: 50 })
+    try {
+      await app.flush()
+      const edit = findRenderable(app.renderer.root, "scheduler-action-schedule")
+      dispatchMouse(edit, "down")
+      await app.flush()
+      expect(findRenderable(app.renderer.root, "scheduler-test-dialog-input")).toBeUndefined()
+
+      dispatchMouse(edit, "up")
+      await settle(app)
+      const dialogInput = findRenderable(app.renderer.root, "scheduler-test-dialog-input")
+      expect(dialogInput).toBeDefined()
+      expect(app.renderer.currentFocusedRenderable).toBe(dialogInput)
+      expect(clearCount).toBe(0)
+
+      app.mockInput.pressEscape()
+      await settle(app)
+      expect(navigations).toHaveLength(0)
+      expect(findRenderable(app.renderer.root, "scheduler-test-dialog-input")).toBeDefined()
+
+      promptProps.onConfirm("not a cron expression")
+      await app.flush()
+      expect(toasts.at(-1)?.variant).toBe("error")
+      expect(clearCount).toBe(0)
+      expect(findRenderable(app.renderer.root, "scheduler-test-dialog-input")).toBeDefined()
+
+      closeDialog?.()
+      await app.flush()
+      const remove = findRenderable(app.renderer.root, "scheduler-action-delete")
+      await app.mockMouse.click(remove.x + 1, remove.y)
+      await app.flush()
+      expect(findRenderable(app.renderer.root, "scheduler-test-dialog-confirm")).toBeDefined()
     } finally {
       app.renderer.destroy()
     }
