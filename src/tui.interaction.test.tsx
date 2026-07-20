@@ -440,6 +440,49 @@ describe("scheduler task center interaction", () => {
     }
   })
 
+  test("sidebar arrow totals the visible active, paused, and error counters", async () => {
+    const healthy = job("Sidebar healthy", 0)
+    const paused = { ...job("Sidebar paused", 1), enabled: false, health: "paused" as const }
+    const drifted = { ...job("Sidebar drifted", 2), health: "drifted" as const }
+    function Harness() {
+      const snapshot: SchedulerStatusSnapshot = {
+        scannedAt: "2026-07-20T00:00:00.000Z",
+        timezone: "UTC",
+        jobs: [healthy, paused, drifted],
+        orphans: [{
+          id: "launchd:current-orphan",
+          health: "orphaned",
+          backend: "launchd",
+          scopeId: CURRENT_SCOPE,
+          slug: "current-orphan",
+          artifactIds: ["launchd:current-orphan"],
+          artifacts: [],
+          diagnostics: [],
+        }],
+        diagnostics: [],
+        summary: { total: 3, healthy: 1, running: 0, paused: 1, disabled: 0, missing: 0, drifted: 1, orphaned: 1, error: 0 },
+      }
+      const [status] = createSignal(snapshot)
+      const [loading] = createSignal(false)
+      const api = {
+        state: { path: { directory: CURRENT_DIRECTORY } },
+        route: { current: { name: "session" }, navigate() {} },
+        theme: { current: theme },
+        kv: { get: (_key: string, fallback: unknown) => fallback, set() {} },
+      }
+      const store = { snapshot: status, loading, error: () => undefined, refresh: async () => {}, scheduleRefresh() {} }
+      return <Sidebar api={api as never} store={store as never} />
+    }
+
+    const app = await testRender(() => <Harness />, { width: 100, height: 16 })
+    try {
+      await app.flush()
+      expect(app.captureCharFrame()).toContain("● Active 2 · Ⅱ Paused 1 · × err 2 · → 5")
+    } finally {
+      app.renderer.destroy()
+    }
+  })
+
   test("renders detail as an overlay and returns to the task center with Escape", async () => {
     const navigations: Array<{ name: string; params?: Record<string, unknown> }> = []
     const detailJob = job("Detail task", 0)

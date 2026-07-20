@@ -238,6 +238,7 @@ export function Sidebar(props: { api: TuiPluginApi; store: StatusStore }): JSX.E
     const bad = new Set<SchedulerHealth>(["disabled", "missing", "drifted", "error"])
     return jobs().filter((job) => bad.has(job.health)).length + scopedOrphans().length
   })
+  const sidebarTotal = createMemo(() => active() + paused() + problems())
   let toggleTarget: BoxRenderable | undefined
   const toggle = () => {
     const next = !open()
@@ -283,7 +284,7 @@ export function Sidebar(props: { api: TuiPluginApi; store: StatusStore }): JSX.E
         <text id="scheduler-sidebar-err" selectable={false} wrapMode="none" fg={props.api.theme.current.error}>× err {problems()}</text>
         <text id="scheduler-sidebar-separator-err" selectable={false} wrapMode="none" fg={props.api.theme.current.textMuted}>·</text>
         <box id="scheduler-sidebar-open" flexShrink={0} onMouseUp={(event) => activateMouse(event, openCenter)}>
-          <text selectable={false} wrapMode="none" fg={props.api.theme.current.primary}><b>→ {jobs().length}</b></text>
+          <text selectable={false} wrapMode="none" fg={props.api.theme.current.primary}><b>→ {sidebarTotal()}</b></text>
         </box>
       </box>
       <Show when={open()}>

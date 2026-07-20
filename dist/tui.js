@@ -22710,6 +22710,7 @@ function Sidebar(props) {
     const bad = new Set(["disabled", "missing", "drifted", "error"]);
     return jobs().filter((job) => bad.has(job.health)).length + scopedOrphans().length;
   });
+  const sidebarTotal = createMemo(() => active() + paused() + problems());
   let toggleTarget;
   const toggle = () => {
     const next = !open();
@@ -22810,7 +22811,7 @@ function Sidebar(props) {
     _$setProp(_el$19, "selectable", false);
     _$setProp(_el$19, "wrapMode", "none");
     _$insertNode(_el$20, _el$21);
-    _$insert(_el$20, () => jobs().length, null);
+    _$insert(_el$20, sidebarTotal, null);
     _$insert(_el$, _$createComponent(Show, {
       get when() {
         return open();
