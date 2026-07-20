@@ -24,7 +24,7 @@ Add to your `opencode.json`:
 
 ```json
 {
-  "plugin": ["opencode-scheduler"]
+  "plugin": ["@ookam147/opencode-scheduler-tui"]
 }
 ```
 
@@ -34,7 +34,7 @@ Fresh installs through OpenCode's plugin installer discover both the server and 
 
 ```json
 {
-  "plugin": ["opencode-scheduler"]
+  "plugin": ["@ookam147/opencode-scheduler-tui"]
 }
 ```
 

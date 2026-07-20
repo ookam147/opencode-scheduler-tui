@@ -36,7 +36,7 @@ Schedule a daily job at 9am to search Facebook Marketplace for posters under $10
 
 ```json
 {
-  "plugin": ["opencode-scheduler"]
+  "plugin": ["@ookam147/opencode-scheduler-tui"]
 }
 ```
 
@@ -46,7 +46,7 @@ Schedule a daily job at 9am to search Facebook Marketplace for posters under $10
 
 ```json
 {
-  "plugin": ["opencode-scheduler"]
+  "plugin": ["@ookam147/opencode-scheduler-tui"]
 }
 ```
 

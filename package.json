@@ -1,5 +1,5 @@
 {
-  "name": "opencode-scheduler",
+  "name": "@ookam147/opencode-scheduler-tui",
   "version": "1.4.0",
   "description": "OpenCode plugin for scheduling recurring jobs with TUI task center, observability, and OS-native schedulers (launchd/systemd/Task Scheduler/cron)",
   "main": "dist/index.js",
@@ -8,6 +8,9 @@
   "files": [
     "dist"
   ],
+  "publishConfig": {
+    "access": "public"
+  },
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
