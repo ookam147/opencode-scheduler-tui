@@ -23,7 +23,7 @@
     }
   },
   "scripts": {
-    "build": "bun build src/index.ts src/server.ts src/tui.tsx --outdir dist --target bun --format esm --external @opentui/core --external @opentui/keymap --external @opentui/solid --external solid-js --external 'opentui:*' && tsc --emitDeclarationOnly",
+    "build": "bun scripts/build.ts && tsc --emitDeclarationOnly",
     "check:exports": "bun --preload @opentui/solid/runtime-plugin-support scripts/check-exports.ts",
     "clean": "rm -rf dist",
     "prepublishOnly": "bun run clean && bun run build && bun run check:exports",
@@ -31,7 +31,7 @@
     "release:minor": "npm version minor && npm publish",
     "release:major": "npm version major && npm publish",
     "typecheck": "tsc --noEmit",
-    "test": "bun test --preload @opentui/solid/runtime-plugin-support"
+    "test": "bun test src --preload @opentui/solid/runtime-plugin-support"
   },
   "keywords": [
     "opencode",

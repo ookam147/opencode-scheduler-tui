@@ -1,11 +1,11 @@
 import type { TuiPlugin, TuiPluginApi, TuiRouteCurrent } from "@opencode-ai/plugin/tui"
 import type { BoxRenderable, InputRenderable, MouseEvent as OpenTuiMouseEvent, ScrollBoxRenderable } from "@opentui/core"
 import { useTerminalDimensions } from "@opentui/solid"
+import { For, Show, createEffect, createMemo, createSignal, onCleanup, onMount } from "solid-js"
 import type { Accessor, JSX } from "solid-js"
 import { existsSync, watch, type FSWatcher } from "fs"
 import { homedir } from "os"
 import { join } from "path"
-import { For, Show, createEffect, createMemo, createSignal, onCleanup, onMount } from "opentui:runtime-module:solid-js"
 import {
   deleteSchedulerJob,
   getSchedulerStatus,

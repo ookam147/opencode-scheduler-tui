@@ -1,24 +1,12 @@
 import { describe, expect, test } from "bun:test"
-import { createEffect, createRoot, createSignal } from "opentui:runtime-module:solid-js"
-import { createSignal as hostCreateSignal } from "solid-js"
 
-describe("scheduler TUI Solid runtime", () => {
-  test("runs reactive effects through the OpenTUI host runtime", () => {
-    expect(createSignal).toBe(hostCreateSignal)
-    const values: number[] = []
-    let update: ((value: number) => number) | undefined
-    let dispose: (() => void) | undefined
-
-    createRoot((rootDispose) => {
-      dispose = rootDispose
-      const [value, setValue] = createSignal(0)
-      update = setValue
-      createEffect(() => values.push(value()))
-    })
-
-    expect(values).toEqual([0])
-    update?.(1)
-    expect(values).toEqual([0, 1])
-    dispose?.()
+describe("scheduler TUI distribution", () => {
+  test("uses the Solid universal transform instead of the automatic JSX runtime", async () => {
+    const source = await Bun.file(new URL("../dist/tui.js", import.meta.url)).text()
+    expect(source).toContain("createComponent")
+    expect(source).toContain("insert")
+    expect(source).toContain("effect")
+    expect(source).not.toContain("jsxDEV")
+    expect(source).not.toContain("@opentui/solid/jsx-dev-runtime")
   })
 })

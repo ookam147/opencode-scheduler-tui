@@ -22483,12 +22483,20 @@ ${logs}`, { job, logPath, logs });
 var src_default = SchedulerPlugin;
 
 // src/tui.tsx
+import { effect as _$effect } from "@opentui/solid";
+import { createComponent as _$createComponent } from "@opentui/solid";
+import { createTextNode as _$createTextNode } from "@opentui/solid";
+import { insertNode as _$insertNode } from "@opentui/solid";
+import { insert as _$insert } from "@opentui/solid";
+import { memo as _$memo } from "@opentui/solid";
+import { use as _$use } from "@opentui/solid";
+import { setProp as _$setProp } from "@opentui/solid";
+import { createElement as _$createElement } from "@opentui/solid";
 import { useTerminalDimensions } from "@opentui/solid";
+import { For, Show, createEffect, createMemo, createSignal, onCleanup, onMount } from "solid-js";
 import { existsSync as existsSync3, watch } from "fs";
 import { homedir as homedir3 } from "os";
 import { join as join3 } from "path";
-import { For, Show, createEffect, createMemo, createSignal, onCleanup, onMount } from "opentui:runtime-module:solid-js";
-import { jsxDEV } from "@opentui/solid/jsx-dev-runtime";
 var id = "opencode-scheduler";
 var EMPTY = {
   scannedAt: "",
@@ -22496,7 +22504,17 @@ var EMPTY = {
   jobs: [],
   orphans: [],
   diagnostics: [],
-  summary: { total: 0, healthy: 0, running: 0, paused: 0, disabled: 0, missing: 0, drifted: 0, orphaned: 0, error: 0 }
+  summary: {
+    total: 0,
+    healthy: 0,
+    running: 0,
+    paused: 0,
+    disabled: 0,
+    missing: 0,
+    drifted: 0,
+    orphaned: 0,
+    error: 0
+  }
 };
 function routeParams(api2) {
   if (!("params" in api2.route.current))
@@ -22554,12 +22572,20 @@ function createStatusStore(api2, options = {}) {
     do {
       refreshPending = false;
       try {
-        setSnapshot(options.loadStatus?.() || getSchedulerStatus({ allScopes: true, includeLegacy: true, verifySystem: true }));
+        setSnapshot(options.loadStatus?.() || getSchedulerStatus({
+          allScopes: true,
+          includeLegacy: true,
+          verifySystem: true
+        }));
         setError(undefined);
       } catch (cause) {
         const message = cause instanceof Error ? cause.message : String(cause);
         setError(message);
-        api2.ui.toast({ variant: "error", title: "Scheduler", message });
+        api2.ui.toast({
+          variant: "error",
+          title: "Scheduler",
+          message
+        });
       }
     } while (refreshPending);
     setLoading(false);
@@ -22589,7 +22615,9 @@ function createStatusStore(api2, options = {}) {
       return;
     }
     try {
-      watcher = watch(schedulerRoot, { recursive: true }, scheduleRefresh);
+      watcher = watch(schedulerRoot, {
+        recursive: true
+      }, scheduleRefresh);
       watcher.on("error", () => {
         watcher?.close();
         watcher = undefined;
@@ -22614,7 +22642,13 @@ function createStatusStore(api2, options = {}) {
       clearTimeout(debounceTimer);
     watcher?.close();
   });
-  return { snapshot, loading, error: error45, refresh, scheduleRefresh };
+  return {
+    snapshot,
+    loading,
+    error: error45,
+    refresh,
+    scheduleRefresh
+  };
 }
 function statusIcon(status) {
   if (status === "healthy")
@@ -22685,7 +22719,10 @@ function Sidebar(props) {
   const openCenter = () => props.api.route.navigate("scheduler", {
     entry: "command",
     returnRoute: props.api.route.current,
-    centerState: { scope: "current", filter: "all" }
+    centerState: {
+      scope: "current",
+      filter: "all"
+    }
   });
   const openDetail = (jobId) => navigateToDetail(props.api, {
     id: jobId,
@@ -22697,187 +22734,190 @@ function Sidebar(props) {
     if (inside(toggleTarget, event))
       activateMouse(event, toggle);
   };
-  return /* @__PURE__ */ jsxDEV("box", {
-    gap: 0,
-    paddingTop: 1,
-    onMouseUp: handleRootMouse,
-    children: [
-      /* @__PURE__ */ jsxDEV("box", {
-        id: "scheduler-sidebar-toggle",
-        ref: (element) => toggleTarget = element,
-        width: "100%",
-        height: 1,
-        minHeight: 1,
-        flexShrink: 0,
-        flexDirection: "row",
-        gap: 1,
-        paddingRight: 1,
-        onMouseUp: handleToggle,
-        children: [
-          /* @__PURE__ */ jsxDEV("text", {
-            id: "scheduler-sidebar-toggle-icon",
-            selectable: false,
-            fg: props.api.theme.current.text,
-            onMouseUp: handleToggle,
-            children: open() ? "\u25BC" : "\u25B6"
-          }, undefined, false, undefined, this),
-          /* @__PURE__ */ jsxDEV("text", {
-            id: "scheduler-sidebar-toggle-label",
-            selectable: false,
-            fg: props.api.theme.current.text,
-            onMouseUp: handleToggle,
-            children: /* @__PURE__ */ jsxDEV("b", {
-              children: "Scheduled tasks"
-            }, undefined, false, undefined, this)
-          }, undefined, false, undefined, this)
-        ]
-      }, undefined, true, undefined, this),
-      /* @__PURE__ */ jsxDEV("box", {
-        id: "scheduler-sidebar-status",
-        height: 1,
-        flexShrink: 0,
-        flexDirection: "row",
-        justifyContent: "space-between",
-        alignItems: "center",
-        children: [
-          /* @__PURE__ */ jsxDEV("box", {
-            flexDirection: "row",
-            gap: 1,
-            minWidth: 0,
-            children: [
-              /* @__PURE__ */ jsxDEV("text", {
-                id: "scheduler-sidebar-active",
-                selectable: false,
-                wrapMode: "none",
-                fg: props.api.theme.current.success,
-                children: [
-                  "\u25CF Active ",
-                  active()
-                ]
-              }, undefined, true, undefined, this),
-              /* @__PURE__ */ jsxDEV("text", {
-                id: "scheduler-sidebar-paused",
-                selectable: false,
-                wrapMode: "none",
-                fg: props.api.theme.current.textMuted,
-                children: [
-                  "\u2161 Paused ",
-                  paused()
-                ]
-              }, undefined, true, undefined, this),
-              /* @__PURE__ */ jsxDEV("text", {
-                id: "scheduler-sidebar-err",
-                selectable: false,
-                wrapMode: "none",
-                fg: props.api.theme.current.error,
-                children: [
-                  "\xD7 err ",
-                  problems()
-                ]
-              }, undefined, true, undefined, this)
-            ]
-          }, undefined, true, undefined, this),
-          /* @__PURE__ */ jsxDEV("box", {
-            id: "scheduler-sidebar-open",
-            flexShrink: 0,
-            paddingLeft: 1,
-            onMouseUp: (event) => activateMouse(event, openCenter),
-            children: /* @__PURE__ */ jsxDEV("text", {
-              selectable: false,
-              wrapMode: "none",
-              fg: props.api.theme.current.primary,
-              children: /* @__PURE__ */ jsxDEV("b", {
-                children: [
-                  "\u2192 ",
-                  jobs().length
-                ]
-              }, undefined, true, undefined, this)
-            }, undefined, false, undefined, this)
-          }, undefined, false, undefined, this)
-        ]
-      }, undefined, true, undefined, this),
-      /* @__PURE__ */ jsxDEV(Show, {
-        when: open(),
-        children: [
-          /* @__PURE__ */ jsxDEV(For, {
-            each: recentJobs(),
-            children: (job) => /* @__PURE__ */ jsxDEV("box", {
-              id: `scheduler-sidebar-job-${job.id}`,
-              paddingLeft: 1,
-              paddingRight: 1,
-              paddingTop: 1,
-              onMouseUp: (event) => activateMouse(event, () => openDetail(job.id)),
-              children: [
-                /* @__PURE__ */ jsxDEV("text", {
-                  fg: statusColor(props.api, job.health),
-                  children: [
-                    statusIcon(job.health),
-                    " ",
-                    /* @__PURE__ */ jsxDEV("span", {
-                      style: { fg: props.api.theme.current.text },
-                      children: job.name
-                    }, undefined, false, undefined, this)
-                  ]
-                }, undefined, true, undefined, this),
-                /* @__PURE__ */ jsxDEV("text", {
-                  fg: props.api.theme.current.textMuted,
-                  children: [
-                    job.scheduleText,
-                    " \xB7 ",
-                    relativeTime(job.nextRunAt)
-                  ]
-                }, undefined, true, undefined, this)
-              ]
-            }, undefined, true, undefined, this)
-          }, undefined, false, undefined, this),
-          /* @__PURE__ */ jsxDEV(Show, {
-            when: !recentJobs().length,
-            fallback: null,
-            children: /* @__PURE__ */ jsxDEV("text", {
-              fg: props.api.theme.current.textMuted,
-              children: "No tasks in this project"
-            }, undefined, false, undefined, this)
-          }, undefined, false, undefined, this)
-        ]
-      }, undefined, true, undefined, this)
-    ]
-  }, undefined, true, undefined, this);
+  return (() => {
+    var _el$ = _$createElement("box"), _el$2 = _$createElement("box"), _el$3 = _$createElement("text"), _el$4 = _$createElement("text"), _el$5 = _$createElement("b"), _el$7 = _$createElement("box"), _el$8 = _$createElement("box"), _el$9 = _$createElement("text"), _el$0 = _$createTextNode(`\u25CF Active `), _el$1 = _$createElement("text"), _el$10 = _$createTextNode(`\u2161 Paused `), _el$11 = _$createElement("text"), _el$12 = _$createTextNode(`\xD7 err `), _el$13 = _$createElement("box"), _el$14 = _$createElement("text"), _el$15 = _$createElement("b"), _el$16 = _$createTextNode(`\u2192 `);
+    _$insertNode(_el$, _el$2);
+    _$insertNode(_el$, _el$7);
+    _$setProp(_el$, "gap", 0);
+    _$setProp(_el$, "paddingTop", 1);
+    _$setProp(_el$, "onMouseUp", handleRootMouse);
+    _$insertNode(_el$2, _el$3);
+    _$insertNode(_el$2, _el$4);
+    _$use((element) => toggleTarget = element, _el$2);
+    _$setProp(_el$2, "id", "scheduler-sidebar-toggle");
+    _$setProp(_el$2, "width", "100%");
+    _$setProp(_el$2, "height", 1);
+    _$setProp(_el$2, "minHeight", 1);
+    _$setProp(_el$2, "flexShrink", 0);
+    _$setProp(_el$2, "flexDirection", "row");
+    _$setProp(_el$2, "gap", 1);
+    _$setProp(_el$2, "paddingRight", 1);
+    _$setProp(_el$2, "onMouseUp", handleToggle);
+    _$setProp(_el$3, "id", "scheduler-sidebar-toggle-icon");
+    _$setProp(_el$3, "selectable", false);
+    _$setProp(_el$3, "onMouseUp", handleToggle);
+    _$insert(_el$3, () => open() ? "\u25BC" : "\u25B6");
+    _$insertNode(_el$4, _el$5);
+    _$setProp(_el$4, "id", "scheduler-sidebar-toggle-label");
+    _$setProp(_el$4, "selectable", false);
+    _$setProp(_el$4, "onMouseUp", handleToggle);
+    _$insertNode(_el$5, _$createTextNode(`Scheduled tasks`));
+    _$insertNode(_el$7, _el$8);
+    _$insertNode(_el$7, _el$13);
+    _$setProp(_el$7, "id", "scheduler-sidebar-status");
+    _$setProp(_el$7, "height", 1);
+    _$setProp(_el$7, "flexShrink", 0);
+    _$setProp(_el$7, "flexDirection", "row");
+    _$setProp(_el$7, "justifyContent", "space-between");
+    _$setProp(_el$7, "alignItems", "center");
+    _$insertNode(_el$8, _el$9);
+    _$insertNode(_el$8, _el$1);
+    _$insertNode(_el$8, _el$11);
+    _$setProp(_el$8, "flexDirection", "row");
+    _$setProp(_el$8, "gap", 1);
+    _$setProp(_el$8, "minWidth", 0);
+    _$insertNode(_el$9, _el$0);
+    _$setProp(_el$9, "id", "scheduler-sidebar-active");
+    _$setProp(_el$9, "selectable", false);
+    _$setProp(_el$9, "wrapMode", "none");
+    _$insert(_el$9, active, null);
+    _$insertNode(_el$1, _el$10);
+    _$setProp(_el$1, "id", "scheduler-sidebar-paused");
+    _$setProp(_el$1, "selectable", false);
+    _$setProp(_el$1, "wrapMode", "none");
+    _$insert(_el$1, paused, null);
+    _$insertNode(_el$11, _el$12);
+    _$setProp(_el$11, "id", "scheduler-sidebar-err");
+    _$setProp(_el$11, "selectable", false);
+    _$setProp(_el$11, "wrapMode", "none");
+    _$insert(_el$11, problems, null);
+    _$insertNode(_el$13, _el$14);
+    _$setProp(_el$13, "id", "scheduler-sidebar-open");
+    _$setProp(_el$13, "flexShrink", 0);
+    _$setProp(_el$13, "paddingLeft", 1);
+    _$setProp(_el$13, "onMouseUp", (event) => activateMouse(event, openCenter));
+    _$insertNode(_el$14, _el$15);
+    _$setProp(_el$14, "selectable", false);
+    _$setProp(_el$14, "wrapMode", "none");
+    _$insertNode(_el$15, _el$16);
+    _$insert(_el$15, () => jobs().length, null);
+    _$insert(_el$, _$createComponent(Show, {
+      get when() {
+        return open();
+      },
+      get children() {
+        return [_$createComponent(For, {
+          get each() {
+            return recentJobs();
+          },
+          children: (job) => (() => {
+            var _el$19 = _$createElement("box"), _el$20 = _$createElement("text"), _el$21 = _$createTextNode(` `), _el$22 = _$createElement("span"), _el$23 = _$createElement("text"), _el$24 = _$createTextNode(` \xB7 `);
+            _$insertNode(_el$19, _el$20);
+            _$insertNode(_el$19, _el$23);
+            _$setProp(_el$19, "paddingLeft", 1);
+            _$setProp(_el$19, "paddingRight", 1);
+            _$setProp(_el$19, "paddingTop", 1);
+            _$setProp(_el$19, "onMouseUp", (event) => activateMouse(event, () => openDetail(job.id)));
+            _$insertNode(_el$20, _el$21);
+            _$insertNode(_el$20, _el$22);
+            _$insert(_el$20, () => statusIcon(job.health), _el$21);
+            _$insert(_el$22, () => job.name);
+            _$insertNode(_el$23, _el$24);
+            _$insert(_el$23, () => job.scheduleText, _el$24);
+            _$insert(_el$23, () => relativeTime(job.nextRunAt), null);
+            _$effect((_p$) => {
+              var _v$7 = `scheduler-sidebar-job-${job.id}`, _v$8 = statusColor(props.api, job.health), _v$9 = {
+                fg: props.api.theme.current.text
+              }, _v$0 = props.api.theme.current.textMuted;
+              _v$7 !== _p$.e && (_p$.e = _$setProp(_el$19, "id", _v$7, _p$.e));
+              _v$8 !== _p$.t && (_p$.t = _$setProp(_el$20, "fg", _v$8, _p$.t));
+              _v$9 !== _p$.a && (_p$.a = _$setProp(_el$22, "style", _v$9, _p$.a));
+              _v$0 !== _p$.o && (_p$.o = _$setProp(_el$23, "fg", _v$0, _p$.o));
+              return _p$;
+            }, {
+              e: undefined,
+              t: undefined,
+              a: undefined,
+              o: undefined
+            });
+            return _el$19;
+          })()
+        }), _$createComponent(Show, {
+          get when() {
+            return !recentJobs().length;
+          },
+          fallback: null,
+          get children() {
+            var _el$17 = _$createElement("text");
+            _$insertNode(_el$17, _$createTextNode(`No tasks in this project`));
+            _$effect((_$p) => _$setProp(_el$17, "fg", props.api.theme.current.textMuted, _$p));
+            return _el$17;
+          }
+        })];
+      }
+    }), null);
+    _$effect((_p$) => {
+      var _v$ = props.api.theme.current.text, _v$2 = props.api.theme.current.text, _v$3 = props.api.theme.current.success, _v$4 = props.api.theme.current.textMuted, _v$5 = props.api.theme.current.error, _v$6 = props.api.theme.current.primary;
+      _v$ !== _p$.e && (_p$.e = _$setProp(_el$3, "fg", _v$, _p$.e));
+      _v$2 !== _p$.t && (_p$.t = _$setProp(_el$4, "fg", _v$2, _p$.t));
+      _v$3 !== _p$.a && (_p$.a = _$setProp(_el$9, "fg", _v$3, _p$.a));
+      _v$4 !== _p$.o && (_p$.o = _$setProp(_el$1, "fg", _v$4, _p$.o));
+      _v$5 !== _p$.i && (_p$.i = _$setProp(_el$11, "fg", _v$5, _p$.i));
+      _v$6 !== _p$.n && (_p$.n = _$setProp(_el$14, "fg", _v$6, _p$.n));
+      return _p$;
+    }, {
+      e: undefined,
+      t: undefined,
+      a: undefined,
+      o: undefined,
+      i: undefined,
+      n: undefined
+    });
+    return _el$;
+  })();
 }
 function Header(props) {
-  return /* @__PURE__ */ jsxDEV("box", {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    paddingBottom: 1,
-    children: [
-      /* @__PURE__ */ jsxDEV("box", {
-        flexDirection: "row",
-        gap: 2,
-        children: [
-          /* @__PURE__ */ jsxDEV(Show, {
-            when: props.back,
-            fallback: null,
-            children: /* @__PURE__ */ jsxDEV("text", {
-              fg: props.api.theme.current.primary,
-              onMouseUp: () => props.back?.(),
-              children: "\u2190 Back"
-            }, undefined, false, undefined, this)
-          }, undefined, false, undefined, this),
-          /* @__PURE__ */ jsxDEV("text", {
-            fg: props.api.theme.current.text,
-            children: /* @__PURE__ */ jsxDEV("b", {
-              children: props.title
-            }, undefined, false, undefined, this)
-          }, undefined, false, undefined, this)
-        ]
-      }, undefined, true, undefined, this),
-      /* @__PURE__ */ jsxDEV("text", {
-        id: props.refreshId,
-        fg: props.api.theme.current.textMuted,
-        onMouseUp: props.refresh,
-        children: props.loading ? "Refreshing\u2026" : "\u21BB Refresh"
-      }, undefined, false, undefined, this)
-    ]
-  }, undefined, true, undefined, this);
+  return (() => {
+    var _el$25 = _$createElement("box"), _el$26 = _$createElement("box"), _el$29 = _$createElement("text"), _el$30 = _$createElement("b"), _el$31 = _$createElement("text");
+    _$insertNode(_el$25, _el$26);
+    _$insertNode(_el$25, _el$31);
+    _$setProp(_el$25, "flexDirection", "row");
+    _$setProp(_el$25, "justifyContent", "space-between");
+    _$setProp(_el$25, "paddingBottom", 1);
+    _$insertNode(_el$26, _el$29);
+    _$setProp(_el$26, "flexDirection", "row");
+    _$setProp(_el$26, "gap", 2);
+    _$insert(_el$26, _$createComponent(Show, {
+      get when() {
+        return props.back;
+      },
+      fallback: null,
+      get children() {
+        var _el$27 = _$createElement("text");
+        _$insertNode(_el$27, _$createTextNode(`\u2190 Back`));
+        _$setProp(_el$27, "onMouseUp", () => props.back?.());
+        _$effect((_$p) => _$setProp(_el$27, "fg", props.api.theme.current.primary, _$p));
+        return _el$27;
+      }
+    }), _el$29);
+    _$insertNode(_el$29, _el$30);
+    _$insert(_el$30, () => props.title);
+    _$insert(_el$31, () => props.loading ? "Refreshing\u2026" : "\u21BB Refresh");
+    _$effect((_p$) => {
+      var _v$1 = props.api.theme.current.text, _v$10 = props.refreshId, _v$11 = props.api.theme.current.textMuted, _v$12 = props.refresh;
+      _v$1 !== _p$.e && (_p$.e = _$setProp(_el$29, "fg", _v$1, _p$.e));
+      _v$10 !== _p$.t && (_p$.t = _$setProp(_el$31, "id", _v$10, _p$.t));
+      _v$11 !== _p$.a && (_p$.a = _$setProp(_el$31, "fg", _v$11, _p$.a));
+      _v$12 !== _p$.o && (_p$.o = _$setProp(_el$31, "onMouseUp", _v$12, _p$.o));
+      return _p$;
+    }, {
+      e: undefined,
+      t: undefined,
+      a: undefined,
+      o: undefined
+    });
+    return _el$25;
+  })();
 }
 function TaskCenter(props) {
   const dimensions = useTerminalDimensions();
@@ -22964,31 +23004,46 @@ function TaskCenter(props) {
   const openSelected = () => {
     const selected = jobs()[selectedIndex()];
     if (selected)
-      navigateToDetail(props.api, { id: selected.id, entry: "center", returnRoute: props.returnRoute, centerState: centerState() });
+      navigateToDetail(props.api, {
+        id: selected.id,
+        entry: "center",
+        returnRoute: props.returnRoute,
+        centerState: centerState()
+      });
   };
   const close = () => navigateBack(props.api, props.returnRoute);
   function ControlTab(tab) {
     const highlighted = () => tab.selected() || hoveredControl() === tab.index || focus() === "controls" && controlIndex() === tab.index;
-    return /* @__PURE__ */ jsxDEV("box", {
-      id: tab.id,
-      ref: (element) => controlRefs[tab.index] = element,
-      height: 1,
-      flexShrink: 0,
-      paddingLeft: 1,
-      paddingRight: 1,
-      backgroundColor: highlighted() ? props.api.theme.current.backgroundElement : props.api.theme.current.background,
-      onMouseUp: (event) => handleControlMouse(tab.index, event),
-      onMouseOver: () => setHoveredControl(tab.index),
-      onMouseOut: () => setHoveredControl((current) => current === tab.index ? undefined : current),
-      children: /* @__PURE__ */ jsxDEV("text", {
-        id: `${tab.id}-label`,
-        selectable: false,
-        wrapMode: "none",
-        fg: tab.selected() || focus() === "controls" && controlIndex() === tab.index ? props.api.theme.current.primary : props.api.theme.current.textMuted,
-        onMouseUp: (event) => handleControlMouse(tab.index, event),
-        children: tab.label
-      }, undefined, false, undefined, this)
-    }, undefined, false, undefined, this);
+    return (() => {
+      var _el$32 = _$createElement("box"), _el$33 = _$createElement("text");
+      _$insertNode(_el$32, _el$33);
+      _$use((element) => controlRefs[tab.index] = element, _el$32);
+      _$setProp(_el$32, "height", 1);
+      _$setProp(_el$32, "flexShrink", 0);
+      _$setProp(_el$32, "paddingLeft", 1);
+      _$setProp(_el$32, "paddingRight", 1);
+      _$setProp(_el$32, "onMouseUp", (event) => handleControlMouse(tab.index, event));
+      _$setProp(_el$32, "onMouseOver", () => setHoveredControl(tab.index));
+      _$setProp(_el$32, "onMouseOut", () => setHoveredControl((current) => current === tab.index ? undefined : current));
+      _$setProp(_el$33, "selectable", false);
+      _$setProp(_el$33, "wrapMode", "none");
+      _$setProp(_el$33, "onMouseUp", (event) => handleControlMouse(tab.index, event));
+      _$insert(_el$33, () => tab.label);
+      _$effect((_p$) => {
+        var _v$13 = tab.id, _v$14 = highlighted() ? props.api.theme.current.backgroundElement : props.api.theme.current.background, _v$15 = `${tab.id}-label`, _v$16 = tab.selected() || focus() === "controls" && controlIndex() === tab.index ? props.api.theme.current.primary : props.api.theme.current.textMuted;
+        _v$13 !== _p$.e && (_p$.e = _$setProp(_el$32, "id", _v$13, _p$.e));
+        _v$14 !== _p$.t && (_p$.t = _$setProp(_el$32, "backgroundColor", _v$14, _p$.t));
+        _v$15 !== _p$.a && (_p$.a = _$setProp(_el$33, "id", _v$15, _p$.a));
+        _v$16 !== _p$.o && (_p$.o = _$setProp(_el$33, "fg", _v$16, _p$.o));
+        return _p$;
+      }, {
+        e: undefined,
+        t: undefined,
+        a: undefined,
+        o: undefined
+      });
+      return _el$32;
+    })();
   }
   createEffect(() => {
     const last = jobs().length - 1;
@@ -23013,59 +23068,124 @@ function TaskCenter(props) {
     const activeFocus = focus();
     if (!target || props.api.ui.dialog.open)
       return;
-    const commands = activeFocus === "list" ? [
-      { name: "scheduler.down", run: () => moveSelection(1) },
-      { name: "scheduler.up", run: () => moveSelection(-1) },
-      { name: "scheduler.task.open", run: openSelected },
-      { name: "scheduler.controls.focus", run: focusControls },
-      { name: "scheduler.search", run: focusSearch },
-      { name: "scheduler.refresh", run: () => void props.store.refresh() },
-      { name: "scheduler.close", run: close }
-    ] : activeFocus === "controls" ? [
-      { name: "scheduler.controls.left", run: () => moveControl(-1) },
-      { name: "scheduler.controls.right", run: () => moveControl(1) },
-      { name: "scheduler.controls.apply", run: () => applyControl(controlIndex()) },
-      { name: "scheduler.controls.done", run: focusList },
-      { name: "scheduler.search", run: focusSearch },
-      { name: "scheduler.refresh", run: () => void props.store.refresh() }
-    ] : [
-      { name: "scheduler.search.done", run: focusList },
-      {
-        name: "scheduler.search.escape",
-        run: () => {
-          if (query())
-            setQuery("");
-          else
-            focusList();
-        }
+    const commands = activeFocus === "list" ? [{
+      name: "scheduler.down",
+      run: () => moveSelection(1)
+    }, {
+      name: "scheduler.up",
+      run: () => moveSelection(-1)
+    }, {
+      name: "scheduler.task.open",
+      run: openSelected
+    }, {
+      name: "scheduler.controls.focus",
+      run: focusControls
+    }, {
+      name: "scheduler.search",
+      run: focusSearch
+    }, {
+      name: "scheduler.refresh",
+      run: () => void props.store.refresh()
+    }, {
+      name: "scheduler.close",
+      run: close
+    }] : activeFocus === "controls" ? [{
+      name: "scheduler.controls.left",
+      run: () => moveControl(-1)
+    }, {
+      name: "scheduler.controls.right",
+      run: () => moveControl(1)
+    }, {
+      name: "scheduler.controls.apply",
+      run: () => applyControl(controlIndex())
+    }, {
+      name: "scheduler.controls.done",
+      run: focusList
+    }, {
+      name: "scheduler.search",
+      run: focusSearch
+    }, {
+      name: "scheduler.refresh",
+      run: () => void props.store.refresh()
+    }] : [{
+      name: "scheduler.search.done",
+      run: focusList
+    }, {
+      name: "scheduler.search.escape",
+      run: () => {
+        if (query())
+          setQuery("");
+        else
+          focusList();
       }
-    ];
-    const bindings = activeFocus === "list" ? [
-      { key: "down", cmd: "scheduler.down" },
-      { key: "j", cmd: "scheduler.down" },
-      { key: "up", cmd: "scheduler.up" },
-      { key: "k", cmd: "scheduler.up" },
-      { key: "return", cmd: "scheduler.task.open" },
-      { key: "linefeed", cmd: "scheduler.task.open" },
-      { key: "/", cmd: "scheduler.search" },
-      { key: "tab", cmd: "scheduler.controls.focus" },
-      { key: "r", cmd: "scheduler.refresh" },
-      { key: "escape", cmd: "scheduler.close" }
-    ] : activeFocus === "controls" ? [
-      { key: "left", cmd: "scheduler.controls.left" },
-      { key: "h", cmd: "scheduler.controls.left" },
-      { key: "right", cmd: "scheduler.controls.right" },
-      { key: "l", cmd: "scheduler.controls.right" },
-      { key: "return", cmd: "scheduler.controls.apply" },
-      { key: "linefeed", cmd: "scheduler.controls.apply" },
-      { key: "tab", cmd: "scheduler.search" },
-      { key: "/", cmd: "scheduler.search" },
-      { key: "r", cmd: "scheduler.refresh" },
-      { key: "escape", cmd: "scheduler.controls.done" }
-    ] : [
-      { key: "tab", cmd: "scheduler.search.done" },
-      { key: "escape", cmd: "scheduler.search.escape" }
-    ];
+    }];
+    const bindings = activeFocus === "list" ? [{
+      key: "down",
+      cmd: "scheduler.down"
+    }, {
+      key: "j",
+      cmd: "scheduler.down"
+    }, {
+      key: "up",
+      cmd: "scheduler.up"
+    }, {
+      key: "k",
+      cmd: "scheduler.up"
+    }, {
+      key: "return",
+      cmd: "scheduler.task.open"
+    }, {
+      key: "linefeed",
+      cmd: "scheduler.task.open"
+    }, {
+      key: "/",
+      cmd: "scheduler.search"
+    }, {
+      key: "tab",
+      cmd: "scheduler.controls.focus"
+    }, {
+      key: "r",
+      cmd: "scheduler.refresh"
+    }, {
+      key: "escape",
+      cmd: "scheduler.close"
+    }] : activeFocus === "controls" ? [{
+      key: "left",
+      cmd: "scheduler.controls.left"
+    }, {
+      key: "h",
+      cmd: "scheduler.controls.left"
+    }, {
+      key: "right",
+      cmd: "scheduler.controls.right"
+    }, {
+      key: "l",
+      cmd: "scheduler.controls.right"
+    }, {
+      key: "return",
+      cmd: "scheduler.controls.apply"
+    }, {
+      key: "linefeed",
+      cmd: "scheduler.controls.apply"
+    }, {
+      key: "tab",
+      cmd: "scheduler.search"
+    }, {
+      key: "/",
+      cmd: "scheduler.search"
+    }, {
+      key: "r",
+      cmd: "scheduler.refresh"
+    }, {
+      key: "escape",
+      cmd: "scheduler.controls.done"
+    }] : [{
+      key: "tab",
+      cmd: "scheduler.search.done"
+    }, {
+      key: "escape",
+      cmd: "scheduler.search.escape"
+    }];
     const dispose = props.api.keymap.registerLayer({
       target,
       targetMode: "focus-within",
@@ -23084,246 +23204,297 @@ function TaskCenter(props) {
     onCleanup(() => clearTimeout(focusTimer));
     props.store.refresh();
   });
-  return /* @__PURE__ */ jsxDEV("box", {
-    id: "scheduler-task-center",
-    ref: (element) => root = element,
-    position: "absolute",
-    zIndex: 2500,
-    left: 0,
-    top: 0,
-    width: dimensions().width,
-    height: dimensions().height,
-    minHeight: 0,
-    padding: 2,
-    flexDirection: "column",
-    backgroundColor: props.api.theme.current.background,
-    focusable: true,
-    focused: !props.api.ui.dialog.open && focus() !== "search",
-    onMouseUp: handleRootMouse,
-    children: [
-      /* @__PURE__ */ jsxDEV(Header, {
-        api: props.api,
-        title: "Scheduled tasks",
-        refresh: () => void props.store.refresh(),
-        refreshId: "scheduler-refresh",
-        loading: props.store.loading()
-      }, undefined, false, undefined, this),
-      /* @__PURE__ */ jsxDEV("input", {
-        id: "scheduler-search",
-        ref: (element) => searchInput = element,
-        value: query(),
-        placeholder: "Search scheduled tasks",
-        onInput: (value) => {
-          setQuery(String(value));
-          setSelectedIndex(0);
-        },
-        onSubmit: focusList,
-        onMouseDown: () => {
-          setFocus("search");
-          searchInput?.focus();
-        },
-        focused: focus() === "search" && !props.api.ui.dialog.open,
-        backgroundColor: props.api.theme.current.backgroundElement,
-        textColor: props.api.theme.current.text,
-        focusedTextColor: props.api.theme.current.text
-      }, undefined, false, undefined, this),
-      /* @__PURE__ */ jsxDEV("box", {
-        height: 1,
-        flexShrink: 0
-      }, undefined, false, undefined, this),
-      /* @__PURE__ */ jsxDEV("box", {
-        id: "scheduler-controls",
-        width: "100%",
-        height: 1,
-        minHeight: 1,
-        flexShrink: 0,
-        flexDirection: "row",
-        alignItems: "stretch",
-        gap: 1,
-        backgroundColor: props.api.theme.current.background,
-        children: [
-          /* @__PURE__ */ jsxDEV(ControlTab, {
-            index: 0,
-            id: "scheduler-scope-all",
-            label: "All projects",
-            selected: () => scope() === "all"
-          }, undefined, false, undefined, this),
-          /* @__PURE__ */ jsxDEV(ControlTab, {
-            index: 1,
-            id: "scheduler-scope-current",
-            label: "Current project",
-            selected: () => scope() === "current"
-          }, undefined, false, undefined, this),
-          /* @__PURE__ */ jsxDEV("text", {
-            selectable: false,
-            fg: props.api.theme.current.border,
-            children: "\u2502"
-          }, undefined, false, undefined, this),
-          /* @__PURE__ */ jsxDEV(ControlTab, {
-            index: 2,
-            id: "scheduler-filter-all",
-            label: "All",
-            selected: () => filter() === "all"
-          }, undefined, false, undefined, this),
-          /* @__PURE__ */ jsxDEV(ControlTab, {
-            index: 3,
-            id: "scheduler-filter-active",
-            label: "Active",
-            selected: () => filter() === "active"
-          }, undefined, false, undefined, this),
-          /* @__PURE__ */ jsxDEV(ControlTab, {
-            index: 4,
-            id: "scheduler-filter-paused",
-            label: "Paused",
-            selected: () => filter() === "paused"
-          }, undefined, false, undefined, this),
-          /* @__PURE__ */ jsxDEV(ControlTab, {
-            index: 5,
-            id: "scheduler-filter-problems",
-            label: "Problems",
-            selected: () => filter() === "problems"
-          }, undefined, false, undefined, this)
-        ]
-      }, undefined, true, undefined, this),
-      /* @__PURE__ */ jsxDEV("box", {
-        height: 1,
-        flexShrink: 0
-      }, undefined, false, undefined, this),
-      /* @__PURE__ */ jsxDEV(Show, {
-        when: jobs().length,
-        fallback: /* @__PURE__ */ jsxDEV("text", {
-          fg: props.api.theme.current.textMuted,
-          children: "No matching tasks."
-        }, undefined, false, undefined, this),
-        children: /* @__PURE__ */ jsxDEV("scrollbox", {
-          id: "scheduler-task-list",
-          ref: (element) => taskScroll = element,
-          flexGrow: 1,
-          minHeight: 0,
-          verticalScrollbarOptions: { visible: jobs().length > 8 },
-          children: /* @__PURE__ */ jsxDEV(For, {
-            each: jobs(),
-            children: (job, index) => /* @__PURE__ */ jsxDEV("box", {
-              id: `scheduler-job-${job.id}`,
-              height: 2,
-              flexShrink: 0,
-              flexDirection: "column",
-              paddingLeft: 1,
-              backgroundColor: selectedIndex() === index() ? props.api.theme.current.backgroundElement : props.api.theme.current.background,
-              onMouseUp: (event) => activateMouse(event, () => {
-                setSelectedIndex(index());
-                focusList();
-                navigateToDetail(props.api, { id: job.id, entry: "center", returnRoute: props.returnRoute, centerState: centerState() });
-              }),
-              children: [
-                /* @__PURE__ */ jsxDEV("text", {
-                  wrapMode: "none",
-                  fg: statusColor(props.api, job.health),
-                  children: [
-                    selectedIndex() === index() ? "\u25B6" : " ",
-                    " ",
-                    statusIcon(job.health),
-                    " ",
-                    /* @__PURE__ */ jsxDEV("span", {
-                      style: { fg: props.api.theme.current.text },
-                      children: job.name
-                    }, undefined, false, undefined, this)
-                  ]
-                }, undefined, true, undefined, this),
-                /* @__PURE__ */ jsxDEV("text", {
-                  wrapMode: "none",
-                  fg: props.api.theme.current.textMuted,
-                  children: [
-                    "    ",
-                    job.scheduleText,
-                    " \xB7 next ",
-                    relativeTime(job.nextRunAt),
-                    " \xB7 ",
-                    job.workdir
-                  ]
-                }, undefined, true, undefined, this)
-              ]
-            }, undefined, true, undefined, this)
-          }, undefined, false, undefined, this)
-        }, undefined, false, undefined, this)
-      }, undefined, false, undefined, this),
-      /* @__PURE__ */ jsxDEV(Show, {
-        when: orphans().length,
-        fallback: null,
-        children: /* @__PURE__ */ jsxDEV("box", {
-          paddingTop: 1,
-          children: [
-            /* @__PURE__ */ jsxDEV("text", {
-              fg: props.api.theme.current.warning,
-              children: /* @__PURE__ */ jsxDEV("b", {
-                children: [
-                  "Orphaned OS tasks (",
-                  orphans().length,
-                  ")"
-                ]
-              }, undefined, true, undefined, this)
-            }, undefined, false, undefined, this),
-            /* @__PURE__ */ jsxDEV(For, {
-              each: orphans(),
-              children: (orphan) => /* @__PURE__ */ jsxDEV("text", {
-                selectable: false,
-                fg: props.api.theme.current.warning,
-                onMouseUp: (event) => activateMouse(event, () => openOrphanDialog(props.api, props.store, orphan)),
-                children: [
-                  "! ",
-                  orphan.slug,
-                  " \xB7 ",
-                  orphan.backend,
-                  " \xB7 click to inspect"
-                ]
-              }, undefined, true, undefined, this)
-            }, undefined, false, undefined, this)
-          ]
-        }, undefined, true, undefined, this)
-      }, undefined, false, undefined, this),
-      /* @__PURE__ */ jsxDEV("text", {
-        fg: props.api.theme.current.textMuted,
-        children: "Mouse: click/scroll \xB7 Keyboard: Tab controls \xB7 \u2190/\u2192 select \xB7 Enter apply \xB7 / search \xB7 Esc back"
-      }, undefined, false, undefined, this)
-    ]
-  }, undefined, true, undefined, this);
+  return (() => {
+    var _el$34 = _$createElement("box"), _el$35 = _$createElement("input"), _el$36 = _$createElement("box"), _el$37 = _$createElement("box"), _el$38 = _$createElement("text"), _el$40 = _$createElement("box"), _el$47 = _$createElement("text");
+    _$insertNode(_el$34, _el$35);
+    _$insertNode(_el$34, _el$36);
+    _$insertNode(_el$34, _el$37);
+    _$insertNode(_el$34, _el$40);
+    _$insertNode(_el$34, _el$47);
+    _$use((element) => root = element, _el$34);
+    _$setProp(_el$34, "id", "scheduler-task-center");
+    _$setProp(_el$34, "position", "absolute");
+    _$setProp(_el$34, "zIndex", 2500);
+    _$setProp(_el$34, "left", 0);
+    _$setProp(_el$34, "top", 0);
+    _$setProp(_el$34, "minHeight", 0);
+    _$setProp(_el$34, "padding", 2);
+    _$setProp(_el$34, "flexDirection", "column");
+    _$setProp(_el$34, "focusable", true);
+    _$setProp(_el$34, "onMouseUp", handleRootMouse);
+    _$insert(_el$34, _$createComponent(Header, {
+      get api() {
+        return props.api;
+      },
+      title: "Scheduled tasks",
+      refresh: () => void props.store.refresh(),
+      refreshId: "scheduler-refresh",
+      get loading() {
+        return props.store.loading();
+      }
+    }), _el$35);
+    _$use((element) => searchInput = element, _el$35);
+    _$setProp(_el$35, "id", "scheduler-search");
+    _$setProp(_el$35, "placeholder", "Search scheduled tasks");
+    _$setProp(_el$35, "onInput", (value) => {
+      setQuery(String(value));
+      setSelectedIndex(0);
+    });
+    _$setProp(_el$35, "onSubmit", focusList);
+    _$setProp(_el$35, "onMouseDown", () => {
+      setFocus("search");
+      searchInput?.focus();
+    });
+    _$setProp(_el$36, "height", 1);
+    _$setProp(_el$36, "flexShrink", 0);
+    _$insertNode(_el$37, _el$38);
+    _$setProp(_el$37, "id", "scheduler-controls");
+    _$setProp(_el$37, "width", "100%");
+    _$setProp(_el$37, "height", 1);
+    _$setProp(_el$37, "minHeight", 1);
+    _$setProp(_el$37, "flexShrink", 0);
+    _$setProp(_el$37, "flexDirection", "row");
+    _$setProp(_el$37, "alignItems", "stretch");
+    _$setProp(_el$37, "gap", 1);
+    _$insert(_el$37, _$createComponent(ControlTab, {
+      index: 0,
+      id: "scheduler-scope-all",
+      label: "All projects",
+      selected: () => scope() === "all"
+    }), _el$38);
+    _$insert(_el$37, _$createComponent(ControlTab, {
+      index: 1,
+      id: "scheduler-scope-current",
+      label: "Current project",
+      selected: () => scope() === "current"
+    }), _el$38);
+    _$insertNode(_el$38, _$createTextNode(`\u2502`));
+    _$setProp(_el$38, "selectable", false);
+    _$insert(_el$37, _$createComponent(ControlTab, {
+      index: 2,
+      id: "scheduler-filter-all",
+      label: "All",
+      selected: () => filter() === "all"
+    }), null);
+    _$insert(_el$37, _$createComponent(ControlTab, {
+      index: 3,
+      id: "scheduler-filter-active",
+      label: "Active",
+      selected: () => filter() === "active"
+    }), null);
+    _$insert(_el$37, _$createComponent(ControlTab, {
+      index: 4,
+      id: "scheduler-filter-paused",
+      label: "Paused",
+      selected: () => filter() === "paused"
+    }), null);
+    _$insert(_el$37, _$createComponent(ControlTab, {
+      index: 5,
+      id: "scheduler-filter-problems",
+      label: "Problems",
+      selected: () => filter() === "problems"
+    }), null);
+    _$setProp(_el$40, "height", 1);
+    _$setProp(_el$40, "flexShrink", 0);
+    _$insert(_el$34, _$createComponent(Show, {
+      get when() {
+        return jobs().length;
+      },
+      get fallback() {
+        return (() => {
+          var _el$49 = _$createElement("text");
+          _$insertNode(_el$49, _$createTextNode(`No matching tasks.`));
+          _$effect((_$p) => _$setProp(_el$49, "fg", props.api.theme.current.textMuted, _$p));
+          return _el$49;
+        })();
+      },
+      get children() {
+        var _el$41 = _$createElement("scrollbox");
+        _$use((element) => taskScroll = element, _el$41);
+        _$setProp(_el$41, "id", "scheduler-task-list");
+        _$setProp(_el$41, "flexGrow", 1);
+        _$setProp(_el$41, "minHeight", 0);
+        _$insert(_el$41, _$createComponent(For, {
+          get each() {
+            return jobs();
+          },
+          children: (job, index) => (() => {
+            var _el$51 = _$createElement("box"), _el$52 = _$createElement("text"), _el$53 = _$createTextNode(` `), _el$54 = _$createTextNode(` `), _el$55 = _$createElement("span"), _el$56 = _$createElement("text"), _el$57 = _$createTextNode(` `), _el$58 = _$createTextNode(` \xB7 next `), _el$59 = _$createTextNode(` \xB7 `);
+            _$insertNode(_el$51, _el$52);
+            _$insertNode(_el$51, _el$56);
+            _$setProp(_el$51, "height", 2);
+            _$setProp(_el$51, "flexShrink", 0);
+            _$setProp(_el$51, "flexDirection", "column");
+            _$setProp(_el$51, "paddingLeft", 1);
+            _$setProp(_el$51, "onMouseUp", (event) => activateMouse(event, () => {
+              setSelectedIndex(index());
+              focusList();
+              navigateToDetail(props.api, {
+                id: job.id,
+                entry: "center",
+                returnRoute: props.returnRoute,
+                centerState: centerState()
+              });
+            }));
+            _$insertNode(_el$52, _el$53);
+            _$insertNode(_el$52, _el$54);
+            _$insertNode(_el$52, _el$55);
+            _$setProp(_el$52, "wrapMode", "none");
+            _$insert(_el$52, () => selectedIndex() === index() ? "\u25B6" : " ", _el$53);
+            _$insert(_el$52, () => statusIcon(job.health), _el$54);
+            _$insert(_el$55, () => job.name);
+            _$insertNode(_el$56, _el$57);
+            _$insertNode(_el$56, _el$58);
+            _$insertNode(_el$56, _el$59);
+            _$setProp(_el$56, "wrapMode", "none");
+            _$insert(_el$56, () => job.scheduleText, _el$58);
+            _$insert(_el$56, () => relativeTime(job.nextRunAt), _el$59);
+            _$insert(_el$56, () => job.workdir, null);
+            _$effect((_p$) => {
+              var _v$29 = `scheduler-job-${job.id}`, _v$30 = selectedIndex() === index() ? props.api.theme.current.backgroundElement : props.api.theme.current.background, _v$31 = statusColor(props.api, job.health), _v$32 = {
+                fg: props.api.theme.current.text
+              }, _v$33 = props.api.theme.current.textMuted;
+              _v$29 !== _p$.e && (_p$.e = _$setProp(_el$51, "id", _v$29, _p$.e));
+              _v$30 !== _p$.t && (_p$.t = _$setProp(_el$51, "backgroundColor", _v$30, _p$.t));
+              _v$31 !== _p$.a && (_p$.a = _$setProp(_el$52, "fg", _v$31, _p$.a));
+              _v$32 !== _p$.o && (_p$.o = _$setProp(_el$55, "style", _v$32, _p$.o));
+              _v$33 !== _p$.i && (_p$.i = _$setProp(_el$56, "fg", _v$33, _p$.i));
+              return _p$;
+            }, {
+              e: undefined,
+              t: undefined,
+              a: undefined,
+              o: undefined,
+              i: undefined
+            });
+            return _el$51;
+          })()
+        }));
+        _$effect((_$p) => _$setProp(_el$41, "verticalScrollbarOptions", {
+          visible: jobs().length > 8
+        }, _$p));
+        return _el$41;
+      }
+    }), _el$47);
+    _$insert(_el$34, _$createComponent(Show, {
+      get when() {
+        return orphans().length;
+      },
+      fallback: null,
+      get children() {
+        var _el$42 = _$createElement("box"), _el$43 = _$createElement("text"), _el$44 = _$createElement("b"), _el$45 = _$createTextNode(`Orphaned OS tasks (`), _el$46 = _$createTextNode(`)`);
+        _$insertNode(_el$42, _el$43);
+        _$setProp(_el$42, "paddingTop", 1);
+        _$insertNode(_el$43, _el$44);
+        _$insertNode(_el$44, _el$45);
+        _$insertNode(_el$44, _el$46);
+        _$insert(_el$44, () => orphans().length, _el$46);
+        _$insert(_el$42, _$createComponent(For, {
+          get each() {
+            return orphans();
+          },
+          children: (orphan) => (() => {
+            var _el$60 = _$createElement("text"), _el$61 = _$createTextNode(`! `), _el$62 = _$createTextNode(` \xB7 `), _el$63 = _$createTextNode(` \xB7 click to inspect`);
+            _$insertNode(_el$60, _el$61);
+            _$insertNode(_el$60, _el$62);
+            _$insertNode(_el$60, _el$63);
+            _$setProp(_el$60, "selectable", false);
+            _$setProp(_el$60, "onMouseUp", (event) => activateMouse(event, () => openOrphanDialog(props.api, props.store, orphan)));
+            _$insert(_el$60, () => orphan.slug, _el$62);
+            _$insert(_el$60, () => orphan.backend, _el$63);
+            _$effect((_$p) => _$setProp(_el$60, "fg", props.api.theme.current.warning, _$p));
+            return _el$60;
+          })()
+        }), null);
+        _$effect((_$p) => _$setProp(_el$43, "fg", props.api.theme.current.warning, _$p));
+        return _el$42;
+      }
+    }), _el$47);
+    _$insertNode(_el$47, _$createTextNode(`Mouse: click/scroll \xB7 Keyboard: Tab controls \xB7 \u2190/\u2192 select \xB7 Enter apply \xB7 / search \xB7 Esc back`));
+    _$effect((_p$) => {
+      var _v$17 = dimensions().width, _v$18 = dimensions().height, _v$19 = props.api.theme.current.background, _v$20 = !props.api.ui.dialog.open && focus() !== "search", _v$21 = query(), _v$22 = focus() === "search" && !props.api.ui.dialog.open, _v$23 = props.api.theme.current.backgroundElement, _v$24 = props.api.theme.current.text, _v$25 = props.api.theme.current.text, _v$26 = props.api.theme.current.background, _v$27 = props.api.theme.current.border, _v$28 = props.api.theme.current.textMuted;
+      _v$17 !== _p$.e && (_p$.e = _$setProp(_el$34, "width", _v$17, _p$.e));
+      _v$18 !== _p$.t && (_p$.t = _$setProp(_el$34, "height", _v$18, _p$.t));
+      _v$19 !== _p$.a && (_p$.a = _$setProp(_el$34, "backgroundColor", _v$19, _p$.a));
+      _v$20 !== _p$.o && (_p$.o = _$setProp(_el$34, "focused", _v$20, _p$.o));
+      _v$21 !== _p$.i && (_p$.i = _$setProp(_el$35, "value", _v$21, _p$.i));
+      _v$22 !== _p$.n && (_p$.n = _$setProp(_el$35, "focused", _v$22, _p$.n));
+      _v$23 !== _p$.s && (_p$.s = _$setProp(_el$35, "backgroundColor", _v$23, _p$.s));
+      _v$24 !== _p$.h && (_p$.h = _$setProp(_el$35, "textColor", _v$24, _p$.h));
+      _v$25 !== _p$.r && (_p$.r = _$setProp(_el$35, "focusedTextColor", _v$25, _p$.r));
+      _v$26 !== _p$.d && (_p$.d = _$setProp(_el$37, "backgroundColor", _v$26, _p$.d));
+      _v$27 !== _p$.l && (_p$.l = _$setProp(_el$38, "fg", _v$27, _p$.l));
+      _v$28 !== _p$.u && (_p$.u = _$setProp(_el$47, "fg", _v$28, _p$.u));
+      return _p$;
+    }, {
+      e: undefined,
+      t: undefined,
+      a: undefined,
+      o: undefined,
+      i: undefined,
+      n: undefined,
+      s: undefined,
+      h: undefined,
+      r: undefined,
+      d: undefined,
+      l: undefined,
+      u: undefined
+    });
+    return _el$34;
+  })();
 }
 function perform(api2, store, action, success2) {
   try {
     action();
-    api2.ui.toast({ variant: "success", title: "Scheduler", message: success2 });
+    api2.ui.toast({
+      variant: "success",
+      title: "Scheduler",
+      message: success2
+    });
     store.refresh();
     return true;
   } catch (error45) {
-    api2.ui.toast({ variant: "error", title: "Scheduler", message: error45 instanceof Error ? error45.message : String(error45) });
+    api2.ui.toast({
+      variant: "error",
+      title: "Scheduler",
+      message: error45 instanceof Error ? error45.message : String(error45)
+    });
     return false;
   }
 }
 function openScheduleDialog(api2, store, job) {
   const DialogPrompt = api2.ui.DialogPrompt;
-  api2.ui.dialog.replace(() => /* @__PURE__ */ jsxDEV(DialogPrompt, {
-    title: `Change schedule \xB7 ${job.name}`,
-    description: () => /* @__PURE__ */ jsxDEV("text", {
-      fg: api2.theme.current.textMuted,
-      children: [
-        "Five-field cron expression. Current: ",
-        job.schedule
-      ]
-    }, undefined, true, undefined, this),
-    value: job.schedule,
+  api2.ui.dialog.replace(() => _$createComponent(DialogPrompt, {
+    get title() {
+      return `Change schedule \xB7 ${job.name}`;
+    },
+    description: () => (() => {
+      var _el$64 = _$createElement("text"), _el$65 = _$createTextNode(`Five-field cron expression. Current: `);
+      _$insertNode(_el$64, _el$65);
+      _$insert(_el$64, () => job.schedule, null);
+      _$effect((_$p) => _$setProp(_el$64, "fg", api2.theme.current.textMuted, _$p));
+      return _el$64;
+    })(),
+    get value() {
+      return job.schedule;
+    },
     onConfirm: (value) => {
-      if (perform(api2, store, () => updateSchedulerJobSchedule({ id: job.id }, value), "Schedule updated")) {
+      if (perform(api2, store, () => updateSchedulerJobSchedule({
+        id: job.id
+      }, value), "Schedule updated")) {
         api2.ui.dialog.clear();
       }
     },
     onCancel: () => api2.ui.dialog.clear()
-  }, undefined, false, undefined, this));
+  }));
 }
 function openLogs(api2, job) {
   const Dialog = api2.ui.Dialog;
   let result;
   try {
-    result = schedulerJobLogs({ id: job.id }, 300);
+    result = schedulerJobLogs({
+      id: job.id
+    }, 300);
   } catch (error45) {
     api2.ui.toast({
       variant: "error",
@@ -23332,118 +23503,153 @@ function openLogs(api2, job) {
     });
     return;
   }
-  api2.ui.dialog.replace(() => /* @__PURE__ */ jsxDEV(Dialog, {
+  api2.ui.dialog.replace(() => _$createComponent(Dialog, {
     size: "xlarge",
     onClose: () => api2.ui.dialog.clear(),
-    children: /* @__PURE__ */ jsxDEV("box", {
-      flexDirection: "column",
-      width: "100%",
-      height: "100%",
-      gap: 1,
-      children: [
-        /* @__PURE__ */ jsxDEV("text", {
-          fg: api2.theme.current.text,
-          children: /* @__PURE__ */ jsxDEV("b", {
-            children: [
-              "Logs \xB7 ",
-              job.name
-            ]
-          }, undefined, true, undefined, this)
-        }, undefined, false, undefined, this),
-        /* @__PURE__ */ jsxDEV("text", {
-          fg: api2.theme.current.textMuted,
-          children: result.logPath
-        }, undefined, false, undefined, this),
-        /* @__PURE__ */ jsxDEV("scrollbox", {
-          flexGrow: 1,
-          children: /* @__PURE__ */ jsxDEV("text", {
-            fg: api2.theme.current.text,
-            children: result.logs || "No logs yet."
-          }, undefined, false, undefined, this)
-        }, undefined, false, undefined, this),
-        /* @__PURE__ */ jsxDEV("text", {
-          fg: api2.theme.current.textMuted,
-          onMouseUp: () => api2.ui.dialog.clear(),
-          children: "esc \xB7 close"
-        }, undefined, false, undefined, this)
-      ]
-    }, undefined, true, undefined, this)
-  }, undefined, false, undefined, this));
+    get children() {
+      var _el$66 = _$createElement("box"), _el$67 = _$createElement("text"), _el$68 = _$createElement("b"), _el$69 = _$createTextNode(`Logs \xB7 `), _el$70 = _$createElement("text"), _el$71 = _$createElement("scrollbox"), _el$72 = _$createElement("text"), _el$73 = _$createElement("text");
+      _$insertNode(_el$66, _el$67);
+      _$insertNode(_el$66, _el$70);
+      _$insertNode(_el$66, _el$71);
+      _$insertNode(_el$66, _el$73);
+      _$setProp(_el$66, "flexDirection", "column");
+      _$setProp(_el$66, "width", "100%");
+      _$setProp(_el$66, "height", "100%");
+      _$setProp(_el$66, "gap", 1);
+      _$insertNode(_el$67, _el$68);
+      _$insertNode(_el$68, _el$69);
+      _$insert(_el$68, () => job.name, null);
+      _$insert(_el$70, () => result.logPath);
+      _$insertNode(_el$71, _el$72);
+      _$setProp(_el$71, "flexGrow", 1);
+      _$insert(_el$72, () => result.logs || "No logs yet.");
+      _$insertNode(_el$73, _$createTextNode(`esc \xB7 close`));
+      _$setProp(_el$73, "onMouseUp", () => api2.ui.dialog.clear());
+      _$effect((_p$) => {
+        var _v$34 = api2.theme.current.text, _v$35 = api2.theme.current.textMuted, _v$36 = api2.theme.current.text, _v$37 = api2.theme.current.textMuted;
+        _v$34 !== _p$.e && (_p$.e = _$setProp(_el$67, "fg", _v$34, _p$.e));
+        _v$35 !== _p$.t && (_p$.t = _$setProp(_el$70, "fg", _v$35, _p$.t));
+        _v$36 !== _p$.a && (_p$.a = _$setProp(_el$72, "fg", _v$36, _p$.a));
+        _v$37 !== _p$.o && (_p$.o = _$setProp(_el$73, "fg", _v$37, _p$.o));
+        return _p$;
+      }, {
+        e: undefined,
+        t: undefined,
+        a: undefined,
+        o: undefined
+      });
+      return _el$66;
+    }
+  }));
   api2.ui.dialog.setSize("xlarge");
 }
 function confirmDelete(api2, store, job, onDeleted) {
   const DialogConfirm = api2.ui.DialogConfirm;
-  api2.ui.dialog.replace(() => /* @__PURE__ */ jsxDEV(DialogConfirm, {
-    title: `Delete ${job.name}?`,
+  api2.ui.dialog.replace(() => _$createComponent(DialogConfirm, {
+    get title() {
+      return `Delete ${job.name}?`;
+    },
     message: "This removes the job configuration and its OS scheduler entry. Logs are retained.",
     onConfirm: () => {
-      if (perform(api2, store, () => deleteSchedulerJob({ id: job.id }), "Task deleted")) {
+      if (perform(api2, store, () => deleteSchedulerJob({
+        id: job.id
+      }), "Task deleted")) {
         api2.ui.dialog.clear();
         onDeleted();
       }
     },
     onCancel: () => api2.ui.dialog.clear()
-  }, undefined, false, undefined, this));
+  }));
 }
 function confirmMove(api2, store, job, targetWorkdir, route) {
   const DialogConfirm = api2.ui.DialogConfirm;
-  api2.ui.dialog.replace(() => /* @__PURE__ */ jsxDEV(DialogConfirm, {
-    title: `Move ${job.name}?`,
-    message: `From: ${job.workdir}
+  api2.ui.dialog.replace(() => _$createComponent(DialogConfirm, {
+    get title() {
+      return `Move ${job.name}?`;
+    },
+    get message() {
+      return `From: ${job.workdir}
 To: ${targetWorkdir}
 
-The operating-system schedule and saved run history will move together.`,
+The operating-system schedule and saved run history will move together.`;
+    },
     onConfirm: () => {
       try {
-        const moved = moveSchedulerJob({ id: job.id }, targetWorkdir);
-        api2.ui.toast({ variant: "success", title: "Scheduler", message: "Task moved to current project" });
+        const moved = moveSchedulerJob({
+          id: job.id
+        }, targetWorkdir);
+        api2.ui.toast({
+          variant: "success",
+          title: "Scheduler",
+          message: "Task moved to current project"
+        });
         api2.ui.dialog.clear();
         store.refresh();
         const movedId = `${moved.scopeId}:${moved.slug}`;
         api2.route.navigate("scheduler-detail", {
           ...route,
           id: movedId,
-          centerState: route.centerState ? { ...route.centerState, selectedId: movedId } : undefined
+          centerState: route.centerState ? {
+            ...route.centerState,
+            selectedId: movedId
+          } : undefined
         });
       } catch (error45) {
-        api2.ui.toast({ variant: "error", title: "Scheduler", message: error45 instanceof Error ? error45.message : String(error45) });
+        api2.ui.toast({
+          variant: "error",
+          title: "Scheduler",
+          message: error45 instanceof Error ? error45.message : String(error45)
+        });
       }
     },
     onCancel: () => api2.ui.dialog.clear()
-  }, undefined, false, undefined, this));
+  }));
 }
 function openOrphanDialog(api2, store, orphan) {
   const DialogConfirm = api2.ui.DialogConfirm;
   const ids = orphan.artifactIds.join(`
 `);
-  api2.ui.dialog.replace(() => /* @__PURE__ */ jsxDEV(DialogConfirm, {
-    title: `Remove orphan ${orphan.slug}?`,
-    message: `Backend: ${orphan.backend}
+  api2.ui.dialog.replace(() => _$createComponent(DialogConfirm, {
+    get title() {
+      return `Remove orphan ${orphan.slug}?`;
+    },
+    get message() {
+      return `Backend: ${orphan.backend}
 Artifacts:
 ${ids}
 
-Only these exact scheduler artifacts will be removed.`,
+Only these exact scheduler artifacts will be removed.`;
+    },
     onConfirm: () => {
       if (perform(api2, store, () => orphan.artifactIds.forEach((artifactId2) => removeOrphanArtifact(artifactId2, true)), "Orphan removed")) {
         api2.ui.dialog.clear();
       }
     },
     onCancel: () => api2.ui.dialog.clear()
-  }, undefined, false, undefined, this));
+  }));
 }
 function Action(props) {
-  return /* @__PURE__ */ jsxDEV("box", {
-    id: props.id,
-    paddingLeft: 1,
-    paddingRight: 1,
-    backgroundColor: props.api.theme.current.backgroundElement,
-    onMouseUp: (event) => activateMouse(event, props.onSelect),
-    children: /* @__PURE__ */ jsxDEV("text", {
-      selectable: false,
-      fg: props.warning ? props.api.theme.current.warning : props.api.theme.current.primary,
-      children: props.label
-    }, undefined, false, undefined, this)
-  }, undefined, false, undefined, this);
+  return (() => {
+    var _el$75 = _$createElement("box"), _el$76 = _$createElement("text");
+    _$insertNode(_el$75, _el$76);
+    _$setProp(_el$75, "paddingLeft", 1);
+    _$setProp(_el$75, "paddingRight", 1);
+    _$setProp(_el$75, "onMouseUp", (event) => activateMouse(event, props.onSelect));
+    _$setProp(_el$76, "selectable", false);
+    _$insert(_el$76, () => props.label);
+    _$effect((_p$) => {
+      var _v$38 = props.id, _v$39 = props.api.theme.current.backgroundElement, _v$40 = props.warning ? props.api.theme.current.warning : props.api.theme.current.primary;
+      _v$38 !== _p$.e && (_p$.e = _$setProp(_el$75, "id", _v$38, _p$.e));
+      _v$39 !== _p$.t && (_p$.t = _$setProp(_el$75, "backgroundColor", _v$39, _p$.t));
+      _v$40 !== _p$.a && (_p$.a = _$setProp(_el$76, "fg", _v$40, _p$.a));
+      return _p$;
+    }, {
+      e: undefined,
+      t: undefined,
+      a: undefined
+    });
+    return _el$75;
+  })();
 }
 function Detail(props) {
   const dimensions = useTerminalDimensions();
@@ -23452,7 +23658,11 @@ function Detail(props) {
   const currentScopeId = createMemo(() => deriveStatusScopeId(props.api.state.path.directory));
   const back = () => {
     if (props.entry === "center") {
-      props.api.route.navigate("scheduler", { entry: "command", returnRoute: props.returnRoute, centerState: props.centerState });
+      props.api.route.navigate("scheduler", {
+        entry: "command",
+        returnRoute: props.returnRoute,
+        centerState: props.centerState
+      });
       return;
     }
     navigateBack(props.api, props.returnRoute);
@@ -23465,14 +23675,20 @@ function Detail(props) {
       target,
       targetMode: "focus-within",
       priority: 100,
-      commands: [
-        { name: "scheduler.detail.back", run: back },
-        { name: "scheduler.detail.refresh", run: () => void props.store.refresh() }
-      ],
-      bindings: [
-        { key: "escape", cmd: "scheduler.detail.back" },
-        { key: "r", cmd: "scheduler.detail.refresh" }
-      ]
+      commands: [{
+        name: "scheduler.detail.back",
+        run: back
+      }, {
+        name: "scheduler.detail.refresh",
+        run: () => void props.store.refresh()
+      }],
+      bindings: [{
+        key: "escape",
+        cmd: "scheduler.detail.back"
+      }, {
+        key: "r",
+        cmd: "scheduler.detail.refresh"
+      }]
     });
     onCleanup(dispose);
   });
@@ -23485,335 +23701,390 @@ function Detail(props) {
     onCleanup(() => clearTimeout(focusTimer));
     props.store.refresh();
   });
-  return /* @__PURE__ */ jsxDEV("box", {
-    id: "scheduler-task-detail",
-    ref: (element) => root = element,
-    position: "absolute",
-    zIndex: 2500,
-    left: 0,
-    top: 0,
-    width: dimensions().width,
-    height: dimensions().height,
-    minHeight: 0,
-    padding: 2,
-    flexDirection: "column",
-    backgroundColor: props.api.theme.current.background,
-    focusable: true,
-    focused: !props.api.ui.dialog.open,
-    children: [
-      /* @__PURE__ */ jsxDEV(Header, {
-        api: props.api,
-        title: job()?.name || "Scheduled task",
-        back,
-        refresh: () => void props.store.refresh(),
-        refreshId: "scheduler-detail-refresh",
-        loading: props.store.loading()
-      }, undefined, false, undefined, this),
-      /* @__PURE__ */ jsxDEV(Show, {
-        when: job(),
-        fallback: /* @__PURE__ */ jsxDEV("text", {
-          fg: props.api.theme.current.warning,
-          children: "Task not found. Refresh or return to the task center."
-        }, undefined, false, undefined, this),
-        children: (item) => /* @__PURE__ */ jsxDEV("scrollbox", {
-          flexGrow: 1,
-          children: /* @__PURE__ */ jsxDEV("box", {
-            gap: 1,
-            paddingRight: 1,
-            children: [
-              /* @__PURE__ */ jsxDEV("text", {
-                fg: statusColor(props.api, item().health),
-                children: /* @__PURE__ */ jsxDEV("b", {
-                  children: [
-                    statusIcon(item().health),
-                    " ",
-                    item().health.toUpperCase()
-                  ]
-                }, undefined, true, undefined, this)
-              }, undefined, false, undefined, this),
-              /* @__PURE__ */ jsxDEV("box", {
-                border: true,
-                borderColor: props.api.theme.current.border,
-                padding: 1,
-                children: [
-                  /* @__PURE__ */ jsxDEV("text", {
-                    fg: props.api.theme.current.text,
-                    children: /* @__PURE__ */ jsxDEV("b", {
-                      children: "Task"
-                    }, undefined, false, undefined, this)
-                  }, undefined, false, undefined, this),
-                  /* @__PURE__ */ jsxDEV("text", {
-                    fg: props.api.theme.current.text,
-                    children: item().prompt || item().command || "No prompt or command"
-                  }, undefined, false, undefined, this)
-                ]
-              }, undefined, true, undefined, this),
-              /* @__PURE__ */ jsxDEV("box", {
-                border: true,
-                borderColor: props.api.theme.current.border,
-                padding: 1,
-                children: [
-                  /* @__PURE__ */ jsxDEV("text", {
-                    fg: props.api.theme.current.text,
-                    children: /* @__PURE__ */ jsxDEV("b", {
-                      children: "Details"
-                    }, undefined, false, undefined, this)
-                  }, undefined, false, undefined, this),
-                  /* @__PURE__ */ jsxDEV("text", {
-                    fg: props.api.theme.current.textMuted,
-                    children: [
-                      "Project  ",
-                      /* @__PURE__ */ jsxDEV("span", {
-                        style: { fg: props.api.theme.current.text },
-                        children: item().workdir
-                      }, undefined, false, undefined, this)
-                    ]
-                  }, undefined, true, undefined, this),
-                  /* @__PURE__ */ jsxDEV("text", {
-                    fg: props.api.theme.current.textMuted,
-                    children: [
-                      "Scope    ",
-                      /* @__PURE__ */ jsxDEV("span", {
-                        style: { fg: props.api.theme.current.text },
-                        children: item().scopeId
-                      }, undefined, false, undefined, this)
-                    ]
-                  }, undefined, true, undefined, this),
-                  /* @__PURE__ */ jsxDEV("text", {
-                    fg: props.api.theme.current.textMuted,
-                    children: [
-                      "Backend  ",
-                      /* @__PURE__ */ jsxDEV("span", {
-                        style: { fg: props.api.theme.current.text },
-                        children: item().backend || "not registered"
-                      }, undefined, false, undefined, this)
-                    ]
-                  }, undefined, true, undefined, this),
-                  /* @__PURE__ */ jsxDEV("text", {
-                    fg: props.api.theme.current.textMuted,
-                    children: [
-                      "Registered ",
-                      /* @__PURE__ */ jsxDEV("span", {
-                        style: { fg: props.api.theme.current.text },
-                        children: item().artifacts.some((artifact) => artifact.registered) ? "yes" : "no"
-                      }, undefined, false, undefined, this)
-                    ]
-                  }, undefined, true, undefined, this),
-                  /* @__PURE__ */ jsxDEV("text", {
-                    fg: props.api.theme.current.textMuted,
-                    children: [
-                      "Model    ",
-                      /* @__PURE__ */ jsxDEV("span", {
-                        style: { fg: props.api.theme.current.text },
-                        children: item().model || "default"
-                      }, undefined, false, undefined, this)
-                    ]
-                  }, undefined, true, undefined, this),
-                  /* @__PURE__ */ jsxDEV("text", {
-                    fg: props.api.theme.current.textMuted,
-                    children: [
-                      "Agent    ",
-                      /* @__PURE__ */ jsxDEV("span", {
-                        style: { fg: props.api.theme.current.text },
-                        children: item().agent || "default"
-                      }, undefined, false, undefined, this)
-                    ]
-                  }, undefined, true, undefined, this),
-                  /* @__PURE__ */ jsxDEV("text", {
-                    fg: props.api.theme.current.textMuted,
-                    children: [
-                      "Timeout  ",
-                      /* @__PURE__ */ jsxDEV("span", {
-                        style: { fg: props.api.theme.current.text },
-                        children: item().timeoutSeconds ? `${item().timeoutSeconds}s` : "default"
-                      }, undefined, false, undefined, this)
-                    ]
-                  }, undefined, true, undefined, this)
-                ]
-              }, undefined, true, undefined, this),
-              /* @__PURE__ */ jsxDEV("box", {
-                border: true,
-                borderColor: props.api.theme.current.border,
-                padding: 1,
-                children: [
-                  /* @__PURE__ */ jsxDEV("text", {
-                    fg: props.api.theme.current.text,
-                    children: /* @__PURE__ */ jsxDEV("b", {
-                      children: "Frequency"
-                    }, undefined, false, undefined, this)
-                  }, undefined, false, undefined, this),
-                  /* @__PURE__ */ jsxDEV("text", {
-                    fg: props.api.theme.current.textMuted,
-                    children: [
-                      "Cron      ",
-                      /* @__PURE__ */ jsxDEV("span", {
-                        style: { fg: props.api.theme.current.text },
-                        children: item().schedule
-                      }, undefined, false, undefined, this)
-                    ]
-                  }, undefined, true, undefined, this),
-                  /* @__PURE__ */ jsxDEV("text", {
-                    fg: props.api.theme.current.textMuted,
-                    children: [
-                      "Readable  ",
-                      /* @__PURE__ */ jsxDEV("span", {
-                        style: { fg: props.api.theme.current.text },
-                        children: item().scheduleText
-                      }, undefined, false, undefined, this)
-                    ]
-                  }, undefined, true, undefined, this),
-                  /* @__PURE__ */ jsxDEV("text", {
-                    fg: props.api.theme.current.textMuted,
-                    children: [
-                      "Timezone  ",
-                      /* @__PURE__ */ jsxDEV("span", {
-                        style: { fg: props.api.theme.current.text },
-                        children: item().timezone
-                      }, undefined, false, undefined, this)
-                    ]
-                  }, undefined, true, undefined, this),
-                  /* @__PURE__ */ jsxDEV("text", {
-                    fg: props.api.theme.current.textMuted,
-                    children: [
-                      "Next run  ",
-                      /* @__PURE__ */ jsxDEV("span", {
-                        style: { fg: props.api.theme.current.text },
-                        children: item().nextRunAt || "\u2014"
-                      }, undefined, false, undefined, this)
-                    ]
-                  }, undefined, true, undefined, this),
-                  /* @__PURE__ */ jsxDEV("text", {
-                    fg: props.api.theme.current.textMuted,
-                    children: [
-                      "Last run  ",
-                      /* @__PURE__ */ jsxDEV("span", {
-                        style: { fg: props.api.theme.current.text },
-                        children: item().lastRunAt ? `${item().lastRunAt} \xB7 ${item().lastRunStatus || "unknown"}` : "\u2014"
-                      }, undefined, false, undefined, this)
-                    ]
-                  }, undefined, true, undefined, this)
-                ]
-              }, undefined, true, undefined, this),
-              /* @__PURE__ */ jsxDEV(Show, {
-                when: item().diagnostics.length,
-                fallback: null,
-                children: /* @__PURE__ */ jsxDEV("box", {
-                  border: true,
-                  borderColor: props.api.theme.current.warning,
-                  padding: 1,
-                  children: [
-                    /* @__PURE__ */ jsxDEV("text", {
-                      fg: props.api.theme.current.warning,
-                      children: /* @__PURE__ */ jsxDEV("b", {
-                        children: "Diagnostics"
-                      }, undefined, false, undefined, this)
-                    }, undefined, false, undefined, this),
-                    /* @__PURE__ */ jsxDEV(For, {
-                      each: item().diagnostics,
-                      children: (message) => /* @__PURE__ */ jsxDEV("text", {
-                        fg: props.api.theme.current.warning,
-                        children: [
-                          "! ",
-                          message
-                        ]
-                      }, undefined, true, undefined, this)
-                    }, undefined, false, undefined, this)
-                  ]
-                }, undefined, true, undefined, this)
-              }, undefined, false, undefined, this),
-              /* @__PURE__ */ jsxDEV("box", {
-                flexDirection: "row",
-                gap: 1,
-                flexWrap: "wrap",
-                children: [
-                  /* @__PURE__ */ jsxDEV(Action, {
-                    id: "scheduler-action-run",
-                    api: props.api,
-                    label: "Run now",
-                    onSelect: () => perform(props.api, props.store, () => runSchedulerJob({ id: item().id }), "Task started")
-                  }, undefined, false, undefined, this),
-                  /* @__PURE__ */ jsxDEV(Action, {
-                    id: "scheduler-action-toggle",
-                    api: props.api,
-                    label: item().enabled ? "Pause" : "Resume",
-                    onSelect: () => perform(props.api, props.store, () => item().enabled ? pauseSchedulerJob({ id: item().id }) : resumeSchedulerJob({ id: item().id }), item().enabled ? "Task paused" : "Task resumed")
-                  }, undefined, false, undefined, this),
-                  /* @__PURE__ */ jsxDEV(Action, {
-                    id: "scheduler-action-schedule",
-                    api: props.api,
-                    label: "Edit frequency",
-                    onSelect: () => openScheduleDialog(props.api, props.store, item())
-                  }, undefined, false, undefined, this),
-                  /* @__PURE__ */ jsxDEV(Show, {
-                    when: item().scopeId !== currentScopeId(),
-                    fallback: null,
-                    children: /* @__PURE__ */ jsxDEV(Action, {
-                      id: "scheduler-action-move",
-                      api: props.api,
-                      label: "Move to current project",
-                      onSelect: () => confirmMove(props.api, props.store, item(), props.api.state.path.directory, {
-                        entry: props.entry,
-                        returnRoute: props.returnRoute,
-                        centerState: props.centerState
-                      })
-                    }, undefined, false, undefined, this)
-                  }, undefined, false, undefined, this),
-                  /* @__PURE__ */ jsxDEV(Action, {
-                    id: "scheduler-action-logs",
-                    api: props.api,
-                    label: "View logs",
-                    onSelect: () => openLogs(props.api, item())
-                  }, undefined, false, undefined, this),
-                  /* @__PURE__ */ jsxDEV(Action, {
-                    id: "scheduler-action-delete",
-                    api: props.api,
-                    label: "Delete",
-                    warning: true,
-                    onSelect: () => confirmDelete(props.api, props.store, item(), back)
-                  }, undefined, false, undefined, this)
-                ]
-              }, undefined, true, undefined, this),
-              /* @__PURE__ */ jsxDEV("box", {
-                paddingTop: 1,
-                children: [
-                  /* @__PURE__ */ jsxDEV("text", {
-                    fg: props.api.theme.current.text,
-                    children: /* @__PURE__ */ jsxDEV("b", {
-                      children: "Run history"
-                    }, undefined, false, undefined, this)
-                  }, undefined, false, undefined, this),
-                  /* @__PURE__ */ jsxDEV(Show, {
-                    when: item().runHistory.length,
-                    fallback: /* @__PURE__ */ jsxDEV("text", {
-                      fg: props.api.theme.current.textMuted,
-                      children: "No recorded runs yet."
-                    }, undefined, false, undefined, this),
-                    children: /* @__PURE__ */ jsxDEV(For, {
-                      each: item().runHistory,
-                      children: (run) => /* @__PURE__ */ jsxDEV("text", {
-                        fg: run.status === "success" ? props.api.theme.current.success : props.api.theme.current.warning,
-                        children: [
-                          "\u2022 ",
-                          run.startedAt || "unknown",
-                          " \xB7 ",
-                          run.source || "scheduled",
-                          " \xB7 ",
-                          run.status || "unknown",
-                          " \xB7 ",
-                          run.durationMs ?? 0,
-                          "ms"
-                        ]
-                      }, undefined, true, undefined, this)
-                    }, undefined, false, undefined, this)
-                  }, undefined, false, undefined, this)
-                ]
-              }, undefined, true, undefined, this)
-            ]
-          }, undefined, true, undefined, this)
-        }, undefined, false, undefined, this)
-      }, undefined, false, undefined, this)
-    ]
-  }, undefined, true, undefined, this);
+  return (() => {
+    var _el$77 = _$createElement("box");
+    _$use((element) => root = element, _el$77);
+    _$setProp(_el$77, "id", "scheduler-task-detail");
+    _$setProp(_el$77, "position", "absolute");
+    _$setProp(_el$77, "zIndex", 2500);
+    _$setProp(_el$77, "left", 0);
+    _$setProp(_el$77, "top", 0);
+    _$setProp(_el$77, "minHeight", 0);
+    _$setProp(_el$77, "padding", 2);
+    _$setProp(_el$77, "flexDirection", "column");
+    _$setProp(_el$77, "focusable", true);
+    _$insert(_el$77, _$createComponent(Header, {
+      get api() {
+        return props.api;
+      },
+      get title() {
+        return job()?.name || "Scheduled task";
+      },
+      back,
+      refresh: () => void props.store.refresh(),
+      refreshId: "scheduler-detail-refresh",
+      get loading() {
+        return props.store.loading();
+      }
+    }), null);
+    _$insert(_el$77, _$createComponent(Show, {
+      get when() {
+        return job();
+      },
+      get fallback() {
+        return (() => {
+          var _el$78 = _$createElement("text");
+          _$insertNode(_el$78, _$createTextNode(`Task not found. Refresh or return to the task center.`));
+          _$effect((_$p) => _$setProp(_el$78, "fg", props.api.theme.current.warning, _$p));
+          return _el$78;
+        })();
+      },
+      children: (item) => (() => {
+        var _el$80 = _$createElement("scrollbox"), _el$81 = _$createElement("box"), _el$82 = _$createElement("text"), _el$83 = _$createElement("b"), _el$84 = _$createTextNode(` `), _el$85 = _$createElement("box"), _el$86 = _$createElement("text"), _el$87 = _$createElement("b"), _el$89 = _$createElement("text"), _el$90 = _$createElement("box"), _el$91 = _$createElement("text"), _el$92 = _$createElement("b"), _el$94 = _$createElement("text"), _el$95 = _$createTextNode(`Project `), _el$96 = _$createElement("span"), _el$97 = _$createElement("text"), _el$98 = _$createTextNode(`Scope `), _el$99 = _$createElement("span"), _el$100 = _$createElement("text"), _el$101 = _$createTextNode(`Backend `), _el$102 = _$createElement("span"), _el$103 = _$createElement("text"), _el$104 = _$createTextNode(`Registered `), _el$105 = _$createElement("span"), _el$106 = _$createElement("text"), _el$107 = _$createTextNode(`Model `), _el$108 = _$createElement("span"), _el$109 = _$createElement("text"), _el$110 = _$createTextNode(`Agent `), _el$111 = _$createElement("span"), _el$112 = _$createElement("text"), _el$113 = _$createTextNode(`Timeout `), _el$114 = _$createElement("span"), _el$115 = _$createElement("box"), _el$116 = _$createElement("text"), _el$117 = _$createElement("b"), _el$119 = _$createElement("text"), _el$120 = _$createTextNode(`Cron `), _el$121 = _$createElement("span"), _el$122 = _$createElement("text"), _el$123 = _$createTextNode(`Readable `), _el$124 = _$createElement("span"), _el$125 = _$createElement("text"), _el$126 = _$createTextNode(`Timezone `), _el$127 = _$createElement("span"), _el$128 = _$createElement("text"), _el$129 = _$createTextNode(`Next run `), _el$130 = _$createElement("span"), _el$131 = _$createElement("text"), _el$132 = _$createTextNode(`Last run `), _el$133 = _$createElement("span"), _el$138 = _$createElement("box"), _el$139 = _$createElement("box"), _el$140 = _$createElement("text"), _el$141 = _$createElement("b");
+        _$insertNode(_el$80, _el$81);
+        _$setProp(_el$80, "flexGrow", 1);
+        _$insertNode(_el$81, _el$82);
+        _$insertNode(_el$81, _el$85);
+        _$insertNode(_el$81, _el$90);
+        _$insertNode(_el$81, _el$115);
+        _$insertNode(_el$81, _el$138);
+        _$insertNode(_el$81, _el$139);
+        _$setProp(_el$81, "gap", 1);
+        _$setProp(_el$81, "paddingRight", 1);
+        _$insertNode(_el$82, _el$83);
+        _$insertNode(_el$83, _el$84);
+        _$insert(_el$83, () => statusIcon(item().health), _el$84);
+        _$insert(_el$83, () => item().health.toUpperCase(), null);
+        _$insertNode(_el$85, _el$86);
+        _$insertNode(_el$85, _el$89);
+        _$setProp(_el$85, "border", true);
+        _$setProp(_el$85, "padding", 1);
+        _$insertNode(_el$86, _el$87);
+        _$insertNode(_el$87, _$createTextNode(`Task`));
+        _$insert(_el$89, () => item().prompt || item().command || "No prompt or command");
+        _$insertNode(_el$90, _el$91);
+        _$insertNode(_el$90, _el$94);
+        _$insertNode(_el$90, _el$97);
+        _$insertNode(_el$90, _el$100);
+        _$insertNode(_el$90, _el$103);
+        _$insertNode(_el$90, _el$106);
+        _$insertNode(_el$90, _el$109);
+        _$insertNode(_el$90, _el$112);
+        _$setProp(_el$90, "border", true);
+        _$setProp(_el$90, "padding", 1);
+        _$insertNode(_el$91, _el$92);
+        _$insertNode(_el$92, _$createTextNode(`Details`));
+        _$insertNode(_el$94, _el$95);
+        _$insertNode(_el$94, _el$96);
+        _$insert(_el$96, () => item().workdir);
+        _$insertNode(_el$97, _el$98);
+        _$insertNode(_el$97, _el$99);
+        _$insert(_el$99, () => item().scopeId);
+        _$insertNode(_el$100, _el$101);
+        _$insertNode(_el$100, _el$102);
+        _$insert(_el$102, () => item().backend || "not registered");
+        _$insertNode(_el$103, _el$104);
+        _$insertNode(_el$103, _el$105);
+        _$insert(_el$105, () => item().artifacts.some((artifact) => artifact.registered) ? "yes" : "no");
+        _$insertNode(_el$106, _el$107);
+        _$insertNode(_el$106, _el$108);
+        _$insert(_el$108, () => item().model || "default");
+        _$insertNode(_el$109, _el$110);
+        _$insertNode(_el$109, _el$111);
+        _$insert(_el$111, () => item().agent || "default");
+        _$insertNode(_el$112, _el$113);
+        _$insertNode(_el$112, _el$114);
+        _$insert(_el$114, (() => {
+          var _c$ = _$memo(() => !!item().timeoutSeconds);
+          return () => _c$() ? `${item().timeoutSeconds}s` : "default";
+        })());
+        _$insertNode(_el$115, _el$116);
+        _$insertNode(_el$115, _el$119);
+        _$insertNode(_el$115, _el$122);
+        _$insertNode(_el$115, _el$125);
+        _$insertNode(_el$115, _el$128);
+        _$insertNode(_el$115, _el$131);
+        _$setProp(_el$115, "border", true);
+        _$setProp(_el$115, "padding", 1);
+        _$insertNode(_el$116, _el$117);
+        _$insertNode(_el$117, _$createTextNode(`Frequency`));
+        _$insertNode(_el$119, _el$120);
+        _$insertNode(_el$119, _el$121);
+        _$insert(_el$121, () => item().schedule);
+        _$insertNode(_el$122, _el$123);
+        _$insertNode(_el$122, _el$124);
+        _$insert(_el$124, () => item().scheduleText);
+        _$insertNode(_el$125, _el$126);
+        _$insertNode(_el$125, _el$127);
+        _$insert(_el$127, () => item().timezone);
+        _$insertNode(_el$128, _el$129);
+        _$insertNode(_el$128, _el$130);
+        _$insert(_el$130, () => item().nextRunAt || "\u2014");
+        _$insertNode(_el$131, _el$132);
+        _$insertNode(_el$131, _el$133);
+        _$insert(_el$133, (() => {
+          var _c$2 = _$memo(() => !!item().lastRunAt);
+          return () => _c$2() ? `${item().lastRunAt} \xB7 ${item().lastRunStatus || "unknown"}` : "\u2014";
+        })());
+        _$insert(_el$81, _$createComponent(Show, {
+          get when() {
+            return item().diagnostics.length;
+          },
+          fallback: null,
+          get children() {
+            var _el$134 = _$createElement("box"), _el$135 = _$createElement("text"), _el$136 = _$createElement("b");
+            _$insertNode(_el$134, _el$135);
+            _$setProp(_el$134, "border", true);
+            _$setProp(_el$134, "padding", 1);
+            _$insertNode(_el$135, _el$136);
+            _$insertNode(_el$136, _$createTextNode(`Diagnostics`));
+            _$insert(_el$134, _$createComponent(For, {
+              get each() {
+                return item().diagnostics;
+              },
+              children: (message) => (() => {
+                var _el$143 = _$createElement("text"), _el$144 = _$createTextNode(`! `);
+                _$insertNode(_el$143, _el$144);
+                _$insert(_el$143, message, null);
+                _$effect((_$p) => _$setProp(_el$143, "fg", props.api.theme.current.warning, _$p));
+                return _el$143;
+              })()
+            }), null);
+            _$effect((_p$) => {
+              var _v$45 = props.api.theme.current.warning, _v$46 = props.api.theme.current.warning;
+              _v$45 !== _p$.e && (_p$.e = _$setProp(_el$134, "borderColor", _v$45, _p$.e));
+              _v$46 !== _p$.t && (_p$.t = _$setProp(_el$135, "fg", _v$46, _p$.t));
+              return _p$;
+            }, {
+              e: undefined,
+              t: undefined
+            });
+            return _el$134;
+          }
+        }), _el$138);
+        _$setProp(_el$138, "flexDirection", "row");
+        _$setProp(_el$138, "gap", 1);
+        _$setProp(_el$138, "flexWrap", "wrap");
+        _$insert(_el$138, _$createComponent(Action, {
+          id: "scheduler-action-run",
+          get api() {
+            return props.api;
+          },
+          label: "Run now",
+          onSelect: () => perform(props.api, props.store, () => runSchedulerJob({
+            id: item().id
+          }), "Task started")
+        }), null);
+        _$insert(_el$138, _$createComponent(Action, {
+          id: "scheduler-action-toggle",
+          get api() {
+            return props.api;
+          },
+          get label() {
+            return item().enabled ? "Pause" : "Resume";
+          },
+          onSelect: () => perform(props.api, props.store, () => item().enabled ? pauseSchedulerJob({
+            id: item().id
+          }) : resumeSchedulerJob({
+            id: item().id
+          }), item().enabled ? "Task paused" : "Task resumed")
+        }), null);
+        _$insert(_el$138, _$createComponent(Action, {
+          id: "scheduler-action-schedule",
+          get api() {
+            return props.api;
+          },
+          label: "Edit frequency",
+          onSelect: () => openScheduleDialog(props.api, props.store, item())
+        }), null);
+        _$insert(_el$138, _$createComponent(Show, {
+          get when() {
+            return item().scopeId !== currentScopeId();
+          },
+          fallback: null,
+          get children() {
+            return _$createComponent(Action, {
+              id: "scheduler-action-move",
+              get api() {
+                return props.api;
+              },
+              label: "Move to current project",
+              onSelect: () => confirmMove(props.api, props.store, item(), props.api.state.path.directory, {
+                entry: props.entry,
+                returnRoute: props.returnRoute,
+                centerState: props.centerState
+              })
+            });
+          }
+        }), null);
+        _$insert(_el$138, _$createComponent(Action, {
+          id: "scheduler-action-logs",
+          get api() {
+            return props.api;
+          },
+          label: "View logs",
+          onSelect: () => openLogs(props.api, item())
+        }), null);
+        _$insert(_el$138, _$createComponent(Action, {
+          id: "scheduler-action-delete",
+          get api() {
+            return props.api;
+          },
+          label: "Delete",
+          warning: true,
+          onSelect: () => confirmDelete(props.api, props.store, item(), back)
+        }), null);
+        _$insertNode(_el$139, _el$140);
+        _$setProp(_el$139, "paddingTop", 1);
+        _$insertNode(_el$140, _el$141);
+        _$insertNode(_el$141, _$createTextNode(`Run history`));
+        _$insert(_el$139, _$createComponent(Show, {
+          get when() {
+            return item().runHistory.length;
+          },
+          get fallback() {
+            return (() => {
+              var _el$145 = _$createElement("text");
+              _$insertNode(_el$145, _$createTextNode(`No recorded runs yet.`));
+              _$effect((_$p) => _$setProp(_el$145, "fg", props.api.theme.current.textMuted, _$p));
+              return _el$145;
+            })();
+          },
+          get children() {
+            return _$createComponent(For, {
+              get each() {
+                return item().runHistory;
+              },
+              children: (run) => (() => {
+                var _el$147 = _$createElement("text"), _el$148 = _$createTextNode(`\u2022 `), _el$149 = _$createTextNode(` \xB7 `), _el$150 = _$createTextNode(` \xB7 `), _el$151 = _$createTextNode(` \xB7 `), _el$152 = _$createTextNode(`ms`);
+                _$insertNode(_el$147, _el$148);
+                _$insertNode(_el$147, _el$149);
+                _$insertNode(_el$147, _el$150);
+                _$insertNode(_el$147, _el$151);
+                _$insertNode(_el$147, _el$152);
+                _$insert(_el$147, () => run.startedAt || "unknown", _el$149);
+                _$insert(_el$147, () => run.source || "scheduled", _el$150);
+                _$insert(_el$147, () => run.status || "unknown", _el$151);
+                _$insert(_el$147, () => run.durationMs ?? 0, _el$152);
+                _$effect((_$p) => _$setProp(_el$147, "fg", run.status === "success" ? props.api.theme.current.success : props.api.theme.current.warning, _$p));
+                return _el$147;
+              })()
+            });
+          }
+        }), null);
+        _$effect((_p$) => {
+          var _v$47 = statusColor(props.api, item().health), _v$48 = props.api.theme.current.border, _v$49 = props.api.theme.current.text, _v$50 = props.api.theme.current.text, _v$51 = props.api.theme.current.border, _v$52 = props.api.theme.current.text, _v$53 = props.api.theme.current.textMuted, _v$54 = {
+            fg: props.api.theme.current.text
+          }, _v$55 = props.api.theme.current.textMuted, _v$56 = {
+            fg: props.api.theme.current.text
+          }, _v$57 = props.api.theme.current.textMuted, _v$58 = {
+            fg: props.api.theme.current.text
+          }, _v$59 = props.api.theme.current.textMuted, _v$60 = {
+            fg: props.api.theme.current.text
+          }, _v$61 = props.api.theme.current.textMuted, _v$62 = {
+            fg: props.api.theme.current.text
+          }, _v$63 = props.api.theme.current.textMuted, _v$64 = {
+            fg: props.api.theme.current.text
+          }, _v$65 = props.api.theme.current.textMuted, _v$66 = {
+            fg: props.api.theme.current.text
+          }, _v$67 = props.api.theme.current.border, _v$68 = props.api.theme.current.text, _v$69 = props.api.theme.current.textMuted, _v$70 = {
+            fg: props.api.theme.current.text
+          }, _v$71 = props.api.theme.current.textMuted, _v$72 = {
+            fg: props.api.theme.current.text
+          }, _v$73 = props.api.theme.current.textMuted, _v$74 = {
+            fg: props.api.theme.current.text
+          }, _v$75 = props.api.theme.current.textMuted, _v$76 = {
+            fg: props.api.theme.current.text
+          }, _v$77 = props.api.theme.current.textMuted, _v$78 = {
+            fg: props.api.theme.current.text
+          }, _v$79 = props.api.theme.current.text;
+          _v$47 !== _p$.e && (_p$.e = _$setProp(_el$82, "fg", _v$47, _p$.e));
+          _v$48 !== _p$.t && (_p$.t = _$setProp(_el$85, "borderColor", _v$48, _p$.t));
+          _v$49 !== _p$.a && (_p$.a = _$setProp(_el$86, "fg", _v$49, _p$.a));
+          _v$50 !== _p$.o && (_p$.o = _$setProp(_el$89, "fg", _v$50, _p$.o));
+          _v$51 !== _p$.i && (_p$.i = _$setProp(_el$90, "borderColor", _v$51, _p$.i));
+          _v$52 !== _p$.n && (_p$.n = _$setProp(_el$91, "fg", _v$52, _p$.n));
+          _v$53 !== _p$.s && (_p$.s = _$setProp(_el$94, "fg", _v$53, _p$.s));
+          _v$54 !== _p$.h && (_p$.h = _$setProp(_el$96, "style", _v$54, _p$.h));
+          _v$55 !== _p$.r && (_p$.r = _$setProp(_el$97, "fg", _v$55, _p$.r));
+          _v$56 !== _p$.d && (_p$.d = _$setProp(_el$99, "style", _v$56, _p$.d));
+          _v$57 !== _p$.l && (_p$.l = _$setProp(_el$100, "fg", _v$57, _p$.l));
+          _v$58 !== _p$.u && (_p$.u = _$setProp(_el$102, "style", _v$58, _p$.u));
+          _v$59 !== _p$.c && (_p$.c = _$setProp(_el$103, "fg", _v$59, _p$.c));
+          _v$60 !== _p$.w && (_p$.w = _$setProp(_el$105, "style", _v$60, _p$.w));
+          _v$61 !== _p$.m && (_p$.m = _$setProp(_el$106, "fg", _v$61, _p$.m));
+          _v$62 !== _p$.f && (_p$.f = _$setProp(_el$108, "style", _v$62, _p$.f));
+          _v$63 !== _p$.y && (_p$.y = _$setProp(_el$109, "fg", _v$63, _p$.y));
+          _v$64 !== _p$.g && (_p$.g = _$setProp(_el$111, "style", _v$64, _p$.g));
+          _v$65 !== _p$.p && (_p$.p = _$setProp(_el$112, "fg", _v$65, _p$.p));
+          _v$66 !== _p$.b && (_p$.b = _$setProp(_el$114, "style", _v$66, _p$.b));
+          _v$67 !== _p$.T && (_p$.T = _$setProp(_el$115, "borderColor", _v$67, _p$.T));
+          _v$68 !== _p$.A && (_p$.A = _$setProp(_el$116, "fg", _v$68, _p$.A));
+          _v$69 !== _p$.O && (_p$.O = _$setProp(_el$119, "fg", _v$69, _p$.O));
+          _v$70 !== _p$.I && (_p$.I = _$setProp(_el$121, "style", _v$70, _p$.I));
+          _v$71 !== _p$.S && (_p$.S = _$setProp(_el$122, "fg", _v$71, _p$.S));
+          _v$72 !== _p$.W && (_p$.W = _$setProp(_el$124, "style", _v$72, _p$.W));
+          _v$73 !== _p$.C && (_p$.C = _$setProp(_el$125, "fg", _v$73, _p$.C));
+          _v$74 !== _p$.B && (_p$.B = _$setProp(_el$127, "style", _v$74, _p$.B));
+          _v$75 !== _p$.v && (_p$.v = _$setProp(_el$128, "fg", _v$75, _p$.v));
+          _v$76 !== _p$.k && (_p$.k = _$setProp(_el$130, "style", _v$76, _p$.k));
+          _v$77 !== _p$.x && (_p$.x = _$setProp(_el$131, "fg", _v$77, _p$.x));
+          _v$78 !== _p$.j && (_p$.j = _$setProp(_el$133, "style", _v$78, _p$.j));
+          _v$79 !== _p$.q && (_p$.q = _$setProp(_el$140, "fg", _v$79, _p$.q));
+          return _p$;
+        }, {
+          e: undefined,
+          t: undefined,
+          a: undefined,
+          o: undefined,
+          i: undefined,
+          n: undefined,
+          s: undefined,
+          h: undefined,
+          r: undefined,
+          d: undefined,
+          l: undefined,
+          u: undefined,
+          c: undefined,
+          w: undefined,
+          m: undefined,
+          f: undefined,
+          y: undefined,
+          g: undefined,
+          p: undefined,
+          b: undefined,
+          T: undefined,
+          A: undefined,
+          O: undefined,
+          I: undefined,
+          S: undefined,
+          W: undefined,
+          C: undefined,
+          B: undefined,
+          v: undefined,
+          k: undefined,
+          x: undefined,
+          j: undefined,
+          q: undefined
+        });
+        return _el$80;
+      })()
+    }), null);
+    _$effect((_p$) => {
+      var _v$41 = dimensions().width, _v$42 = dimensions().height, _v$43 = props.api.theme.current.background, _v$44 = !props.api.ui.dialog.open;
+      _v$41 !== _p$.e && (_p$.e = _$setProp(_el$77, "width", _v$41, _p$.e));
+      _v$42 !== _p$.t && (_p$.t = _$setProp(_el$77, "height", _v$42, _p$.t));
+      _v$43 !== _p$.a && (_p$.a = _$setProp(_el$77, "backgroundColor", _v$43, _p$.a));
+      _v$44 !== _p$.o && (_p$.o = _$setProp(_el$77, "focused", _v$44, _p$.o));
+      return _p$;
+    }, {
+      e: undefined,
+      t: undefined,
+      a: undefined,
+      o: undefined
+    });
+    return _el$77;
+  })();
 }
 var tui = async (api2) => {
   const store = createStatusStore(api2);
@@ -23821,50 +24092,76 @@ var tui = async (api2) => {
     order: 350,
     slots: {
       sidebar_content() {
-        return /* @__PURE__ */ jsxDEV(Sidebar, {
+        return _$createComponent(Sidebar, {
           api: api2,
           store
-        }, undefined, false, undefined, this);
+        });
       }
     }
   });
-  api2.route.register([
-    {
-      name: "scheduler",
-      render: ({ params }) => /* @__PURE__ */ jsxDEV(TaskCenter, {
-        api: api2,
-        store,
-        returnRoute: params?.returnRoute,
-        initialState: params?.centerState
-      }, undefined, false, undefined, this)
-    },
-    {
-      name: "scheduler-detail",
-      render: ({ params }) => /* @__PURE__ */ jsxDEV(Detail, {
-        api: api2,
-        store,
-        id: typeof params?.id === "string" ? params.id : undefined,
-        entry: params?.entry,
-        returnRoute: params?.returnRoute,
-        centerState: params?.centerState
-      }, undefined, false, undefined, this)
-    }
-  ]);
+  api2.route.register([{
+    name: "scheduler",
+    render: ({
+      params
+    }) => _$createComponent(TaskCenter, {
+      api: api2,
+      store,
+      get returnRoute() {
+        return params?.returnRoute;
+      },
+      get initialState() {
+        return params?.centerState;
+      }
+    })
+  }, {
+    name: "scheduler-detail",
+    render: ({
+      params
+    }) => _$createComponent(Detail, {
+      api: api2,
+      store,
+      get id() {
+        return _$memo(() => typeof params?.id === "string")() ? params.id : undefined;
+      },
+      get entry() {
+        return params?.entry;
+      },
+      get returnRoute() {
+        return params?.returnRoute;
+      },
+      get centerState() {
+        return params?.centerState;
+      }
+    })
+  }]);
   api2.command?.register(() => [{
     title: "Open scheduled tasks",
     value: "scheduler.open",
     description: "Browse and manage OS-verified scheduled tasks",
     category: "Scheduler",
     suggested: true,
-    slash: { name: "scheduler", aliases: ["schedules", "tasks"] },
+    slash: {
+      name: "scheduler",
+      aliases: ["schedules", "tasks"]
+    },
     onSelect: () => {
       const returnRoute = api2.route.current;
       api2.ui.dialog.clear();
-      api2.route.navigate("scheduler", { entry: "command", returnRoute, centerState: { scope: "current", filter: "all" } });
+      api2.route.navigate("scheduler", {
+        entry: "command",
+        returnRoute,
+        centerState: {
+          scope: "current",
+          filter: "all"
+        }
+      });
     }
   }]);
 };
-var tui_default = { id, tui };
+var tui_default = {
+  id,
+  tui
+};
 export {
   tui,
   id,
