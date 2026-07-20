@@ -1,10 +1,11 @@
 import type { TuiPlugin, TuiPluginApi, TuiRouteCurrent } from "@opencode-ai/plugin/tui"
 import type { BoxRenderable, InputRenderable, MouseEvent as OpenTuiMouseEvent, ScrollBoxRenderable } from "@opentui/core"
 import { useTerminalDimensions } from "@opentui/solid"
+import type { Accessor, JSX } from "solid-js"
 import { existsSync, watch, type FSWatcher } from "fs"
 import { homedir } from "os"
 import { join } from "path"
-import { For, Show, createEffect, createMemo, createSignal, onCleanup, onMount } from "solid-js"
+import { For, Show, createEffect, createMemo, createSignal, onCleanup, onMount } from "opentui:runtime-module:solid-js"
 import {
   deleteSchedulerJob,
   getSchedulerStatus,
@@ -93,7 +94,15 @@ export type StatusStoreOptions = {
   verificationMs?: number
 }
 
-export function createStatusStore(api: TuiPluginApi, options: StatusStoreOptions = {}) {
+export type StatusStore = {
+  snapshot: Accessor<SchedulerStatusSnapshot>
+  loading: Accessor<boolean>
+  error: Accessor<string | undefined>
+  refresh: () => Promise<void>
+  scheduleRefresh: () => void
+}
+
+export function createStatusStore(api: TuiPluginApi, options: StatusStoreOptions = {}): StatusStore {
   const [snapshot, setSnapshot] = createSignal(EMPTY)
   const [loading, setLoading] = createSignal(false)
   const [error, setError] = createSignal<string>()
@@ -208,21 +217,16 @@ function inside(renderable: BoxRenderable | undefined, event: OpenTuiMouseEvent)
 
 const handledMouseReleases = new WeakSet<OpenTuiMouseEvent>()
 
-function activateMouse(event: OpenTuiMouseEvent, action: () => void, requestRender?: () => void) {
+function activateMouse(event: OpenTuiMouseEvent, action: () => void) {
   if (event.button !== 0) return
   if (handledMouseReleases.has(event)) return
   handledMouseReleases.add(event)
   event.preventDefault()
   event.stopPropagation()
-  const target = event.target
   action()
-  setTimeout(() => {
-    target?.requestRender()
-    requestRender?.()
-  }, 0)
 }
 
-export function Sidebar(props: { api: TuiPluginApi; store: ReturnType<typeof createStatusStore> }) {
+export function Sidebar(props: { api: TuiPluginApi; store: StatusStore }): JSX.Element {
   const [open, setOpen] = createSignal(props.api.kv?.get("scheduler.sidebar.expanded", true) ?? true)
   const currentScopeId = createMemo(() => deriveStatusScopeId(props.api.state.path.directory))
   const jobs = createMemo(() => props.store.snapshot().jobs.filter((job) => job.scopeId === currentScopeId()))
@@ -250,10 +254,9 @@ export function Sidebar(props: { api: TuiPluginApi; store: ReturnType<typeof cre
     entry: "sidebar",
     returnRoute: props.api.route.current,
   })
-  const requestRender = () => props.api.renderer?.requestRender()
-  const handleToggle = (event: OpenTuiMouseEvent) => activateMouse(event, toggle, requestRender)
+  const handleToggle = (event: OpenTuiMouseEvent) => activateMouse(event, toggle)
   const handleRootMouse = (event: OpenTuiMouseEvent) => {
-    if (inside(toggleTarget, event)) activateMouse(event, toggle, requestRender)
+    if (inside(toggleTarget, event)) activateMouse(event, toggle)
   }
   return (
     <box gap={0} paddingTop={1} onMouseUp={handleRootMouse}>
@@ -278,14 +281,14 @@ export function Sidebar(props: { api: TuiPluginApi; store: ReturnType<typeof cre
           <text id="scheduler-sidebar-paused" selectable={false} wrapMode="none" fg={props.api.theme.current.textMuted}>Ⅱ Paused {paused()}</text>
           <text id="scheduler-sidebar-err" selectable={false} wrapMode="none" fg={props.api.theme.current.error}>× err {problems()}</text>
         </box>
-        <box id="scheduler-sidebar-open" flexShrink={0} paddingLeft={1} onMouseUp={(event) => activateMouse(event, openCenter, requestRender)}>
+        <box id="scheduler-sidebar-open" flexShrink={0} paddingLeft={1} onMouseUp={(event) => activateMouse(event, openCenter)}>
           <text selectable={false} wrapMode="none" fg={props.api.theme.current.primary}><b>→ {jobs().length}</b></text>
         </box>
       </box>
       <Show when={open()}>
         <For each={recentJobs()}>
           {(job) => (
-            <box id={`scheduler-sidebar-job-${job.id}`} paddingLeft={1} paddingRight={1} paddingTop={1} onMouseUp={(event) => activateMouse(event, () => openDetail(job.id), requestRender)}>
+            <box id={`scheduler-sidebar-job-${job.id}`} paddingLeft={1} paddingRight={1} paddingTop={1} onMouseUp={(event) => activateMouse(event, () => openDetail(job.id))}>
               <text fg={statusColor(props.api, job.health)}>{statusIcon(job.health)} <span style={{ fg: props.api.theme.current.text }}>{job.name}</span></text>
               <text fg={props.api.theme.current.textMuted}>{job.scheduleText} · {relativeTime(job.nextRunAt)}</text>
             </box>
@@ -311,7 +314,7 @@ function Header(props: { api: TuiPluginApi; title: string; back?: () => void; re
   )
 }
 
-export function TaskCenter(props: { api: TuiPluginApi; store: ReturnType<typeof createStatusStore>; returnRoute?: TuiRouteCurrent; initialState?: SchedulerCenterState }) {
+export function TaskCenter(props: { api: TuiPluginApi; store: StatusStore; returnRoute?: TuiRouteCurrent; initialState?: SchedulerCenterState }): JSX.Element {
   const dimensions = useTerminalDimensions()
   const [query, setQuery] = createSignal(props.initialState?.query || "")
   const [filter, setFilter] = createSignal<Filter>(props.initialState?.filter || "all")
@@ -375,25 +378,12 @@ export function TaskCenter(props: { api: TuiPluginApi; store: ReturnType<typeof 
     focusControls()
   }
   const moveControl = (delta: number) => setControlIndex((current) => (current + delta + 6) % 6)
-  const remountCenter = () => props.api.route.navigate("scheduler", {
-    entry: "command",
-    returnRoute: props.returnRoute,
-    centerState: centerState(),
-  })
   const handleControlMouse = (index: number, event: OpenTuiMouseEvent) => {
-    activateMouse(event, () => {
-      applyControl(index)
-      remountCenter()
-    }, () => props.api.renderer?.requestRender())
+    activateMouse(event, () => applyControl(index))
   }
   const handleRootMouse = (event: OpenTuiMouseEvent) => {
     const index = controlRefs.findIndex((renderable) => inside(renderable, event))
-    if (index >= 0) {
-      activateMouse(event, () => {
-        applyControl(index)
-        remountCenter()
-      }, () => props.api.renderer?.requestRender())
-    }
+    if (index >= 0) activateMouse(event, () => applyControl(index))
   }
   const openSelected = () => {
     const selected = jobs()[selectedIndex()]
@@ -599,7 +589,7 @@ export function TaskCenter(props: { api: TuiPluginApi; store: ReturnType<typeof 
                   setSelectedIndex(index())
                   focusList()
                   navigateToDetail(props.api, { id: job.id, entry: "center", returnRoute: props.returnRoute, centerState: centerState() })
-                }, () => props.api.renderer?.requestRender())}
+                })}
               >
                 <text wrapMode="none" fg={statusColor(props.api, job.health)}>{selectedIndex() === index() ? "▶" : " "} {statusIcon(job.health)} <span style={{ fg: props.api.theme.current.text }}>{job.name}</span></text>
                 <text wrapMode="none" fg={props.api.theme.current.textMuted}>    {job.scheduleText} · next {relativeTime(job.nextRunAt)} · {job.workdir}</text>
@@ -612,7 +602,7 @@ export function TaskCenter(props: { api: TuiPluginApi; store: ReturnType<typeof 
         <box paddingTop={1}>
           <text fg={props.api.theme.current.warning}><b>Orphaned OS tasks ({orphans().length})</b></text>
           <For each={orphans()}>
-            {(orphan) => <text selectable={false} fg={props.api.theme.current.warning} onMouseUp={(event) => activateMouse(event, () => openOrphanDialog(props.api, props.store, orphan), () => props.api.renderer?.requestRender())}>! {orphan.slug} · {orphan.backend} · click to inspect</text>}
+            {(orphan) => <text selectable={false} fg={props.api.theme.current.warning} onMouseUp={(event) => activateMouse(event, () => openOrphanDialog(props.api, props.store, orphan))}>! {orphan.slug} · {orphan.backend} · click to inspect</text>}
           </For>
         </box>
       </Show>
@@ -621,7 +611,7 @@ export function TaskCenter(props: { api: TuiPluginApi; store: ReturnType<typeof 
   )
 }
 
-function perform(api: TuiPluginApi, store: ReturnType<typeof createStatusStore>, action: () => unknown, success: string) {
+function perform(api: TuiPluginApi, store: StatusStore, action: () => unknown, success: string) {
   try {
     action()
     api.ui.toast({ variant: "success", title: "Scheduler", message: success })
@@ -633,7 +623,7 @@ function perform(api: TuiPluginApi, store: ReturnType<typeof createStatusStore>,
   }
 }
 
-function openScheduleDialog(api: TuiPluginApi, store: ReturnType<typeof createStatusStore>, job: SchedulerJobStatus) {
+function openScheduleDialog(api: TuiPluginApi, store: StatusStore, job: SchedulerJobStatus) {
   const DialogPrompt = api.ui.DialogPrompt
   api.ui.dialog.replace(() => (
     <DialogPrompt
@@ -676,7 +666,7 @@ function openLogs(api: TuiPluginApi, job: SchedulerJobStatus) {
   api.ui.dialog.setSize("xlarge")
 }
 
-function confirmDelete(api: TuiPluginApi, store: ReturnType<typeof createStatusStore>, job: SchedulerJobStatus, onDeleted: () => void) {
+function confirmDelete(api: TuiPluginApi, store: StatusStore, job: SchedulerJobStatus, onDeleted: () => void) {
   const DialogConfirm = api.ui.DialogConfirm
   api.ui.dialog.replace(() => (
     <DialogConfirm
@@ -695,7 +685,7 @@ function confirmDelete(api: TuiPluginApi, store: ReturnType<typeof createStatusS
 
 function confirmMove(
   api: TuiPluginApi,
-  store: ReturnType<typeof createStatusStore>,
+  store: StatusStore,
   job: SchedulerJobStatus,
   targetWorkdir: string,
   route: Omit<SchedulerRouteParams, "id">,
@@ -726,7 +716,7 @@ function confirmMove(
   ))
 }
 
-function openOrphanDialog(api: TuiPluginApi, store: ReturnType<typeof createStatusStore>, orphan: SchedulerOrphanStatus) {
+function openOrphanDialog(api: TuiPluginApi, store: StatusStore, orphan: SchedulerOrphanStatus) {
   const DialogConfirm = api.ui.DialogConfirm
   const ids = orphan.artifactIds.join("\n")
   api.ui.dialog.replace(() => (
@@ -750,7 +740,7 @@ function Action(props: { api: TuiPluginApi; id: string; label: string; onSelect:
       paddingLeft={1}
       paddingRight={1}
       backgroundColor={props.api.theme.current.backgroundElement}
-      onMouseUp={(event) => activateMouse(event, props.onSelect, () => props.api.renderer?.requestRender())}
+      onMouseUp={(event) => activateMouse(event, props.onSelect)}
     >
       <text selectable={false} fg={props.warning ? props.api.theme.current.warning : props.api.theme.current.primary}>{props.label}</text>
     </box>
@@ -759,12 +749,12 @@ function Action(props: { api: TuiPluginApi; id: string; label: string; onSelect:
 
 export function Detail(props: {
   api: TuiPluginApi
-  store: ReturnType<typeof createStatusStore>
+  store: StatusStore
   id?: string
   entry?: SchedulerRouteParams["entry"]
   returnRoute?: TuiRouteCurrent
   centerState?: SchedulerCenterState
-}) {
+}): JSX.Element {
   const dimensions = useTerminalDimensions()
   let root: BoxRenderable | undefined
   const job = createMemo(() => props.store.snapshot().jobs.find((item) => item.id === props.id))

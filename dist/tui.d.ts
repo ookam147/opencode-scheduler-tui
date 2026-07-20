@@ -1,4 +1,5 @@
 import type { TuiPlugin, TuiPluginApi, TuiRouteCurrent } from "@opencode-ai/plugin/tui";
+import type { Accessor, JSX } from "solid-js";
 import { type SchedulerJobStatus, type SchedulerStatusSnapshot } from "./status.js";
 declare const id = "opencode-scheduler";
 export type Filter = "all" | "active" | "paused" | "problems";
@@ -27,31 +28,32 @@ export type StatusStoreOptions = {
     fallbackMs?: number;
     verificationMs?: number;
 };
-export declare function createStatusStore(api: TuiPluginApi, options?: StatusStoreOptions): {
-    snapshot: import("solid-js").Accessor<SchedulerStatusSnapshot>;
-    loading: import("solid-js").Accessor<boolean>;
-    error: import("solid-js").Accessor<string | undefined>;
+export type StatusStore = {
+    snapshot: Accessor<SchedulerStatusSnapshot>;
+    loading: Accessor<boolean>;
+    error: Accessor<string | undefined>;
     refresh: () => Promise<void>;
     scheduleRefresh: () => void;
 };
+export declare function createStatusStore(api: TuiPluginApi, options?: StatusStoreOptions): StatusStore;
 export declare function Sidebar(props: {
     api: TuiPluginApi;
-    store: ReturnType<typeof createStatusStore>;
-}): import("solid-js").JSX.Element;
+    store: StatusStore;
+}): JSX.Element;
 export declare function TaskCenter(props: {
     api: TuiPluginApi;
-    store: ReturnType<typeof createStatusStore>;
+    store: StatusStore;
     returnRoute?: TuiRouteCurrent;
     initialState?: SchedulerCenterState;
-}): import("solid-js").JSX.Element;
+}): JSX.Element;
 export declare function Detail(props: {
     api: TuiPluginApi;
-    store: ReturnType<typeof createStatusStore>;
+    store: StatusStore;
     id?: string;
     entry?: SchedulerRouteParams["entry"];
     returnRoute?: TuiRouteCurrent;
     centerState?: SchedulerCenterState;
-}): import("solid-js").JSX.Element;
+}): JSX.Element;
 declare const tui: TuiPlugin;
 export { id, tui };
 declare const _default: {

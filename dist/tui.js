@@ -22487,7 +22487,7 @@ import { useTerminalDimensions } from "@opentui/solid";
 import { existsSync as existsSync3, watch } from "fs";
 import { homedir as homedir3 } from "os";
 import { join as join3 } from "path";
-import { For, Show, createEffect, createMemo, createSignal, onCleanup, onMount } from "solid-js";
+import { For, Show, createEffect, createMemo, createSignal, onCleanup, onMount } from "opentui:runtime-module:solid-js";
 import { jsxDEV } from "@opentui/solid/jsx-dev-runtime";
 var id = "opencode-scheduler";
 var EMPTY = {
@@ -22654,7 +22654,7 @@ function inside(renderable, event) {
   return event.x >= renderable.x && event.x < renderable.x + renderable.width && event.y >= renderable.y && event.y < renderable.y + renderable.height;
 }
 var handledMouseReleases = new WeakSet;
-function activateMouse(event, action, requestRender) {
+function activateMouse(event, action) {
   if (event.button !== 0)
     return;
   if (handledMouseReleases.has(event))
@@ -22662,12 +22662,7 @@ function activateMouse(event, action, requestRender) {
   handledMouseReleases.add(event);
   event.preventDefault();
   event.stopPropagation();
-  const target = event.target;
   action();
-  setTimeout(() => {
-    target?.requestRender();
-    requestRender?.();
-  }, 0);
 }
 function Sidebar(props) {
   const [open, setOpen] = createSignal(props.api.kv?.get("scheduler.sidebar.expanded", true) ?? true);
@@ -22697,11 +22692,10 @@ function Sidebar(props) {
     entry: "sidebar",
     returnRoute: props.api.route.current
   });
-  const requestRender = () => props.api.renderer?.requestRender();
-  const handleToggle = (event) => activateMouse(event, toggle, requestRender);
+  const handleToggle = (event) => activateMouse(event, toggle);
   const handleRootMouse = (event) => {
     if (inside(toggleTarget, event))
-      activateMouse(event, toggle, requestRender);
+      activateMouse(event, toggle);
   };
   return /* @__PURE__ */ jsxDEV("box", {
     gap: 0,
@@ -22787,7 +22781,7 @@ function Sidebar(props) {
             id: "scheduler-sidebar-open",
             flexShrink: 0,
             paddingLeft: 1,
-            onMouseUp: (event) => activateMouse(event, openCenter, requestRender),
+            onMouseUp: (event) => activateMouse(event, openCenter),
             children: /* @__PURE__ */ jsxDEV("text", {
               selectable: false,
               wrapMode: "none",
@@ -22812,7 +22806,7 @@ function Sidebar(props) {
               paddingLeft: 1,
               paddingRight: 1,
               paddingTop: 1,
-              onMouseUp: (event) => activateMouse(event, () => openDetail(job.id), requestRender),
+              onMouseUp: (event) => activateMouse(event, () => openDetail(job.id)),
               children: [
                 /* @__PURE__ */ jsxDEV("text", {
                   fg: statusColor(props.api, job.health),
@@ -22959,25 +22953,13 @@ function TaskCenter(props) {
     focusControls();
   };
   const moveControl = (delta) => setControlIndex((current) => (current + delta + 6) % 6);
-  const remountCenter = () => props.api.route.navigate("scheduler", {
-    entry: "command",
-    returnRoute: props.returnRoute,
-    centerState: centerState()
-  });
   const handleControlMouse = (index, event) => {
-    activateMouse(event, () => {
-      applyControl(index);
-      remountCenter();
-    }, () => props.api.renderer?.requestRender());
+    activateMouse(event, () => applyControl(index));
   };
   const handleRootMouse = (event) => {
     const index = controlRefs.findIndex((renderable) => inside(renderable, event));
-    if (index >= 0) {
-      activateMouse(event, () => {
-        applyControl(index);
-        remountCenter();
-      }, () => props.api.renderer?.requestRender());
-    }
+    if (index >= 0)
+      activateMouse(event, () => applyControl(index));
   };
   const openSelected = () => {
     const selected = jobs()[selectedIndex()];
@@ -23232,7 +23214,7 @@ function TaskCenter(props) {
                 setSelectedIndex(index());
                 focusList();
                 navigateToDetail(props.api, { id: job.id, entry: "center", returnRoute: props.returnRoute, centerState: centerState() });
-              }, () => props.api.renderer?.requestRender()),
+              }),
               children: [
                 /* @__PURE__ */ jsxDEV("text", {
                   wrapMode: "none",
@@ -23286,7 +23268,7 @@ function TaskCenter(props) {
               children: (orphan) => /* @__PURE__ */ jsxDEV("text", {
                 selectable: false,
                 fg: props.api.theme.current.warning,
-                onMouseUp: (event) => activateMouse(event, () => openOrphanDialog(props.api, props.store, orphan), () => props.api.renderer?.requestRender()),
+                onMouseUp: (event) => activateMouse(event, () => openOrphanDialog(props.api, props.store, orphan)),
                 children: [
                   "! ",
                   orphan.slug,
@@ -23455,7 +23437,7 @@ function Action(props) {
     paddingLeft: 1,
     paddingRight: 1,
     backgroundColor: props.api.theme.current.backgroundElement,
-    onMouseUp: (event) => activateMouse(event, props.onSelect, () => props.api.renderer?.requestRender()),
+    onMouseUp: (event) => activateMouse(event, props.onSelect),
     children: /* @__PURE__ */ jsxDEV("text", {
       selectable: false,
       fg: props.warning ? props.api.theme.current.warning : props.api.theme.current.primary,

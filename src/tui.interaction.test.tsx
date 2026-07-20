@@ -256,6 +256,7 @@ describe("scheduler task center interaction", () => {
       await mounted.app.mockMouse.click(all.x, all.y)
       await mounted.app.flush()
       expect(mounted.app.captureCharFrame()).toContain("External task")
+      expect(mounted.navigations).toHaveLength(0)
     } finally {
       mounted.app.renderer.destroy()
     }
