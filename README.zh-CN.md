@@ -14,6 +14,10 @@ Schedule a daily job at 9am to search Facebook Marketplace for posters under $10
 
 截至 `v1.4.0`，插件包含 OS 级状态校验 API 和鼠标交互式 TUI 任务中心。任务按 `workdir` 隔离，定时运行受 supervisor 监管（无重叠 + 可选超时）。
 
+![TUI 主界面](docs/screenshots/tui-main.png)
+![任务详情](docs/screenshots/tui-detail.png)
+![会话侧边栏](docs/screenshots/tui-sidebar.png)
+
 ## ✨ Fork 增强功能
 
 本 Fork 相对于 upstream [different-ai/opencode-scheduler](https://github.com/different-ai/opencode-scheduler) 新增了以下功能：
