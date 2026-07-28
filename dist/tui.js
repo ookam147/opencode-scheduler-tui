@@ -22808,6 +22808,7 @@ function Sidebar(props) {
     _$setProp(_el$18, "flexShrink", 0);
     _$setProp(_el$18, "onMouseUp", (event) => activateMouse(event, openCenter));
     _$insertNode(_el$19, _el$20);
+    _$setProp(_el$19, "id", "scheduler-sidebar-open-label");
     _$setProp(_el$19, "selectable", false);
     _$setProp(_el$19, "wrapMode", "none");
     _$insertNode(_el$20, _el$21);
@@ -22868,7 +22869,7 @@ function Sidebar(props) {
       }
     }), null);
     _$effect((_p$) => {
-      var _v$ = props.api.theme.current.text, _v$2 = props.api.theme.current.text, _v$3 = props.api.theme.current.success, _v$4 = props.api.theme.current.textMuted, _v$5 = props.api.theme.current.textMuted, _v$6 = props.api.theme.current.textMuted, _v$7 = props.api.theme.current.error, _v$8 = props.api.theme.current.textMuted, _v$9 = props.api.theme.current.primary;
+      var _v$ = props.api.theme.current.text, _v$2 = props.api.theme.current.text, _v$3 = props.api.theme.current.success, _v$4 = props.api.theme.current.textMuted, _v$5 = props.api.theme.current.primary, _v$6 = props.api.theme.current.textMuted, _v$7 = props.api.theme.current.error, _v$8 = props.api.theme.current.textMuted, _v$9 = props.api.theme.current.text;
       _v$ !== _p$.e && (_p$.e = _$setProp(_el$3, "fg", _v$, _p$.e));
       _v$2 !== _p$.t && (_p$.t = _$setProp(_el$4, "fg", _v$2, _p$.t));
       _v$3 !== _p$.a && (_p$.a = _$setProp(_el$8, "fg", _v$3, _p$.a));
@@ -24121,7 +24122,7 @@ function Detail(props) {
 var tui = async (api2) => {
   const store = createStatusStore(api2);
   api2.slots.register({
-    order: 350,
+    order: 199,
     slots: {
       sidebar_content() {
         return _$createComponent(Sidebar, {

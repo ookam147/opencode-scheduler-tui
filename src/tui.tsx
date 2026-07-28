@@ -279,12 +279,12 @@ export function Sidebar(props: { api: TuiPluginApi; store: StatusStore }): JSX.E
       <box id="scheduler-sidebar-status" height={1} flexShrink={0} flexDirection="row" gap={1} alignItems="center">
         <text id="scheduler-sidebar-active" selectable={false} wrapMode="none" fg={props.api.theme.current.success}>● Active {active()}</text>
         <text id="scheduler-sidebar-separator-active" selectable={false} wrapMode="none" fg={props.api.theme.current.textMuted}>·</text>
-        <text id="scheduler-sidebar-paused" selectable={false} wrapMode="none" fg={props.api.theme.current.textMuted}>Ⅱ Paused {paused()}</text>
+        <text id="scheduler-sidebar-paused" selectable={false} wrapMode="none" fg={props.api.theme.current.primary}>Ⅱ Paused {paused()}</text>
         <text id="scheduler-sidebar-separator-paused" selectable={false} wrapMode="none" fg={props.api.theme.current.textMuted}>·</text>
         <text id="scheduler-sidebar-err" selectable={false} wrapMode="none" fg={props.api.theme.current.error}>× err {problems()}</text>
         <text id="scheduler-sidebar-separator-err" selectable={false} wrapMode="none" fg={props.api.theme.current.textMuted}>·</text>
         <box id="scheduler-sidebar-open" flexShrink={0} onMouseUp={(event) => activateMouse(event, openCenter)}>
-          <text selectable={false} wrapMode="none" fg={props.api.theme.current.primary}><b>→ {sidebarTotal()}</b></text>
+          <text id="scheduler-sidebar-open-label" selectable={false} wrapMode="none" fg={props.api.theme.current.text}><b>→ {sidebarTotal()}</b></text>
         </box>
       </box>
       <Show when={open()}>
@@ -905,7 +905,7 @@ export function Detail(props: {
 const tui: TuiPlugin = async (api) => {
   const store = createStatusStore(api)
   api.slots.register({
-    order: 350,
+    order: 199,
     slots: {
       sidebar_content() {
         return <Sidebar api={api} store={store} />

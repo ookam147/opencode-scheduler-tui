@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test"
-import { MouseEvent as OpenTuiMouseEvent } from "@opentui/core"
+import { MouseEvent as OpenTuiMouseEvent, RGBA } from "@opentui/core"
 import { createDefaultOpenTuiKeymap } from "@opentui/keymap/opentui"
 import { testRender, useRenderer } from "@opentui/solid"
 import { createSignal, onMount, Show } from "solid-js"
@@ -412,11 +412,14 @@ describe("scheduler task center interaction", () => {
       const active = findRenderable(app.renderer.root, "scheduler-sidebar-active")
       await app.mockMouse.click(active.x + 1, active.y)
       const paused = findRenderable(app.renderer.root, "scheduler-sidebar-paused")
+      expect(paused.fg.equals(RGBA.fromHex(theme.primary))).toBe(true)
       await app.mockMouse.click(paused.x + 1, paused.y)
       const err = findRenderable(app.renderer.root, "scheduler-sidebar-err")
       await app.mockMouse.click(err.x + 1, err.y)
       expect(navigations).toHaveLength(0)
       const arrow = findRenderable(app.renderer.root, "scheduler-sidebar-open")
+      const arrowLabel = findRenderable(app.renderer.root, "scheduler-sidebar-open-label")
+      expect(arrowLabel.fg.equals(RGBA.fromHex(theme.text))).toBe(true)
       await app.mockMouse.click(arrow.x + 1, arrow.y)
       expect(navigations.at(-1)).toEqual({
         name: "scheduler",

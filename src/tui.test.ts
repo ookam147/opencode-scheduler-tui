@@ -38,6 +38,7 @@ describe("scheduler TUI plugin", () => {
     await tui(api as never, undefined, {} as never)
 
     expect(slots).toHaveLength(1)
+    expect((slots[0] as { order: number }).order).toBe(199)
     expect(routes).toHaveLength(1)
     expect((routes[0] as Array<{ name: string }>).map((item) => item.name)).toEqual(["scheduler", "scheduler-detail"])
     expect(commands).toHaveLength(1)
