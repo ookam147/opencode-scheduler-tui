@@ -54,6 +54,17 @@ Details show the owning session's name, directory and navigation action. Agent/m
 
 The `d` action asks for confirmation, then calls the native schedule deletion API. It is another entry point to native deletion, not a separate scheduler; it does not delete the owning session or its messages.
 
+## Gated schedules
+
+OpenCode 2.2.3 can gate a schedule on a condition the service evaluates before waking a session, with no model call. Gated tasks are marked with `◆` in the list, and the details explain the gate:
+
+- `if` checks every slot and wakes the session only on the slots where the check passes.
+- `until` polls until the check passes once, then stops. On timeout the prompt is still sent, noting the condition was never met.
+
+A check is either a shell command run in the session's directory (passing on exit code 0, or when its output equals `is`, matches `matches`, or differs from the previous check via `changes`) or a confined Code Mode script with no network access. Three consecutive check failures pause the task. Two outcomes report check activity: `checked` (evaluated without waking) and `expired` (an `until` gate that timed out).
+
+Gates are only displayed, never created here; `schedule_create` remains the agent's job. `lastOutput` is not shown because the service returns it only from creation, never from the list and get APIs this window uses.
+
 ## Refresh behavior
 
 All requests use the connected host's `context.client`, including remote services. The native list API requires a session ID. “All sessions” walks all session pages and combines schedule lists with a maximum of four concurrent requests. Inaccessible sessions produce visible warnings, not silent claims of completeness.

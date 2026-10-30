@@ -4,7 +4,8 @@ import { words, type Language } from "./i18n"
 export const STATUS_LABELS = { all: "全部", active: "运行中", paused: "已暂停", done: "已结束" } as const
 export const STATUS_GLYPHS = { active: "●", paused: "‖", done: "✓" } as const
 export const OUTCOME_LABELS: Record<NonNullable<NativeSchedule["lastOutcome"]>, string> = {
-  fired: "已触发", late: "延迟触发", skipped: "已跳过", disabled: "已禁用", failed: "失败",
+  fired: "已触发", late: "延迟触发", checked: "已检查未触发", expired: "条件超时",
+  skipped: "已跳过", disabled: "已禁用", failed: "失败",
 }
 
 const WIDE = /[\u1100-\u115f\u2e80-\u303e\u3041-\u33ff\u3400-\u4dbf\u4e00-\u9fff\ua000-\ua4cf\uac00-\ud7a3\uf900-\ufaff\ufe30-\ufe4f\uff00-\uff60\uffe0-\uffe6]|[\u{1f300}-\u{1faff}\u{20000}-\u{3fffd}]/u

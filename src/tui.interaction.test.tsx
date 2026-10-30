@@ -197,6 +197,7 @@ describe("scheduler task center interaction", () => {
       expect(list).toBeDefined()
       const before = (list as { scrollTop: number }).scrollTop
       await mounted.app.mockMouse.scroll(list!.x + 2, list!.y + 2, "down")
+      await mounted.app.flush()
       expect((list as { scrollTop: number }).scrollTop).toBeGreaterThan(before)
     } finally {
       mounted.app.renderer.destroy()

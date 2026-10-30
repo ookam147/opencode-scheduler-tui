@@ -57,6 +57,15 @@ describe("native schedule adapter", () => {
     expect(calls).toEqual([])
   })
 
+  test("passes the service's gate through to the view without reshaping it", async () => {
+    const { source, adapter } = fake()
+    const until = { type: "code" as const, code: "return tools.a.b()" }
+    source.experimental.schedule.list = async () => [{ ...schedule(), until, lastOutcome: "checked" as const }]
+    const result = await adapter.list({ scope: "current", sessionID: "ses_1" })
+    expect(result.rows[0]).toMatchObject({ until, lastOutcome: "checked" })
+    expect(result.rows[0]?.if).toBeUndefined()
+  })
+
   test("does not guess a missing model and localizes adapter-generated warnings", async () => {
     const { source } = fake()
     const adapter = createNativeScheduleClient(source, "en")

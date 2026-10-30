@@ -3,6 +3,7 @@ import { testRender } from "@opentui/solid"
 import { createSignal } from "solid-js"
 import type { ScheduleRow } from "./model"
 import type { Language } from "./i18n"
+import { columns } from "./format"
 import { reconcileWindowSelection, ScheduleWindow, type ScheduleWindowTheme } from "./window"
 
 const theme: ScheduleWindowTheme = {
@@ -35,6 +36,50 @@ async function mount(rows: ScheduleRow[], width = 110, height = 26, language: La
 }
 
 describe("native schedule window", () => {
+  test.each(["zh", "en"] as const)("explains a shell `until` gate and its predicate (%s)", async (language) => {
+    const gated: ScheduleRow = { ...row("gated"), name: "Deploy watch",
+      until: { type: "shell", run: "curl -sf https://example.com/health", matches: "^ok$" } }
+    const m = await mount([gated], 150, 44, language)
+    try {
+      const frame = m.app.captureCharFrame()
+      expect(frame).toContain("curl -sf https://example.com/health")
+      expect(frame).toContain("^ok$")
+      // The one-shot wording must be distinguishable from the recurring gate.
+      expect(frame).toContain(language === "zh" ? "满足即结束（until）" : "Fires once when met (until)")
+      expect(frame).not.toContain(language === "zh" ? "每次检查（if）" : "Checked each slot (if)")
+      expect(frame).toContain(language === "zh" ? "连续 3 次检查失败" : "Three consecutive check failures")
+      if (language === "en") expect(frame).not.toMatch(/[\u4e00-\u9fff]/)
+    } finally { m.app.renderer.destroy() }
+  })
+  test("shows a code gate with its confinement note, and marks only gated rows in the list", async () => {
+    const plain = row("plain")
+    const coded: ScheduleRow = { ...row("coded"), name: "Inbox watch",
+      if: { type: "code", code: "const t = await tools.slack.read_thread({ id })\nreturn t.count > 0" } }
+    const m = await mount([plain, coded], 150, 44, "zh")
+    try {
+      const lines = m.app.captureCharFrame().split("\n")
+      // Match the list rows by their status glyph, since the detail pane repeats the selected task's name.
+      const plainRow = lines.find((line) => line.includes("● Task plain"))!
+      const codedRow = lines.find((line) => line.includes("Inbox watch"))!
+      expect(codedRow).toContain("◆")
+      expect(plainRow).not.toContain("◆")
+      // Columns must stay aligned even though the marker only appears on one row. The status rail holds a
+      // different number of CJK characters per line, so compare display columns rather than string indexes.
+      const column = (line: string) => {
+        const index = line.indexOf("每隔 1h")
+        return index < 0 ? -1 : columns(line.slice(0, index))
+      }
+      expect(column(plainRow)).toBeGreaterThan(-1)
+      expect(column(codedRow)).toBe(column(plainRow))
+      await m.key("down")
+      const frame = m.app.captureCharFrame()
+      expect(frame).toContain("每次检查（if）")
+      expect(frame).toContain("tools.slack.read_thread")
+      expect(frame).toContain("无网络访问")
+      // A code gate has no shell predicate to report.
+      expect(frame).not.toContain("判定")
+    } finally { m.app.renderer.destroy() }
+  })
   test.each(["zh", "en"] as const)("details omit session model settings to avoid implying execution configuration (%s)", async (language) => {
     const task = { ...row("english"), tz: "Asia/Shanghai", session: { id: "session-1", title: "Original title", agent: "build", model: { id: "glm-5.3", providerID: "zai-coding-plan", variant: "max" } } }
     const m = await mount([task], 150, 44, language)

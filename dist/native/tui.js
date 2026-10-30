@@ -1,50 +1,4 @@
 // @bun
-var __create = Object.create;
-var __getProtoOf = Object.getPrototypeOf;
-var __defProp = Object.defineProperty;
-var __getOwnPropNames = Object.getOwnPropertyNames;
-var __hasOwnProp = Object.prototype.hasOwnProperty;
-function __accessProp(key) {
-  return this[key];
-}
-var __toESMCache_node;
-var __toESMCache_esm;
-var __toESM = (mod, isNodeMode, target) => {
-  var canCache = mod != null && typeof mod === "object";
-  if (canCache) {
-    var cache = isNodeMode ? __toESMCache_node ??= new WeakMap : __toESMCache_esm ??= new WeakMap;
-    var cached = cache.get(mod);
-    if (cached)
-      return cached;
-  }
-  target = mod != null ? __create(__getProtoOf(mod)) : {};
-  const to = isNodeMode || !mod || !mod.__esModule ? __defProp(target, "default", { value: mod, enumerable: true }) : target;
-  for (let key of __getOwnPropNames(mod))
-    if (!__hasOwnProp.call(to, key))
-      __defProp(to, key, {
-        get: __accessProp.bind(mod, key),
-        enumerable: true
-      });
-  if (canCache)
-    cache.set(mod, to);
-  return to;
-};
-var __commonJS = (cb, mod) => () => (mod || cb((mod = { exports: {} }).exports, mod), mod.exports);
-var __returnValue = (v) => v;
-function __exportSetter(name, newValue) {
-  this[name] = __returnValue.bind(null, newValue);
-}
-var __export = (target, all) => {
-  for (var name in all)
-    __defProp(target, name, {
-      get: all[name],
-      enumerable: true,
-      configurable: true,
-      set: __exportSetter.bind(all, name)
-    });
-};
-var __require = import.meta.require;
-
 // src/native/tui.tsx
 import { memo as _$memo2 } from "@opentui/solid";
 import { createComponent as _$createComponent2 } from "@opentui/solid";
@@ -231,7 +185,30 @@ var zh = {
   scheduleID: "\u4EFB\u52A1 ID",
   sessionID: "\u4F1A\u8BDD ID",
   statuses: { all: "\u5168\u90E8", active: "\u8FD0\u884C\u4E2D", paused: "\u5DF2\u6682\u505C", done: "\u5DF2\u7ED3\u675F" },
-  outcomes: { fired: "\u5DF2\u89E6\u53D1", late: "\u5EF6\u8FDF\u89E6\u53D1", skipped: "\u5DF2\u8DF3\u8FC7", disabled: "\u5DF2\u7981\u7528", failed: "\u5931\u8D25" },
+  outcomes: {
+    fired: "\u5DF2\u89E6\u53D1",
+    late: "\u5EF6\u8FDF\u89E6\u53D1",
+    checked: "\u5DF2\u68C0\u67E5\u672A\u89E6\u53D1",
+    expired: "\u6761\u4EF6\u8D85\u65F6",
+    skipped: "\u5DF2\u8DF3\u8FC7",
+    disabled: "\u5DF2\u7981\u7528",
+    failed: "\u5931\u8D25"
+  },
+  condition: "\u89E6\u53D1\u6761\u4EF6",
+  conditionIf: "\u6BCF\u6B21\u68C0\u67E5\uFF08if\uFF09",
+  conditionUntil: "\u6EE1\u8DB3\u5373\u7ED3\u675F\uFF08until\uFF09",
+  conditionIfNote: "\u6BCF\u5230\u65F6\u95F4\u70B9\u5148\u68C0\u67E5\u4E00\u6B21\uFF0C\u4E0D\u8C03\u7528\u6A21\u578B\uFF1B\u901A\u8FC7\u624D\u53D1\u9001\u63D0\u793A\u8BCD\uFF0C\u4E0D\u901A\u8FC7\u5C31\u7B49\u4E0B\u4E00\u4E2A\u65F6\u95F4\u70B9\u3002",
+  conditionUntilNote: "\u6309\u65F6\u95F4\u70B9\u53CD\u590D\u68C0\u67E5\uFF0C\u4E0D\u8C03\u7528\u6A21\u578B\uFF1B\u7B2C\u4E00\u6B21\u901A\u8FC7\u5C31\u53D1\u9001\u63D0\u793A\u8BCD\u5E76\u7ED3\u675F\u3002\u8D85\u65F6\u4E5F\u4F1A\u53D1\u9001\u63D0\u793A\u8BCD\uFF0C\u5E76\u5728\u5176\u540E\u6807\u6CE8\u672A\u6EE1\u8DB3\u6761\u4EF6\u3002",
+  conditionFailureNote: "\u8FDE\u7EED 3 \u6B21\u68C0\u67E5\u5931\u8D25\u4F1A\u81EA\u52A8\u6682\u505C\u4EFB\u52A1\u3002",
+  conditionShell: "\u547D\u4EE4",
+  conditionCode: "\u4EE3\u7801",
+  conditionRule: "\u5224\u5B9A",
+  conditionRuleExit: "\u9000\u51FA\u7801\u4E3A 0 \u5373\u901A\u8FC7",
+  conditionRuleIs: (value) => `\u8F93\u51FA\u7B49\u4E8E ${value}`,
+  conditionRuleMatches: (value) => `\u8F93\u51FA\u5339\u914D\u6B63\u5219 ${value}`,
+  conditionRuleChanges: "\u8F93\u51FA\u4E0E\u4E0A\u6B21\u4E0D\u540C\u5373\u901A\u8FC7",
+  conditionCodeNote: "\u53D7\u9650 JavaScript\uFF0C\u65E0\u7F51\u7EDC\u8BBF\u95EE\uFF1B\u5DE5\u5177\u8C03\u7528\u5728\u521B\u5EFA\u4EFB\u52A1\u65F6\u4E00\u6B21\u6027\u6388\u6743\u3002",
+  gated: "\u6761\u4EF6",
   done: "\u5B8C\u6210",
   backToList: "\u8FD4\u56DE\u5217\u8868",
   clickWindow: "\u70B9\u51FB\u6B64\u7A97\u53E3",
@@ -308,7 +285,30 @@ var en = {
   scheduleID: "Schedule ID",
   sessionID: "Session ID",
   statuses: { all: "All", active: "Active", paused: "Paused", done: "Done" },
-  outcomes: { fired: "Fired", late: "Fired late", skipped: "Skipped", disabled: "Disabled", failed: "Failed" },
+  outcomes: {
+    fired: "Fired",
+    late: "Fired late",
+    checked: "Checked, did not fire",
+    expired: "Condition timed out",
+    skipped: "Skipped",
+    disabled: "Disabled",
+    failed: "Failed"
+  },
+  condition: "Condition",
+  conditionIf: "Checked each slot (if)",
+  conditionUntil: "Fires once when met (until)",
+  conditionIfNote: "Each slot is checked first with no model call; the prompt is sent only when the check passes, otherwise it waits for the next slot.",
+  conditionUntilNote: "Checked repeatedly with no model call; the prompt is sent the first time it passes, then the task ends. On timeout the prompt is still sent, noting the condition was never met.",
+  conditionFailureNote: "Three consecutive check failures pause the task automatically.",
+  conditionShell: "Command",
+  conditionCode: "Code",
+  conditionRule: "Passes",
+  conditionRuleExit: "on exit code 0",
+  conditionRuleIs: (value) => `when output equals ${value}`,
+  conditionRuleMatches: (value) => `when output matches ${value}`,
+  conditionRuleChanges: "when output differs from the previous check",
+  conditionCodeNote: "Confined JavaScript with no network access; tool calls are authorized once when the task is created.",
+  gated: "Gated",
   done: "Done",
   backToList: "Back to list",
   clickWindow: "Click this window",
@@ -477,6 +477,20 @@ function describeWhen(when) {
       return `Cron ${when.cron}`;
   }
 }
+function scheduleCheck(row) {
+  if (row.if)
+    return { mode: "if", condition: row.if };
+  if (row.until)
+    return { mode: "until", condition: row.until };
+  return;
+}
+function conditionHaystack(condition) {
+  if (!condition)
+    return [];
+  if (condition.type === "code")
+    return [condition.code];
+  return [condition.run, condition.is, condition.matches, condition.changes ? "changes" : undefined];
+}
 function selectSchedules(rows, options = {}) {
   const query = options.query?.trim().toLocaleLowerCase() ?? "";
   return rows.filter((row) => {
@@ -496,7 +510,11 @@ function selectSchedules(rows, options = {}) {
       row.session?.model?.providerID,
       row.session?.model?.variant,
       describeWhen(row.when),
-      row.tz
+      row.tz,
+      row.if ? "if" : undefined,
+      row.until ? "until" : undefined,
+      ...conditionHaystack(row.if),
+      ...conditionHaystack(row.until)
     ].some((value) => value?.toLocaleLowerCase().includes(query));
   });
 }
@@ -517,6 +535,7 @@ var NEXT_WIDTH = 10;
 var WHEN_WIDTH = 20;
 var LABEL_WIDTH = 8;
 var HINT_GAP = "  ";
+var GATE_GLYPH = "\u25C6";
 function reconcileWindowSelection(rows, id, previousIndex = 0) {
   return rows.find((row) => row.id === id)?.id ?? rows[Math.max(0, Math.min(previousIndex, rows.length - 1))]?.id;
 }
@@ -539,7 +558,7 @@ function keyHintLines(hints, width) {
 function ScheduleWindow(props) {
   const language = () => props.language ?? detectLanguage();
   const text = () => words(language());
-  const describeWhen2 = (when) => {
+  const describeWhen = (when) => {
     switch (when.type) {
       case "in":
         return text().whenIn(when.in);
@@ -744,7 +763,7 @@ function ScheduleWindow(props) {
     if (props.bindKeys || searching() || key.ctrl || key.meta || key.option)
       return;
     const name = key.name === "tab" && key.shift ? "shift+tab" : key.name;
-    const action = actions.find((action2) => action2.key === name || action2.key === "/" && key.sequence === "/");
+    const action = actions.find((action) => action.key === name || action.key === "/" && key.sequence === "/");
     if (action) {
       key.preventDefault();
       key.stopPropagation();
@@ -988,8 +1007,10 @@ function ScheduleWindow(props) {
           },
           children: (row) => {
             const chosen = () => selectedID() === row.id;
+            const gate = () => scheduleCheck(row) ? `${GATE_GLYPH} ` : "";
+            const name = () => fit(title(row), nameWidth() - columns(gate()));
             return (() => {
-              var _el$14 = _$createElement("box"), _el$15 = _$createElement("text"), _el$16 = _$createElement("span"), _el$17 = _$createElement("span"), _el$18 = _$createElement("span");
+              var _el$14 = _$createElement("box"), _el$15 = _$createElement("text"), _el$16 = _$createElement("span"), _el$17 = _$createElement("span"), _el$18 = _$createElement("span"), _el$19 = _$createElement("span");
               _$insertNode(_el$14, _el$15);
               _$setProp(_el$14, "height", 1);
               _$setProp(_el$14, "flexShrink", 0);
@@ -1001,38 +1022,42 @@ function ScheduleWindow(props) {
               _$insertNode(_el$15, _el$16);
               _$insertNode(_el$15, _el$17);
               _$insertNode(_el$15, _el$18);
+              _$insertNode(_el$15, _el$19);
               _$setProp(_el$15, "wrapMode", "none");
               _$setProp(_el$15, "selectable", false);
               _$insert(_el$16, () => `${STATUS_GLYPHS[row.status]} `);
+              _$insert(_el$17, gate);
               _$insert(_el$15, (() => {
                 var _c$2 = _$memo(() => !!chosen());
                 return () => _c$2() ? (() => {
-                  var _el$19 = _$createElement("b");
-                  _$insert(_el$19, () => fit(title(row), nameWidth()));
-                  _$effect((_$p) => _$setProp(_el$19, "style", {
+                  var _el$20 = _$createElement("b");
+                  _$insert(_el$20, name);
+                  _$effect((_$p) => _$setProp(_el$20, "style", {
                     fg: theme().accent
                   }, _$p));
-                  return _el$19;
+                  return _el$20;
                 })() : (() => {
-                  var _el$20 = _$createElement("span");
-                  _$insert(_el$20, () => fit(title(row), nameWidth()));
-                  _$effect((_$p) => _$setProp(_el$20, "style", {
+                  var _el$21 = _$createElement("span");
+                  _$insert(_el$21, name);
+                  _$effect((_$p) => _$setProp(_el$21, "style", {
                     fg: row.status === "done" ? theme().muted : theme().text
                   }, _$p));
-                  return _el$20;
+                  return _el$21;
                 })();
-              })(), _el$17);
-              _$insert(_el$17, (() => {
+              })(), _el$18);
+              _$insert(_el$18, (() => {
                 var _c$3 = _$memo(() => !!whenWidth());
-                return () => _c$3() ? `  ${fit(describeWhen2(row.when), whenWidth())}` : "";
+                return () => _c$3() ? `  ${fit(describeWhen(row.when), whenWidth())}` : "";
               })());
-              _$insert(_el$18, () => `  ${fit(nextLabel(row, now(), language()), NEXT_WIDTH, "right")}`);
+              _$insert(_el$19, () => `  ${fit(nextLabel(row, now(), language()), NEXT_WIDTH, "right")}`);
               _$effect((_p$) => {
                 var _v$15 = `schedule-row-${row.id}`, _v$16 = chosen() ? theme().raised : undefined, _v$17 = {
                   fg: statusColor(row.status)
                 }, _v$18 = {
-                  fg: theme().muted
+                  fg: theme().warning
                 }, _v$19 = {
+                  fg: theme().muted
+                }, _v$20 = {
                   fg: row.status === "active" ? theme().text : faint()
                 };
                 _v$15 !== _p$.e && (_p$.e = _$setProp(_el$14, "id", _v$15, _p$.e));
@@ -1040,13 +1065,15 @@ function ScheduleWindow(props) {
                 _v$17 !== _p$.a && (_p$.a = _$setProp(_el$16, "style", _v$17, _p$.a));
                 _v$18 !== _p$.o && (_p$.o = _$setProp(_el$17, "style", _v$18, _p$.o));
                 _v$19 !== _p$.i && (_p$.i = _$setProp(_el$18, "style", _v$19, _p$.i));
+                _v$20 !== _p$.n && (_p$.n = _$setProp(_el$19, "style", _v$20, _p$.n));
                 return _p$;
               }, {
                 e: undefined,
                 t: undefined,
                 a: undefined,
                 o: undefined,
-                i: undefined
+                i: undefined,
+                n: undefined
               });
               return _el$14;
             })();
@@ -1069,74 +1096,191 @@ function ScheduleWindow(props) {
     });
     return _el$10;
   })();
+  const conditionTarget = (condition) => condition.type === "shell" ? condition.run : condition.code.trim();
+  const conditionRule = (condition) => {
+    if (condition.type === "code")
+      return;
+    if (condition.is !== undefined)
+      return text().conditionRuleIs(condition.is);
+    if (condition.matches !== undefined)
+      return text().conditionRuleMatches(condition.matches);
+    if (condition.changes)
+      return text().conditionRuleChanges;
+    return text().conditionRuleExit;
+  };
+  const Condition = (conditionProps) => {
+    const check = () => scheduleCheck(conditionProps.row);
+    return _$createComponent(Show, {
+      get when() {
+        return check();
+      },
+      children: (gate) => [(() => {
+        var _el$22 = _$createElement("text");
+        _$setProp(_el$22, "flexShrink", 0);
+        _$insert(_el$22, () => text().condition);
+        _$effect((_$p) => _$setProp(_el$22, "fg", theme().muted, _$p));
+        return _el$22;
+      })(), (() => {
+        var _el$23 = _$createElement("text"), _el$24 = _$createElement("span"), _el$26 = _$createElement("span");
+        _$insertNode(_el$23, _el$24);
+        _$insertNode(_el$23, _el$26);
+        _$setProp(_el$23, "wrapMode", "word");
+        _$setProp(_el$23, "flexShrink", 0);
+        _$insertNode(_el$24, _$createTextNode(`\u25C6 `));
+        _$insert(_el$26, (() => {
+          var _c$4 = _$memo(() => gate().mode === "if");
+          return () => _c$4() ? text().conditionIf : text().conditionUntil;
+        })());
+        _$effect((_p$) => {
+          var _v$21 = {
+            fg: theme().warning
+          }, _v$22 = {
+            fg: theme().text
+          };
+          _v$21 !== _p$.e && (_p$.e = _$setProp(_el$24, "style", _v$21, _p$.e));
+          _v$22 !== _p$.t && (_p$.t = _$setProp(_el$26, "style", _v$22, _p$.t));
+          return _p$;
+        }, {
+          e: undefined,
+          t: undefined
+        });
+        return _el$23;
+      })(), (() => {
+        var _el$27 = _$createElement("box"), _el$28 = _$createElement("box");
+        _$insertNode(_el$27, _el$28);
+        _$setProp(_el$27, "flexShrink", 0);
+        _$setProp(_el$27, "border", ["left"]);
+        _$setProp(_el$27, "paddingLeft", 1);
+        _$setProp(_el$28, "flexDirection", "column");
+        _$setProp(_el$28, "flexShrink", 0);
+        _$insert(_el$28, _$createComponent(Field, {
+          get label() {
+            return _$memo(() => gate().condition.type === "shell")() ? text().conditionShell : text().conditionCode;
+          },
+          get children() {
+            return conditionTarget(gate().condition);
+          }
+        }), null);
+        _$insert(_el$28, _$createComponent(Show, {
+          get when() {
+            return conditionRule(gate().condition);
+          },
+          children: (rule) => _$createComponent(Field, {
+            get label() {
+              return text().conditionRule;
+            },
+            get children() {
+              return rule();
+            }
+          })
+        }), null);
+        _$effect((_$p) => _$setProp(_el$27, "borderColor", theme().warning, _$p));
+        return _el$27;
+      })(), (() => {
+        var _el$29 = _$createElement("text");
+        _$setProp(_el$29, "wrapMode", "word");
+        _$setProp(_el$29, "flexShrink", 0);
+        _$insert(_el$29, (() => {
+          var _c$5 = _$memo(() => gate().mode === "if");
+          return () => _c$5() ? text().conditionIfNote : text().conditionUntilNote;
+        })());
+        _$effect((_$p) => _$setProp(_el$29, "fg", faint(), _$p));
+        return _el$29;
+      })(), _$createComponent(Show, {
+        get when() {
+          return gate().condition.type === "code";
+        },
+        get children() {
+          var _el$30 = _$createElement("text");
+          _$setProp(_el$30, "wrapMode", "word");
+          _$setProp(_el$30, "flexShrink", 0);
+          _$insert(_el$30, () => text().conditionCodeNote);
+          _$effect((_$p) => _$setProp(_el$30, "fg", faint(), _$p));
+          return _el$30;
+        }
+      }), (() => {
+        var _el$31 = _$createElement("text");
+        _$setProp(_el$31, "wrapMode", "word");
+        _$setProp(_el$31, "flexShrink", 0);
+        _$insert(_el$31, () => text().conditionFailureNote);
+        _$effect((_$p) => _$setProp(_el$31, "fg", faint(), _$p));
+        return _el$31;
+      })(), (() => {
+        var _el$32 = _$createElement("box");
+        _$setProp(_el$32, "height", 1);
+        _$setProp(_el$32, "flexShrink", 0);
+        return _el$32;
+      })()]
+    });
+  };
   const Detail = (detailProps) => {
     const row = () => detailProps.row;
     return (() => {
-      var _el$21 = _$createElement("box"), _el$22 = _$createElement("text"), _el$23 = _$createElement("b"), _el$24 = _$createElement("text"), _el$25 = _$createElement("span"), _el$26 = _$createElement("span"), _el$27 = _$createElement("box"), _el$28 = _$createElement("box"), _el$29 = _$createElement("text"), _el$30 = _$createElement("box"), _el$31 = _$createElement("text"), _el$32 = _$createElement("box"), _el$33 = _$createElement("text"), _el$34 = _$createElement("text"), _el$36 = _$createElement("box"), _el$37 = _$createElement("text"), _el$38 = _$createElement("text"), _el$39 = _$createElement("box"), _el$40 = _$createElement("box"), _el$41 = _$createElement("box"), _el$42 = _$createElement("text"), _el$43 = _$createElement("text");
-      _$insertNode(_el$21, _el$22);
-      _$insertNode(_el$21, _el$24);
-      _$insertNode(_el$21, _el$27);
-      _$insertNode(_el$21, _el$28);
-      _$insertNode(_el$21, _el$29);
-      _$insertNode(_el$21, _el$30);
-      _$insertNode(_el$21, _el$32);
-      _$insertNode(_el$21, _el$33);
-      _$insertNode(_el$21, _el$34);
-      _$insertNode(_el$21, _el$36);
-      _$insertNode(_el$21, _el$37);
-      _$insertNode(_el$21, _el$38);
-      _$insertNode(_el$21, _el$39);
-      _$insertNode(_el$21, _el$40);
-      _$insertNode(_el$21, _el$41);
-      _$insertNode(_el$21, _el$42);
-      _$insertNode(_el$21, _el$43);
-      _$setProp(_el$21, "flexDirection", "column");
-      _$setProp(_el$21, "flexShrink", 0);
-      _$insertNode(_el$22, _el$23);
-      _$setProp(_el$22, "wrapMode", "word");
-      _$setProp(_el$22, "flexShrink", 0);
-      _$insert(_el$23, () => title(row()));
-      _$insertNode(_el$24, _el$25);
-      _$insertNode(_el$24, _el$26);
-      _$setProp(_el$24, "wrapMode", "none");
-      _$setProp(_el$24, "flexShrink", 0);
-      _$insert(_el$25, () => `${STATUS_GLYPHS[row().status]} ${text().statuses[row().status]}`);
-      _$insert(_el$26, () => `  \xB7  ${describeWhen2(row().when)}`);
-      _$setProp(_el$27, "height", 1);
-      _$setProp(_el$27, "flexShrink", 0);
-      _$insert(_el$21, _$createComponent(Field, {
+      var _el$33 = _$createElement("box"), _el$34 = _$createElement("text"), _el$35 = _$createElement("b"), _el$36 = _$createElement("text"), _el$37 = _$createElement("span"), _el$38 = _$createElement("span"), _el$39 = _$createElement("box"), _el$40 = _$createElement("box"), _el$41 = _$createElement("text"), _el$42 = _$createElement("box"), _el$43 = _$createElement("text"), _el$44 = _$createElement("box"), _el$45 = _$createElement("text"), _el$46 = _$createElement("text"), _el$48 = _$createElement("box"), _el$49 = _$createElement("text"), _el$50 = _$createElement("text"), _el$51 = _$createElement("box"), _el$52 = _$createElement("box"), _el$53 = _$createElement("box"), _el$54 = _$createElement("text"), _el$55 = _$createElement("text");
+      _$insertNode(_el$33, _el$34);
+      _$insertNode(_el$33, _el$36);
+      _$insertNode(_el$33, _el$39);
+      _$insertNode(_el$33, _el$40);
+      _$insertNode(_el$33, _el$41);
+      _$insertNode(_el$33, _el$42);
+      _$insertNode(_el$33, _el$44);
+      _$insertNode(_el$33, _el$45);
+      _$insertNode(_el$33, _el$46);
+      _$insertNode(_el$33, _el$48);
+      _$insertNode(_el$33, _el$49);
+      _$insertNode(_el$33, _el$50);
+      _$insertNode(_el$33, _el$51);
+      _$insertNode(_el$33, _el$52);
+      _$insertNode(_el$33, _el$53);
+      _$insertNode(_el$33, _el$54);
+      _$insertNode(_el$33, _el$55);
+      _$setProp(_el$33, "flexDirection", "column");
+      _$setProp(_el$33, "flexShrink", 0);
+      _$insertNode(_el$34, _el$35);
+      _$setProp(_el$34, "wrapMode", "word");
+      _$setProp(_el$34, "flexShrink", 0);
+      _$insert(_el$35, () => title(row()));
+      _$insertNode(_el$36, _el$37);
+      _$insertNode(_el$36, _el$38);
+      _$setProp(_el$36, "wrapMode", "none");
+      _$setProp(_el$36, "flexShrink", 0);
+      _$insert(_el$37, () => `${STATUS_GLYPHS[row().status]} ${text().statuses[row().status]}`);
+      _$insert(_el$38, () => `  \xB7  ${describeWhen(row().when)}`);
+      _$setProp(_el$39, "height", 1);
+      _$setProp(_el$39, "flexShrink", 0);
+      _$insert(_el$33, _$createComponent(Field, {
         get label() {
           return text().next;
         },
         get children() {
           return _$memo(() => !!(row().status === "active" && row().nextDueAt !== undefined))() ? text().nextTime(clockTime(row().nextDueAt, now(), language()), relativeTime(row().nextDueAt, now(), language())) : _$memo(() => row().status === "paused")() ? text().pausedNext : _$memo(() => row().status === "done")() ? text().noMoreRuns : "\u2014";
         }
-      }), _el$28);
-      _$insert(_el$21, _$createComponent(Field, {
+      }), _el$40);
+      _$insert(_el$33, _$createComponent(Field, {
         get label() {
           return text().timeZone;
         },
         get children() {
           return row().tz;
         }
-      }), _el$28);
-      _$insert(_el$21, _$createComponent(Field, {
+      }), _el$40);
+      _$insert(_el$33, _$createComponent(Field, {
         get label() {
           return text().ends;
         },
         get children() {
           return _$memo(() => row().endsAt !== undefined)() ? clockTime(row().endsAt, now(), language()) : text().unlimited;
         }
-      }), _el$28);
-      _$insert(_el$21, _$createComponent(Field, {
+      }), _el$40);
+      _$insert(_el$33, _$createComponent(Field, {
         get label() {
           return text().runs;
         },
         get children() {
           return text().runCount(row().runCount, row().remainingRuns);
         }
-      }), _el$28);
-      _$insert(_el$21, _$createComponent(Field, {
+      }), _el$40);
+      _$insert(_el$33, _$createComponent(Field, {
         get label() {
           return text().last;
         },
@@ -1146,52 +1290,57 @@ function ScheduleWindow(props) {
         get children() {
           return _$memo(() => row().lastFiredAt !== undefined)() ? `${clockTime(row().lastFiredAt, now(), language())}${row().lastOutcome ? ` \xB7 ${text().outcomes[row().lastOutcome]}` : ""}` : text().neverFired;
         }
-      }), _el$28);
-      _$setProp(_el$28, "height", 1);
-      _$setProp(_el$28, "flexShrink", 0);
-      _$setProp(_el$29, "flexShrink", 0);
-      _$insert(_el$29, () => text().prompt);
-      _$insertNode(_el$30, _el$31);
-      _$setProp(_el$30, "flexShrink", 0);
-      _$setProp(_el$30, "border", ["left"]);
-      _$setProp(_el$30, "paddingLeft", 1);
-      _$setProp(_el$30, "marginTop", 0);
-      _$setProp(_el$31, "wrapMode", "word");
-      _$insert(_el$31, () => row().prompt || "\u2014");
-      _$setProp(_el$32, "height", 1);
-      _$setProp(_el$32, "flexShrink", 0);
-      _$setProp(_el$33, "flexShrink", 0);
-      _$insert(_el$33, () => text().session);
-      _$setProp(_el$34, "wrapMode", "word");
-      _$setProp(_el$34, "flexShrink", 0);
-      _$insert(_el$34, () => row().session?.title || row().sessionID || text().unknownSession);
-      _$insert(_el$21, _$createComponent(Show, {
+      }), _el$40);
+      _$setProp(_el$40, "height", 1);
+      _$setProp(_el$40, "flexShrink", 0);
+      _$insert(_el$33, _$createComponent(Condition, {
+        get row() {
+          return row();
+        }
+      }), _el$41);
+      _$setProp(_el$41, "flexShrink", 0);
+      _$insert(_el$41, () => text().prompt);
+      _$insertNode(_el$42, _el$43);
+      _$setProp(_el$42, "flexShrink", 0);
+      _$setProp(_el$42, "border", ["left"]);
+      _$setProp(_el$42, "paddingLeft", 1);
+      _$setProp(_el$42, "marginTop", 0);
+      _$setProp(_el$43, "wrapMode", "word");
+      _$insert(_el$43, () => row().prompt || "\u2014");
+      _$setProp(_el$44, "height", 1);
+      _$setProp(_el$44, "flexShrink", 0);
+      _$setProp(_el$45, "flexShrink", 0);
+      _$insert(_el$45, () => text().session);
+      _$setProp(_el$46, "wrapMode", "word");
+      _$setProp(_el$46, "flexShrink", 0);
+      _$insert(_el$46, () => row().session?.title || row().sessionID || text().unknownSession);
+      _$insert(_el$33, _$createComponent(Show, {
         get when() {
           return row().session?.directory;
         },
         get children() {
-          var _el$35 = _$createElement("text");
-          _$setProp(_el$35, "wrapMode", "word");
-          _$setProp(_el$35, "flexShrink", 0);
-          _$insert(_el$35, () => row().session?.directory);
-          _$effect((_$p) => _$setProp(_el$35, "fg", faint(), _$p));
-          return _el$35;
+          var _el$47 = _$createElement("text");
+          _$setProp(_el$47, "wrapMode", "word");
+          _$setProp(_el$47, "flexShrink", 0);
+          _$insert(_el$47, () => row().session?.directory);
+          _$effect((_$p) => _$setProp(_el$47, "fg", faint(), _$p));
+          return _el$47;
         }
-      }), _el$36);
-      _$setProp(_el$36, "height", 1);
-      _$setProp(_el$36, "flexShrink", 0);
-      _$setProp(_el$37, "flexShrink", 0);
-      _$insert(_el$37, () => text().execution);
-      _$setProp(_el$38, "wrapMode", "word");
-      _$setProp(_el$38, "flexShrink", 0);
-      _$insert(_el$38, () => text().executionNote);
-      _$setProp(_el$39, "height", 1);
-      _$setProp(_el$39, "flexShrink", 0);
-      _$setProp(_el$40, "flexDirection", "row");
-      _$setProp(_el$40, "gap", 1);
-      _$setProp(_el$40, "flexShrink", 0);
-      _$setProp(_el$40, "flexWrap", "wrap");
-      _$insert(_el$40, _$createComponent(Show, {
+      }), _el$48);
+      _$setProp(_el$48, "height", 1);
+      _$setProp(_el$48, "flexShrink", 0);
+      _$setProp(_el$49, "flexShrink", 0);
+      _$insert(_el$49, () => text().execution);
+      _$setProp(_el$50, "wrapMode", "word");
+      _$setProp(_el$50, "flexShrink", 0);
+      _$insert(_el$50, () => text().executionNote);
+      _$setProp(_el$51, "height", 1);
+      _$setProp(_el$51, "flexShrink", 0);
+      _$setProp(_el$52, "flexDirection", "row");
+      _$setProp(_el$52, "gap", 1);
+      _$setProp(_el$52, "flexShrink", 0);
+      _$setProp(_el$52, "flexWrap", "wrap");
+      _$insert(_el$52, _$createComponent(Show, {
         get when() {
           return row().status !== "done";
         },
@@ -1208,7 +1357,7 @@ function ScheduleWindow(props) {
           });
         }
       }), null);
-      _$insert(_el$40, _$createComponent(Button, {
+      _$insert(_el$52, _$createComponent(Button, {
         hotkey: "d",
         get label() {
           return text().remove;
@@ -1218,7 +1367,7 @@ function ScheduleWindow(props) {
         },
         run: remove
       }), null);
-      _$insert(_el$40, _$createComponent(Show, {
+      _$insert(_el$52, _$createComponent(Show, {
         get when() {
           return row().sessionID;
         },
@@ -1235,32 +1384,32 @@ function ScheduleWindow(props) {
           });
         }
       }), null);
-      _$setProp(_el$41, "height", 1);
-      _$setProp(_el$41, "flexShrink", 0);
-      _$setProp(_el$42, "wrapMode", "word");
-      _$setProp(_el$42, "flexShrink", 0);
-      _$insert(_el$42, () => `${text().scheduleID}: ${row().id}`);
-      _$setProp(_el$43, "wrapMode", "word");
-      _$setProp(_el$43, "flexShrink", 0);
-      _$insert(_el$43, () => `${text().sessionID}: ${row().sessionID || "\u2014"}`);
+      _$setProp(_el$53, "height", 1);
+      _$setProp(_el$53, "flexShrink", 0);
+      _$setProp(_el$54, "wrapMode", "word");
+      _$setProp(_el$54, "flexShrink", 0);
+      _$insert(_el$54, () => `${text().scheduleID}: ${row().id}`);
+      _$setProp(_el$55, "wrapMode", "word");
+      _$setProp(_el$55, "flexShrink", 0);
+      _$insert(_el$55, () => `${text().sessionID}: ${row().sessionID || "\u2014"}`);
       _$effect((_p$) => {
-        var _v$20 = theme().text, _v$21 = {
+        var _v$23 = theme().text, _v$24 = {
           fg: statusColor(row().status)
-        }, _v$22 = {
+        }, _v$25 = {
           fg: faint()
-        }, _v$23 = theme().muted, _v$24 = theme().accent, _v$25 = theme().text, _v$26 = theme().muted, _v$27 = theme().text, _v$28 = theme().muted, _v$29 = theme().text, _v$30 = faint(), _v$31 = faint();
-        _v$20 !== _p$.e && (_p$.e = _$setProp(_el$22, "fg", _v$20, _p$.e));
-        _v$21 !== _p$.t && (_p$.t = _$setProp(_el$25, "style", _v$21, _p$.t));
-        _v$22 !== _p$.a && (_p$.a = _$setProp(_el$26, "style", _v$22, _p$.a));
-        _v$23 !== _p$.o && (_p$.o = _$setProp(_el$29, "fg", _v$23, _p$.o));
-        _v$24 !== _p$.i && (_p$.i = _$setProp(_el$30, "borderColor", _v$24, _p$.i));
-        _v$25 !== _p$.n && (_p$.n = _$setProp(_el$31, "fg", _v$25, _p$.n));
-        _v$26 !== _p$.s && (_p$.s = _$setProp(_el$33, "fg", _v$26, _p$.s));
-        _v$27 !== _p$.h && (_p$.h = _$setProp(_el$34, "fg", _v$27, _p$.h));
-        _v$28 !== _p$.r && (_p$.r = _$setProp(_el$37, "fg", _v$28, _p$.r));
-        _v$29 !== _p$.d && (_p$.d = _$setProp(_el$38, "fg", _v$29, _p$.d));
-        _v$30 !== _p$.l && (_p$.l = _$setProp(_el$42, "fg", _v$30, _p$.l));
-        _v$31 !== _p$.u && (_p$.u = _$setProp(_el$43, "fg", _v$31, _p$.u));
+        }, _v$26 = theme().muted, _v$27 = theme().accent, _v$28 = theme().text, _v$29 = theme().muted, _v$30 = theme().text, _v$31 = theme().muted, _v$32 = theme().text, _v$33 = faint(), _v$34 = faint();
+        _v$23 !== _p$.e && (_p$.e = _$setProp(_el$34, "fg", _v$23, _p$.e));
+        _v$24 !== _p$.t && (_p$.t = _$setProp(_el$37, "style", _v$24, _p$.t));
+        _v$25 !== _p$.a && (_p$.a = _$setProp(_el$38, "style", _v$25, _p$.a));
+        _v$26 !== _p$.o && (_p$.o = _$setProp(_el$41, "fg", _v$26, _p$.o));
+        _v$27 !== _p$.i && (_p$.i = _$setProp(_el$42, "borderColor", _v$27, _p$.i));
+        _v$28 !== _p$.n && (_p$.n = _$setProp(_el$43, "fg", _v$28, _p$.n));
+        _v$29 !== _p$.s && (_p$.s = _$setProp(_el$45, "fg", _v$29, _p$.s));
+        _v$30 !== _p$.h && (_p$.h = _$setProp(_el$46, "fg", _v$30, _p$.h));
+        _v$31 !== _p$.r && (_p$.r = _$setProp(_el$49, "fg", _v$31, _p$.r));
+        _v$32 !== _p$.d && (_p$.d = _$setProp(_el$50, "fg", _v$32, _p$.d));
+        _v$33 !== _p$.l && (_p$.l = _$setProp(_el$54, "fg", _v$33, _p$.l));
+        _v$34 !== _p$.u && (_p$.u = _$setProp(_el$55, "fg", _v$34, _p$.u));
         return _p$;
       }, {
         e: undefined,
@@ -1276,71 +1425,71 @@ function ScheduleWindow(props) {
         l: undefined,
         u: undefined
       });
-      return _el$21;
+      return _el$33;
     })();
   };
   const Warnings = () => (() => {
-    var _el$44 = _$createElement("box"), _el$45 = _$createElement("text"), _el$46 = _$createElement("b"), _el$47 = _$createElement("text"), _el$48 = _$createElement("box");
-    _$insertNode(_el$44, _el$45);
-    _$insertNode(_el$44, _el$47);
-    _$insertNode(_el$44, _el$48);
-    _$setProp(_el$44, "flexDirection", "column");
-    _$setProp(_el$44, "flexShrink", 0);
-    _$insertNode(_el$45, _el$46);
-    _$setProp(_el$45, "flexShrink", 0);
-    _$insert(_el$46, () => text().warningTitle(warnings().length));
-    _$setProp(_el$47, "wrapMode", "word");
-    _$setProp(_el$47, "flexShrink", 0);
-    _$insert(_el$47, () => text().warningHelp);
-    _$setProp(_el$48, "height", 1);
-    _$setProp(_el$48, "flexShrink", 0);
-    _$insert(_el$44, _$createComponent(For, {
+    var _el$56 = _$createElement("box"), _el$57 = _$createElement("text"), _el$58 = _$createElement("b"), _el$59 = _$createElement("text"), _el$60 = _$createElement("box");
+    _$insertNode(_el$56, _el$57);
+    _$insertNode(_el$56, _el$59);
+    _$insertNode(_el$56, _el$60);
+    _$setProp(_el$56, "flexDirection", "column");
+    _$setProp(_el$56, "flexShrink", 0);
+    _$insertNode(_el$57, _el$58);
+    _$setProp(_el$57, "flexShrink", 0);
+    _$insert(_el$58, () => text().warningTitle(warnings().length));
+    _$setProp(_el$59, "wrapMode", "word");
+    _$setProp(_el$59, "flexShrink", 0);
+    _$insert(_el$59, () => text().warningHelp);
+    _$setProp(_el$60, "height", 1);
+    _$setProp(_el$60, "flexShrink", 0);
+    _$insert(_el$56, _$createComponent(For, {
       get each() {
         return warnings();
       },
       children: (warning) => (() => {
-        var _el$49 = _$createElement("text");
-        _$setProp(_el$49, "wrapMode", "word");
-        _$setProp(_el$49, "flexShrink", 0);
-        _$insert(_el$49, `\u2022 ${warning}`);
-        _$effect((_$p) => _$setProp(_el$49, "fg", theme().text, _$p));
-        return _el$49;
+        var _el$61 = _$createElement("text");
+        _$setProp(_el$61, "wrapMode", "word");
+        _$setProp(_el$61, "flexShrink", 0);
+        _$insert(_el$61, `\u2022 ${warning}`);
+        _$effect((_$p) => _$setProp(_el$61, "fg", theme().text, _$p));
+        return _el$61;
       })()
     }), null);
     _$effect((_p$) => {
-      var _v$32 = theme().warning, _v$33 = theme().muted;
-      _v$32 !== _p$.e && (_p$.e = _$setProp(_el$45, "fg", _v$32, _p$.e));
-      _v$33 !== _p$.t && (_p$.t = _$setProp(_el$47, "fg", _v$33, _p$.t));
+      var _v$35 = theme().warning, _v$36 = theme().muted;
+      _v$35 !== _p$.e && (_p$.e = _$setProp(_el$57, "fg", _v$35, _p$.e));
+      _v$36 !== _p$.t && (_p$.t = _$setProp(_el$59, "fg", _v$36, _p$.t));
       return _p$;
     }, {
       e: undefined,
       t: undefined
     });
-    return _el$44;
+    return _el$56;
   })();
   return (() => {
-    var _el$50 = _$createElement("box"), _el$51 = _$createElement("box"), _el$52 = _$createElement("text"), _el$53 = _$createElement("b"), _el$54 = _$createElement("box"), _el$56 = _$createElement("text"), _el$63 = _$createElement("box"), _el$64 = _$createElement("scrollbox"), _el$65 = _$createElement("box");
-    _$insertNode(_el$50, _el$51);
-    _$insertNode(_el$50, _el$63);
-    _$insertNode(_el$50, _el$65);
+    var _el$62 = _$createElement("box"), _el$63 = _$createElement("box"), _el$64 = _$createElement("text"), _el$65 = _$createElement("b"), _el$66 = _$createElement("box"), _el$68 = _$createElement("text"), _el$75 = _$createElement("box"), _el$76 = _$createElement("scrollbox"), _el$77 = _$createElement("box");
+    _$insertNode(_el$62, _el$63);
+    _$insertNode(_el$62, _el$75);
+    _$insertNode(_el$62, _el$77);
     _$use((box) => {
       root = box;
       box.on("focused", () => setHasKeyboard(true));
       box.on("blurred", () => setHasKeyboard(false));
       props.onRoot?.(box);
-    }, _el$50);
-    _$setProp(_el$50, "id", "native-schedule-window");
-    _$setProp(_el$50, "focusable", true);
-    _$setProp(_el$50, "flexDirection", "column");
-    _$setProp(_el$50, "flexShrink", 0);
-    _$setProp(_el$50, "width", "100%");
-    _$setProp(_el$50, "overflow", "hidden");
-    _$setProp(_el$50, "border", true);
-    _$setProp(_el$50, "borderStyle", "rounded");
-    _$setProp(_el$50, "paddingLeft", 1);
-    _$setProp(_el$50, "paddingRight", 1);
-    _$setProp(_el$50, "onKeyDown", onKey);
-    _$setProp(_el$50, "onSizeChange", function() {
+    }, _el$62);
+    _$setProp(_el$62, "id", "native-schedule-window");
+    _$setProp(_el$62, "focusable", true);
+    _$setProp(_el$62, "flexDirection", "column");
+    _$setProp(_el$62, "flexShrink", 0);
+    _$setProp(_el$62, "width", "100%");
+    _$setProp(_el$62, "overflow", "hidden");
+    _$setProp(_el$62, "border", true);
+    _$setProp(_el$62, "borderStyle", "rounded");
+    _$setProp(_el$62, "paddingLeft", 1);
+    _$setProp(_el$62, "paddingRight", 1);
+    _$setProp(_el$62, "onKeyDown", onKey);
+    _$setProp(_el$62, "onSizeChange", function() {
       const measured = this.width - 4;
       if (measured > 0 && measured !== width())
         queueMicrotask(() => {
@@ -1348,23 +1497,23 @@ function ScheduleWindow(props) {
             setWidth(measured);
         });
     });
-    _$setProp(_el$50, "onMouseDown", () => {
+    _$setProp(_el$62, "onMouseDown", () => {
       if (!searching())
         root?.focus();
     });
-    _$insertNode(_el$51, _el$52);
-    _$insertNode(_el$51, _el$54);
-    _$insertNode(_el$51, _el$56);
-    _$setProp(_el$51, "flexDirection", "row");
-    _$setProp(_el$51, "flexShrink", 0);
-    _$setProp(_el$51, "height", 1);
-    _$setProp(_el$51, "gap", 1);
-    _$insertNode(_el$52, _el$53);
-    _$setProp(_el$52, "wrapMode", "none");
-    _$setProp(_el$52, "flexShrink", 0);
-    _$setProp(_el$52, "marginRight", 1);
-    _$insert(_el$53, () => text().title);
-    _$insert(_el$51, _$createComponent(For, {
+    _$insertNode(_el$63, _el$64);
+    _$insertNode(_el$63, _el$66);
+    _$insertNode(_el$63, _el$68);
+    _$setProp(_el$63, "flexDirection", "row");
+    _$setProp(_el$63, "flexShrink", 0);
+    _$setProp(_el$63, "height", 1);
+    _$setProp(_el$63, "gap", 1);
+    _$insertNode(_el$64, _el$65);
+    _$setProp(_el$64, "wrapMode", "none");
+    _$setProp(_el$64, "flexShrink", 0);
+    _$setProp(_el$64, "marginRight", 1);
+    _$insert(_el$65, () => text().title);
+    _$insert(_el$63, _$createComponent(For, {
       each: SCOPES,
       children: (item) => _$createComponent(Tab, {
         get label() {
@@ -1375,37 +1524,37 @@ function ScheduleWindow(props) {
         },
         run: () => setScope(item)
       })
-    }), _el$54);
-    _$setProp(_el$54, "flexGrow", 1);
-    _$insert(_el$51, _$createComponent(Show, {
+    }), _el$66);
+    _$setProp(_el$66, "flexGrow", 1);
+    _$insert(_el$63, _$createComponent(Show, {
       get when() {
         return busy();
       },
       get children() {
-        var _el$55 = _$createElement("text");
-        _$setProp(_el$55, "flexShrink", 0);
-        _$insert(_el$55, (() => {
-          var _c$4 = _$memo(() => !!props.loading());
-          return () => _c$4() ? text().refreshing : text().processing;
+        var _el$67 = _$createElement("text");
+        _$setProp(_el$67, "flexShrink", 0);
+        _$insert(_el$67, (() => {
+          var _c$6 = _$memo(() => !!props.loading());
+          return () => _c$6() ? text().refreshing : text().processing;
         })());
-        _$effect((_$p) => _$setProp(_el$55, "fg", theme().muted, _$p));
-        return _el$55;
+        _$effect((_$p) => _$setProp(_el$67, "fg", theme().muted, _$p));
+        return _el$67;
       }
-    }), _el$56);
-    _$insertNode(_el$56, _$createTextNode(`esc`));
-    _$setProp(_el$56, "flexShrink", 0);
-    _$setProp(_el$56, "selectable", false);
-    _$setProp(_el$56, "onMouseUp", close);
-    _$insert(_el$50, _$createComponent(Show, {
+    }), _el$68);
+    _$insertNode(_el$68, _$createTextNode(`esc`));
+    _$setProp(_el$68, "flexShrink", 0);
+    _$setProp(_el$68, "selectable", false);
+    _$setProp(_el$68, "onMouseUp", close);
+    _$insert(_el$62, _$createComponent(Show, {
       get when() {
         return !wide();
       },
       get children() {
-        var _el$58 = _$createElement("box");
-        _$setProp(_el$58, "flexDirection", "row");
-        _$setProp(_el$58, "flexShrink", 0);
-        _$setProp(_el$58, "height", 1);
-        _$insert(_el$58, _$createComponent(For, {
+        var _el$70 = _$createElement("box");
+        _$setProp(_el$70, "flexDirection", "row");
+        _$setProp(_el$70, "flexShrink", 0);
+        _$setProp(_el$70, "height", 1);
+        _$insert(_el$70, _$createComponent(For, {
           each: FILTERS,
           children: (item) => _$createComponent(Tab, {
             get label() {
@@ -1417,43 +1566,43 @@ function ScheduleWindow(props) {
             run: () => pickFilter(item)
           })
         }));
-        return _el$58;
+        return _el$70;
       }
-    }), _el$63);
-    _$insert(_el$50, _$createComponent(Show, {
+    }), _el$75);
+    _$insert(_el$62, _$createComponent(Show, {
       get when() {
         return searching() || query();
       },
       get children() {
-        var _el$59 = _$createElement("box"), _el$60 = _$createElement("text");
-        _$insertNode(_el$59, _el$60);
-        _$setProp(_el$59, "id", "schedule-search-box");
-        _$setProp(_el$59, "flexDirection", "row");
-        _$setProp(_el$59, "height", 1);
-        _$setProp(_el$59, "flexShrink", 0);
-        _$setProp(_el$59, "marginTop", 1);
-        _$setProp(_el$59, "onMouseUp", () => setSearching(true));
-        _$insertNode(_el$60, _$createTextNode(`/ `));
-        _$setProp(_el$60, "flexShrink", 0);
-        _$insert(_el$59, _$createComponent(Show, {
+        var _el$71 = _$createElement("box"), _el$72 = _$createElement("text");
+        _$insertNode(_el$71, _el$72);
+        _$setProp(_el$71, "id", "schedule-search-box");
+        _$setProp(_el$71, "flexDirection", "row");
+        _$setProp(_el$71, "height", 1);
+        _$setProp(_el$71, "flexShrink", 0);
+        _$setProp(_el$71, "marginTop", 1);
+        _$setProp(_el$71, "onMouseUp", () => setSearching(true));
+        _$insertNode(_el$72, _$createTextNode(`/ `));
+        _$setProp(_el$72, "flexShrink", 0);
+        _$insert(_el$71, _$createComponent(Show, {
           get when() {
             return searching();
           },
           get fallback() {
             return (() => {
-              var _el$66 = _$createElement("text");
-              _$setProp(_el$66, "wrapMode", "none");
-              _$insert(_el$66, query);
-              _$effect((_$p) => _$setProp(_el$66, "fg", theme().text, _$p));
-              return _el$66;
+              var _el$78 = _$createElement("text");
+              _$setProp(_el$78, "wrapMode", "none");
+              _$insert(_el$78, query);
+              _$effect((_$p) => _$setProp(_el$78, "fg", theme().text, _$p));
+              return _el$78;
             })();
           },
           get children() {
-            var _el$62 = _$createElement("input");
-            _$setProp(_el$62, "id", "schedule-search");
-            _$setProp(_el$62, "flexGrow", 1);
-            _$setProp(_el$62, "onInput", setQuery);
-            _$setProp(_el$62, "onKeyDown", (key) => {
+            var _el$74 = _$createElement("input");
+            _$setProp(_el$74, "id", "schedule-search");
+            _$setProp(_el$74, "flexGrow", 1);
+            _$setProp(_el$74, "onInput", setQuery);
+            _$setProp(_el$74, "onKeyDown", (key) => {
               if (["escape", "return", "enter", "tab"].includes(key.name)) {
                 key.preventDefault();
                 key.stopPropagation();
@@ -1461,12 +1610,12 @@ function ScheduleWindow(props) {
               }
             });
             _$effect((_p$) => {
-              var _v$34 = query(), _v$35 = searching(), _v$36 = text().searchPlaceholder, _v$37 = theme().text, _v$38 = theme().raised;
-              _v$34 !== _p$.e && (_p$.e = _$setProp(_el$62, "value", _v$34, _p$.e));
-              _v$35 !== _p$.t && (_p$.t = _$setProp(_el$62, "focused", _v$35, _p$.t));
-              _v$36 !== _p$.a && (_p$.a = _$setProp(_el$62, "placeholder", _v$36, _p$.a));
-              _v$37 !== _p$.o && (_p$.o = _$setProp(_el$62, "textColor", _v$37, _p$.o));
-              _v$38 !== _p$.i && (_p$.i = _$setProp(_el$62, "backgroundColor", _v$38, _p$.i));
+              var _v$37 = query(), _v$38 = searching(), _v$39 = text().searchPlaceholder, _v$40 = theme().text, _v$41 = theme().raised;
+              _v$37 !== _p$.e && (_p$.e = _$setProp(_el$74, "value", _v$37, _p$.e));
+              _v$38 !== _p$.t && (_p$.t = _$setProp(_el$74, "focused", _v$38, _p$.t));
+              _v$39 !== _p$.a && (_p$.a = _$setProp(_el$74, "placeholder", _v$39, _p$.a));
+              _v$40 !== _p$.o && (_p$.o = _$setProp(_el$74, "textColor", _v$40, _p$.o));
+              _v$41 !== _p$.i && (_p$.i = _$setProp(_el$74, "backgroundColor", _v$41, _p$.i));
               return _p$;
             }, {
               e: undefined,
@@ -1475,58 +1624,58 @@ function ScheduleWindow(props) {
               o: undefined,
               i: undefined
             });
-            return _el$62;
+            return _el$74;
           }
         }), null);
-        _$effect((_$p) => _$setProp(_el$60, "fg", theme().accent, _$p));
-        return _el$59;
+        _$effect((_$p) => _$setProp(_el$72, "fg", theme().accent, _$p));
+        return _el$71;
       }
-    }), _el$63);
-    _$insert(_el$50, _$createComponent(Show, {
+    }), _el$75);
+    _$insert(_el$62, _$createComponent(Show, {
       get when() {
         return notice();
       },
       children: (item) => (() => {
-        var _el$67 = _$createElement("text");
-        _$setProp(_el$67, "flexShrink", 0);
-        _$setProp(_el$67, "height", 1);
-        _$setProp(_el$67, "marginTop", 1);
-        _$setProp(_el$67, "wrapMode", "none");
-        _$setProp(_el$67, "selectable", false);
-        _$setProp(_el$67, "onMouseUp", () => {
+        var _el$79 = _$createElement("text");
+        _$setProp(_el$79, "flexShrink", 0);
+        _$setProp(_el$79, "height", 1);
+        _$setProp(_el$79, "marginTop", 1);
+        _$setProp(_el$79, "wrapMode", "none");
+        _$setProp(_el$79, "selectable", false);
+        _$setProp(_el$79, "onMouseUp", () => {
           if (warnings().length)
             setShowWarnings(!showWarnings());
         });
-        _$insert(_el$67, () => fit(item().text, width()));
-        _$effect((_$p) => _$setProp(_el$67, "fg", item().color, _$p));
-        return _el$67;
+        _$insert(_el$79, () => fit(item().text, width()));
+        _$effect((_$p) => _$setProp(_el$79, "fg", item().color, _$p));
+        return _el$79;
       })()
-    }), _el$63);
-    _$insertNode(_el$63, _el$64);
-    _$setProp(_el$63, "flexGrow", 1);
-    _$setProp(_el$63, "flexBasis", 0);
-    _$setProp(_el$63, "minHeight", 0);
-    _$setProp(_el$63, "marginTop", 1);
-    _$setProp(_el$63, "overflow", "hidden");
-    _$insert(_el$63, _$createComponent(Show, {
+    }), _el$75);
+    _$insertNode(_el$75, _el$76);
+    _$setProp(_el$75, "flexGrow", 1);
+    _$setProp(_el$75, "flexBasis", 0);
+    _$setProp(_el$75, "minHeight", 0);
+    _$setProp(_el$75, "marginTop", 1);
+    _$setProp(_el$75, "overflow", "hidden");
+    _$insert(_el$75, _$createComponent(Show, {
       get when() {
         return wide();
       },
       get children() {
         return _$createComponent(Rail, {});
       }
-    }), _el$64);
-    _$insert(_el$63, _$createComponent(List, {}), _el$64);
+    }), _el$76);
+    _$insert(_el$75, _$createComponent(List, {}), _el$76);
     var _ref$2 = detail;
-    typeof _ref$2 === "function" ? _$use(_ref$2, _el$64) : detail = _el$64;
-    _$setProp(_el$64, "id", "schedule-detail");
-    _$setProp(_el$64, "flexGrow", 1);
-    _$setProp(_el$64, "flexBasis", 0);
-    _$setProp(_el$64, "minWidth", 0);
-    _$setProp(_el$64, "minHeight", 0);
-    _$setProp(_el$64, "scrollX", false);
-    _$setProp(_el$64, "paddingRight", 1);
-    _$insert(_el$64, _$createComponent(Show, {
+    typeof _ref$2 === "function" ? _$use(_ref$2, _el$76) : detail = _el$76;
+    _$setProp(_el$76, "id", "schedule-detail");
+    _$setProp(_el$76, "flexGrow", 1);
+    _$setProp(_el$76, "flexBasis", 0);
+    _$setProp(_el$76, "minWidth", 0);
+    _$setProp(_el$76, "minHeight", 0);
+    _$setProp(_el$76, "scrollX", false);
+    _$setProp(_el$76, "paddingRight", 1);
+    _$insert(_el$76, _$createComponent(Show, {
       get when() {
         return !showWarnings();
       },
@@ -1540,14 +1689,14 @@ function ScheduleWindow(props) {
           },
           get fallback() {
             return (() => {
-              var _el$68 = _$createElement("text");
-              _$setProp(_el$68, "wrapMode", "word");
-              _$insert(_el$68, (() => {
-                var _c$5 = _$memo(() => !!visible().length);
-                return () => _c$5() ? text().selectTask : "";
+              var _el$80 = _$createElement("text");
+              _$setProp(_el$80, "wrapMode", "word");
+              _$insert(_el$80, (() => {
+                var _c$7 = _$memo(() => !!visible().length);
+                return () => _c$7() ? text().selectTask : "";
               })());
-              _$effect((_$p) => _$setProp(_el$68, "fg", faint(), _$p));
-              return _el$68;
+              _$effect((_$p) => _$setProp(_el$80, "fg", faint(), _$p));
+              return _el$80;
             })();
           },
           children: (row) => _$createComponent(Detail, {
@@ -1558,53 +1707,53 @@ function ScheduleWindow(props) {
         });
       }
     }));
-    _$setProp(_el$65, "id", "schedule-footer");
-    _$setProp(_el$65, "flexDirection", "column");
-    _$setProp(_el$65, "flexShrink", 0);
-    _$setProp(_el$65, "marginTop", 1);
-    _$insert(_el$65, _$createComponent(For, {
+    _$setProp(_el$77, "id", "schedule-footer");
+    _$setProp(_el$77, "flexDirection", "column");
+    _$setProp(_el$77, "flexShrink", 0);
+    _$setProp(_el$77, "marginTop", 1);
+    _$insert(_el$77, _$createComponent(For, {
       get each() {
         return keyHintLines(hints(), width());
       },
       children: (line) => (() => {
-        var _el$69 = _$createElement("text");
-        _$setProp(_el$69, "wrapMode", "none");
-        _$setProp(_el$69, "selectable", false);
-        _$insert(_el$69, () => line.flatMap((hint, index) => [...index ? [(() => {
-          var _el$70 = _$createElement("span");
-          _$insertNode(_el$70, _$createTextNode(`  `));
-          _$effect((_$p) => _$setProp(_el$70, "style", {
+        var _el$81 = _$createElement("text");
+        _$setProp(_el$81, "wrapMode", "none");
+        _$setProp(_el$81, "selectable", false);
+        _$insert(_el$81, () => line.flatMap((hint, index) => [...index ? [(() => {
+          var _el$82 = _$createElement("span");
+          _$insertNode(_el$82, _$createTextNode(`  `));
+          _$effect((_$p) => _$setProp(_el$82, "style", {
             fg: theme().muted
           }, _$p));
-          return _el$70;
+          return _el$82;
         })()] : [], (() => {
-          var _el$72 = _$createElement("b");
-          _$insert(_el$72, () => hint.key);
-          _$effect((_$p) => _$setProp(_el$72, "style", {
+          var _el$84 = _$createElement("b");
+          _$insert(_el$84, () => hint.key);
+          _$effect((_$p) => _$setProp(_el$84, "style", {
             fg: theme().text
           }, _$p));
-          return _el$72;
+          return _el$84;
         })(), (() => {
-          var _el$73 = _$createElement("span");
-          _$insert(_el$73, () => ` ${hint.label}`);
-          _$effect((_$p) => _$setProp(_el$73, "style", {
+          var _el$85 = _$createElement("span");
+          _$insert(_el$85, () => ` ${hint.label}`);
+          _$effect((_$p) => _$setProp(_el$85, "style", {
             fg: theme().muted
           }, _$p));
-          return _el$73;
+          return _el$85;
         })()]));
-        return _el$69;
+        return _el$81;
       })()
     }));
     _$effect((_p$) => {
-      var _v$39 = props.height ? props.height() ?? 20 : "100%", _v$40 = hasKeyboard() ? theme().accent : theme().border, _v$41 = theme().text, _v$42 = theme().muted, _v$43 = wide() ? "row" : "column", _v$44 = wide() ? ["left"] : ["top"], _v$45 = theme().border, _v$46 = wide() ? 2 : 0;
-      _v$39 !== _p$.e && (_p$.e = _$setProp(_el$50, "height", _v$39, _p$.e));
-      _v$40 !== _p$.t && (_p$.t = _$setProp(_el$50, "borderColor", _v$40, _p$.t));
-      _v$41 !== _p$.a && (_p$.a = _$setProp(_el$52, "fg", _v$41, _p$.a));
-      _v$42 !== _p$.o && (_p$.o = _$setProp(_el$56, "fg", _v$42, _p$.o));
-      _v$43 !== _p$.i && (_p$.i = _$setProp(_el$63, "flexDirection", _v$43, _p$.i));
-      _v$44 !== _p$.n && (_p$.n = _$setProp(_el$64, "border", _v$44, _p$.n));
-      _v$45 !== _p$.s && (_p$.s = _$setProp(_el$64, "borderColor", _v$45, _p$.s));
-      _v$46 !== _p$.h && (_p$.h = _$setProp(_el$64, "paddingLeft", _v$46, _p$.h));
+      var _v$42 = props.height ? props.height() ?? 20 : "100%", _v$43 = hasKeyboard() ? theme().accent : theme().border, _v$44 = theme().text, _v$45 = theme().muted, _v$46 = wide() ? "row" : "column", _v$47 = wide() ? ["left"] : ["top"], _v$48 = theme().border, _v$49 = wide() ? 2 : 0;
+      _v$42 !== _p$.e && (_p$.e = _$setProp(_el$62, "height", _v$42, _p$.e));
+      _v$43 !== _p$.t && (_p$.t = _$setProp(_el$62, "borderColor", _v$43, _p$.t));
+      _v$44 !== _p$.a && (_p$.a = _$setProp(_el$64, "fg", _v$44, _p$.a));
+      _v$45 !== _p$.o && (_p$.o = _$setProp(_el$68, "fg", _v$45, _p$.o));
+      _v$46 !== _p$.i && (_p$.i = _$setProp(_el$75, "flexDirection", _v$46, _p$.i));
+      _v$47 !== _p$.n && (_p$.n = _$setProp(_el$76, "border", _v$47, _p$.n));
+      _v$48 !== _p$.s && (_p$.s = _$setProp(_el$76, "borderColor", _v$48, _p$.s));
+      _v$49 !== _p$.h && (_p$.h = _$setProp(_el$76, "paddingLeft", _v$49, _p$.h));
       return _p$;
     }, {
       e: undefined,
@@ -1616,7 +1765,7 @@ function ScheduleWindow(props) {
       s: undefined,
       h: undefined
     });
-    return _el$50;
+    return _el$62;
   })();
 }
 
@@ -1849,6 +1998,6 @@ var tui_default = Plugin.define({
   }
 });
 export {
-  id,
-  tui_default as default
+  tui_default as default,
+  id
 };

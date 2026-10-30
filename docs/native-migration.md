@@ -46,6 +46,14 @@ UI 仅借鉴 `opencode-quota` 的固定外壳、分类 rail、焦点和滚动分
 
 ## 依赖注意
 
-目标 SDK 为 `@opencode/plugin@2.2.1`，OpenTUI 为 0.7.0，运行时 SDK/OpenTUI/Solid 均保持 external，避免与宿主的响应式实例混用。旧 SDK 和 cron-parser 仅供源码回归开发使用。
+目标 SDK 为 `@opencode/plugin@2.2.3`，OpenTUI 为 0.8.0，与宿主 2.2.3 的 catalog 一致（`@opencode/plugin@2.2.3` 的 peer 要求 `@opentui/core >= 0.8.0`）。运行时 SDK/OpenTUI/Solid 均保持 external，避免与宿主的响应式实例混用。`@opencode/client` 需显式声明为开发依赖，否则会被嵌套安装而导致根级类型导入无法解析。旧 SDK 和 cron-parser 仅供源码回归开发使用。
 
-安装时 npm 对 Node 24 发出 OpenTUI Node>=26.4.0 引擎警告；构建测试使用 Bun 1.3.14。依赖审计仍有上游告警，尚未通过跨版本强制升级处理，不应宣称零漏洞。
+安装时 npm 对 Node 24 发出 OpenTUI Node>=26.4.0 引擎警告；构建测试使用 Bun 1.4.4。依赖审计仍有上游告警，尚未通过跨版本强制升级处理，不应宣称零漏洞。
+
+## 条件门控（2.2.3 新增）
+
+迁移 `20261029165540_schedule_checks` 为 `schedule` 表增加 `check`、`checks`、`failures`、`state` 四列。`Schedule.Info` 随之新增 `if`、`until`、`lastOutput`，`lastOutcome` 扩充 `checked` 与 `expired`。底层只存一个 `check`（含 `mode: "if" | "until"`），因此 `if` 与 `until` 互斥，插件以 `scheduleCheck()` 归一读取。
+
+HTTP 路由未变（create/list/get/pause/resume/delete），SDK 层时间戳仍是 epoch 毫秒；Code Mode 工具签名展示的 ISO 字符串属工具层表示，不影响本插件。`when` 在请求层变为可选（配合 `until` 时服务端默认 `{ every: "30 seconds" }`），但 `Schedule.Info.when` 仍必填，故数据模型无需放宽。
+
+`lastOutput` 仅在 `create` 的返回值中由 `toInfo(row, seeded.message)` 填充，`list` 与 `get` 一律不带该字段，故只读窗口不展示它。shell 条件的 `is`/`matches`/`changes` 三者服务端限定最多选一；`expired` 表示 `until` 超时后仍会唤醒会话并在提示词后追加未匹配说明；连续 3 次检查失败（`MAX_CHECK_FAILURES`）会将任务置为 paused。

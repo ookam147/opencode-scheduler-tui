@@ -29,10 +29,27 @@ export declare function words(language?: Language): {
     outcomes: {
         fired: string;
         late: string;
+        checked: string;
+        expired: string;
         skipped: string;
         disabled: string;
         failed: string;
     };
+    condition: string;
+    conditionIf: string;
+    conditionUntil: string;
+    conditionIfNote: string;
+    conditionUntilNote: string;
+    conditionFailureNote: string;
+    conditionShell: string;
+    conditionCode: string;
+    conditionRule: string;
+    conditionRuleExit: string;
+    conditionRuleIs: (value: string) => string;
+    conditionRuleMatches: (value: string) => string;
+    conditionRuleChanges: string;
+    conditionCodeNote: string;
+    gated: string;
     done: string;
     backToList: string;
     clickWindow: string;

@@ -3,7 +3,8 @@ import type { BoxRenderable, KeyEvent, RGBA, ScrollBoxRenderable } from "@opentu
 import { useTerminalDimensions } from "@opentui/solid"
 import { createEffect, createMemo, createSignal, For, onCleanup, onMount, Show, type Accessor, type JSX } from "solid-js"
 import { clockTime, columns, fit, nextLabel, relativeTime, STATUS_GLYPHS } from "./format"
-import { countSchedules, selectSchedules, type ScheduleFilter, type ScheduleRow, type ScheduleWhen } from "./model"
+import { countSchedules, scheduleCheck, selectSchedules,
+  type ScheduleCondition, type ScheduleFilter, type ScheduleRow, type ScheduleWhen } from "./model"
 import { detectLanguage, words, type Language } from "./i18n"
 
 export type ScheduleWindowTheme = Record<
@@ -46,6 +47,8 @@ const NEXT_WIDTH = 10
 const WHEN_WIDTH = 20
 const LABEL_WIDTH = 8
 const HINT_GAP = "  "
+/** Marks a schedule the service gates with a check before it wakes its session. */
+const GATE_GLYPH = "◆"
 
 /** Keep the same schedule through refresh/reordering; otherwise choose its nearest neighbour. */
 export function reconcileWindowSelection(rows: ScheduleRow[], id: string | undefined, previousIndex = 0) {
@@ -269,14 +272,18 @@ export function ScheduleWindow(props: ScheduleWindowProps) {
         <Show when={visible().length} fallback={<text fg={theme().muted} wrapMode="word" marginTop={1}>{`  ${emptyText()}`}</text>}>
           <For each={visible()}>{(row) => {
             const chosen = () => selectedID() === row.id
+            /** Keeps the row's total width stable, so the gate marker never shifts the columns beside it. */
+            const gate = () => scheduleCheck(row) ? `${GATE_GLYPH} ` : ""
+            const name = () => fit(title(row), nameWidth() - columns(gate()))
             return <box id={`schedule-row-${row.id}`} height={1} flexShrink={0}
               backgroundColor={chosen() ? theme().raised : undefined}
               onMouseUp={() => { setSelectedID(row.id); setShowWarnings(false); root?.focus() }}>
               <text wrapMode="none" selectable={false}>
                 <span style={{ fg: statusColor(row.status) }}>{`${STATUS_GLYPHS[row.status]} `}</span>
+                <span style={{ fg: theme().warning }}>{gate()}</span>
                 {chosen()
-                  ? <b style={{ fg: theme().accent }}>{fit(title(row), nameWidth())}</b>
-                  : <span style={{ fg: row.status === "done" ? theme().muted : theme().text }}>{fit(title(row), nameWidth())}</span>}
+                  ? <b style={{ fg: theme().accent }}>{name()}</b>
+                  : <span style={{ fg: row.status === "done" ? theme().muted : theme().text }}>{name()}</span>}
                 <span style={{ fg: theme().muted }}>{whenWidth() ? `  ${fit(describeWhen(row.when), whenWidth())}` : ""}</span>
                 <span style={{ fg: row.status === "active" ? theme().text : faint() }}>{`  ${fit(nextLabel(row, now(), language()), NEXT_WIDTH, "right")}`}</span>
               </text>
@@ -285,6 +292,51 @@ export function ScheduleWindow(props: ScheduleWindowProps) {
         </Show>
       </scrollbox>
     </box>
+
+  /** The check itself: the command for a shell gate, the script for a code gate. */
+  const conditionTarget = (condition: ScheduleCondition) =>
+    condition.type === "shell" ? condition.run : condition.code.trim()
+
+  /** How a shell check decides to pass; the service allows at most one predicate. */
+  const conditionRule = (condition: ScheduleCondition) => {
+    if (condition.type === "code") return undefined
+    if (condition.is !== undefined) return text().conditionRuleIs(condition.is)
+    if (condition.matches !== undefined) return text().conditionRuleMatches(condition.matches)
+    if (condition.changes) return text().conditionRuleChanges
+    return text().conditionRuleExit
+  }
+
+  const Condition = (conditionProps: { row: ScheduleRow }) => {
+    const check = () => scheduleCheck(conditionProps.row)
+    return <Show when={check()}>{(gate) =>
+      <>
+        <text fg={theme().muted} flexShrink={0}>{text().condition}</text>
+        <text wrapMode="word" flexShrink={0}>
+          <span style={{ fg: theme().warning }}>{`${GATE_GLYPH} `}</span>
+          <span style={{ fg: theme().text }}>
+            {gate().mode === "if" ? text().conditionIf : text().conditionUntil}
+          </span>
+        </text>
+        <box flexShrink={0} border={["left"]} borderColor={theme().warning} paddingLeft={1}>
+          <box flexDirection="column" flexShrink={0}>
+            <Field label={gate().condition.type === "shell" ? text().conditionShell : text().conditionCode}>
+              {conditionTarget(gate().condition)}
+            </Field>
+            <Show when={conditionRule(gate().condition)}>{(rule) =>
+              <Field label={text().conditionRule}>{rule()}</Field>}</Show>
+          </box>
+        </box>
+        <text fg={faint()} wrapMode="word" flexShrink={0}>
+          {gate().mode === "if" ? text().conditionIfNote : text().conditionUntilNote}
+        </text>
+        <Show when={gate().condition.type === "code"}>
+          <text fg={faint()} wrapMode="word" flexShrink={0}>{text().conditionCodeNote}</text>
+        </Show>
+        <text fg={faint()} wrapMode="word" flexShrink={0}>{text().conditionFailureNote}</text>
+        <box height={1} flexShrink={0} />
+      </>
+    }</Show>
+  }
 
   const Detail = (detailProps: { row: ScheduleRow }) => {
     const row = () => detailProps.row
@@ -307,6 +359,7 @@ export function ScheduleWindow(props: ScheduleWindowProps) {
           : text().neverFired}
       </Field>
       <box height={1} flexShrink={0} />
+      <Condition row={row()} />
       <text fg={theme().muted} flexShrink={0}>{text().prompt}</text>
       <box flexShrink={0} border={["left"]} borderColor={theme().accent} paddingLeft={1} marginTop={0}>
         <text fg={theme().text} wrapMode="word">{row().prompt || "—"}</text>
