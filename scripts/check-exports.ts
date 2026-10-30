@@ -28,4 +28,14 @@ await Promise.all([
   import("../dist/tui.js"),
 ])
 
+const nativeTui = await Bun.file(new URL("../dist/native/tui.js", import.meta.url)).text()
+const nativeServer = await Bun.file(new URL("../dist/native/server.js", import.meta.url)).text()
+for (const source of [nativeTui, nativeServer]) {
+  for (const legacy of ["launchctl", "schtasks", "supervisor.pl", "@opencode-ai/plugin"]) {
+    if (source.includes(legacy)) throw new Error(`native package entry imports legacy scheduler: ${legacy}`)
+  }
+}
+if (!nativeTui.includes("@opencode/plugin/tui")) throw new Error("native TUI must use the host V2 plugin SDK")
+await Promise.all([import("../dist/native/server.js"), import("../dist/native/tui.js")])
+
 console.log("package exports and shared TUI runtime verified")
