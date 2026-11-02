@@ -6,6 +6,7 @@ import { Plugin } from "@opencode/plugin/tui";
 import { createSignal as createSignal2, onCleanup as onCleanup2, onMount as onMount2, Show as Show2 } from "solid-js";
 
 // src/native/client.ts
+import { access } from "fs/promises";
 function toSession(info) {
   return {
     id: info.id,
@@ -35,7 +36,9 @@ function request(signal, run) {
 function message(error) {
   return error instanceof Error ? error.message : String(error);
 }
-function createNativeScheduleClient(client, language = "zh") {
+var exists = (directory) => access(directory).then(() => true, () => false);
+function createNativeScheduleClient(client, language = "zh", options = {}) {
+  const directoryExists = options.directoryExists ?? exists;
   const api = client.experimental.schedule;
   return {
     async list(options) {
@@ -82,6 +85,9 @@ function createNativeScheduleClient(client, language = "zh") {
             const schedules = await request(signal, () => api.list({ sessionID: session.id }, { signal }));
             results[index] = schedules.map((info) => ({ ...toSchedule(info), sessionID: info.sessionID ?? session.id, session }));
           } catch (error) {
+            signal?.throwIfAborted();
+            if (session.directory && !await directoryExists(session.directory))
+              continue;
             signal?.throwIfAborted();
             failures[index] = `${session.title ?? (language === "zh" ? "\u672A\u547D\u540D\u4F1A\u8BDD" : "Untitled session")} (${session.id}): ${message(error)}${session.directory ? `
   ${session.directory}` : ""}`;
@@ -197,9 +203,9 @@ var zh = {
   condition: "\u89E6\u53D1\u6761\u4EF6",
   conditionIf: "\u6BCF\u6B21\u68C0\u67E5\uFF08if\uFF09",
   conditionUntil: "\u6EE1\u8DB3\u5373\u7ED3\u675F\uFF08until\uFF09",
-  conditionIfNote: "\u6BCF\u5230\u65F6\u95F4\u70B9\u5148\u68C0\u67E5\u4E00\u6B21\uFF0C\u4E0D\u8C03\u7528\u6A21\u578B\uFF1B\u901A\u8FC7\u624D\u53D1\u9001\u63D0\u793A\u8BCD\uFF0C\u4E0D\u901A\u8FC7\u5C31\u7B49\u4E0B\u4E00\u4E2A\u65F6\u95F4\u70B9\u3002",
-  conditionUntilNote: "\u6309\u65F6\u95F4\u70B9\u53CD\u590D\u68C0\u67E5\uFF0C\u4E0D\u8C03\u7528\u6A21\u578B\uFF1B\u7B2C\u4E00\u6B21\u901A\u8FC7\u5C31\u53D1\u9001\u63D0\u793A\u8BCD\u5E76\u7ED3\u675F\u3002\u8D85\u65F6\u4E5F\u4F1A\u53D1\u9001\u63D0\u793A\u8BCD\uFF0C\u5E76\u5728\u5176\u540E\u6807\u6CE8\u672A\u6EE1\u8DB3\u6761\u4EF6\u3002",
-  conditionFailureNote: "\u8FDE\u7EED 3 \u6B21\u68C0\u67E5\u5931\u8D25\u4F1A\u81EA\u52A8\u6682\u505C\u4EFB\u52A1\u3002",
+  conditionIfNote: "\u6BCF\u6B21\u6267\u884C\u524D\u5224\u65AD\u6761\u4EF6\uFF0C\u51B3\u5B9A\u672C\u6B21\u662F\u5426\u6267\u884C\u3002",
+  conditionUntilNote: "\u7B49\u5F85\u6761\u4EF6\u6210\u7ACB\uFF0C\u7136\u540E\u6267\u884C\u4E00\u6B21\u3002\u8D85\u65F6\u4ECD\u672A\u6210\u7ACB\u4E5F\u4F1A\u6267\u884C\u4E00\u6B21\uFF0C\u5E76\u6CE8\u660E\u6761\u4EF6\u672A\u6EE1\u8DB3\u3002",
+  conditionFailureNote: "\u68C0\u67E5\u672C\u8EAB\u51FA\u9519\uFF08\u8D85\u65F6\u3001\u547D\u4EE4\u62A5\u9519\u7B49\uFF09\u8FDE\u7EED 3 \u6B21\u4F1A\u81EA\u52A8\u6682\u505C\uFF1B\u6761\u4EF6\u4E0D\u6210\u7ACB\u4E0D\u7B97\u51FA\u9519\u3002",
   conditionShell: "\u547D\u4EE4",
   conditionCode: "\u4EE3\u7801",
   conditionRule: "\u5224\u5B9A",
@@ -241,7 +247,7 @@ var zh = {
   neverFired: "\u5C1A\u672A\u89E6\u53D1",
   warningSummary: (count) => `\u26A0 ${count} \u4E2A\u4F1A\u8BDD\u7684\u4EFB\u52A1\u8BFB\u53D6\u5931\u8D25\uFF0C\u5217\u8868\u53EF\u80FD\u4E0D\u5B8C\u6574 \xB7 \u6309 w \u67E5\u770B`,
   warningTitle: (count) => `\u8BFB\u53D6\u95EE\u9898\uFF08${count}\uFF09`,
-  warningHelp: "\u8FD9\u4E9B\u4F1A\u8BDD\u7684\u4EFB\u52A1\u65E0\u6CD5\u8BFB\u53D6\uFF0C\u5E38\u89C1\u539F\u56E0\u662F\u4F1A\u8BDD\u6240\u5728\u76EE\u5F55\u5DF2\u88AB\u5220\u9664\u6216\u672A\u5F00\u542F schedules\u3002\u5176\u4F59\u4F1A\u8BDD\u7684\u4EFB\u52A1\u4E0D\u53D7\u5F71\u54CD\u3002",
+  warningHelp: "\u8FD9\u4E9B\u4F1A\u8BDD\u7684\u4EFB\u52A1\u65E0\u6CD5\u8BFB\u53D6\uFF0C\u5E38\u89C1\u539F\u56E0\u662F\u9879\u76EE\u914D\u7F6E\u5173\u95ED\u4E86 schedules\u3001\u914D\u7F6E\u6587\u4EF6\u6709\u8BEF\u6216\u8BF7\u6C42\u8D85\u65F6\uFF08\u76EE\u5F55\u5DF2\u5220\u9664\u7684\u4F1A\u8BDD\u4F1A\u81EA\u52A8\u8DF3\u8FC7\uFF09\u3002\u5176\u4F59\u4F1A\u8BDD\u7684\u4EFB\u52A1\u4E0D\u53D7\u5F71\u54CD\u3002",
   runCount: (count, remaining) => `${count} \u6B21${remaining !== undefined ? ` \xB7 \u5269\u4F59 ${remaining} \u6B21` : ""}`,
   nextTime: (clock, relative) => `${clock}\uFF08${relative}\uFF09`,
   whenIn: (value) => `\u5EF6\u65F6 ${value}`,
@@ -297,9 +303,9 @@ var en = {
   condition: "Condition",
   conditionIf: "Checked each slot (if)",
   conditionUntil: "Fires once when met (until)",
-  conditionIfNote: "Each slot is checked first with no model call; the prompt is sent only when the check passes, otherwise it waits for the next slot.",
-  conditionUntilNote: "Checked repeatedly with no model call; the prompt is sent the first time it passes, then the task ends. On timeout the prompt is still sent, noting the condition was never met.",
-  conditionFailureNote: "Three consecutive check failures pause the task automatically.",
+  conditionIfNote: "Checked before every run to decide whether this run happens.",
+  conditionUntilNote: "Waits for the condition to hold, then runs once. If it times out unmet, it still runs once and notes the condition was not met.",
+  conditionFailureNote: "Three consecutive check errors (timeout, command error, etc.) pause the task; an unmet condition is not an error.",
   conditionShell: "Command",
   conditionCode: "Code",
   conditionRule: "Passes",
@@ -341,7 +347,7 @@ var en = {
   neverFired: "Not yet fired",
   warningSummary: (count) => `\u26A0 Could not read tasks from ${count} session(s); list may be incomplete \xB7 Press w`,
   warningTitle: (count) => `Read issues (${count})`,
-  warningHelp: "Tasks in these sessions could not be read. The session directory may have been deleted or schedules may be disabled. Other sessions are unaffected.",
+  warningHelp: "Tasks in these sessions could not be read. The project config may disable schedules, the config may be invalid, or the request may have timed out (sessions whose directory was deleted are skipped). Other sessions are unaffected.",
   runCount: (count, remaining) => `${count} run(s)${remaining !== undefined ? ` \xB7 ${remaining} remaining` : ""}`,
   nextTime: (clock, relative) => `${clock} (${relative})`,
   whenIn: (value) => `In ${value}`,
@@ -771,6 +777,7 @@ function ScheduleWindow(props) {
     }
   }
   const statusColor = (status) => status === "active" ? theme().success : status === "paused" ? theme().warning : theme().muted;
+  const gateColor = (mode) => mode === "until" ? theme().info : theme().warning;
   const pickFilter = (value) => {
     setFilter(value);
     root?.focus();
@@ -1054,7 +1061,7 @@ function ScheduleWindow(props) {
                 var _v$15 = `schedule-row-${row.id}`, _v$16 = chosen() ? theme().raised : undefined, _v$17 = {
                   fg: statusColor(row.status)
                 }, _v$18 = {
-                  fg: theme().warning
+                  fg: gateColor(scheduleCheck(row)?.mode)
                 }, _v$19 = {
                   fg: theme().muted
                 }, _v$20 = {
@@ -1133,7 +1140,7 @@ function ScheduleWindow(props) {
         })());
         _$effect((_p$) => {
           var _v$21 = {
-            fg: theme().warning
+            fg: gateColor(gate().mode)
           }, _v$22 = {
             fg: theme().text
           };
@@ -1174,7 +1181,7 @@ function ScheduleWindow(props) {
             }
           })
         }), null);
-        _$effect((_$p) => _$setProp(_el$27, "borderColor", theme().warning, _$p));
+        _$effect((_$p) => _$setProp(_el$27, "borderColor", gateColor(gate().mode), _$p));
         return _el$27;
       })(), (() => {
         var _el$29 = _$createElement("text");
@@ -1813,7 +1820,8 @@ var tui_default = Plugin.define({
       border: context.theme.border.base,
       success: context.theme.text.feedback.success.base,
       warning: context.theme.text.feedback.warning.base,
-      error: context.theme.text.feedback.error.base
+      error: context.theme.text.feedback.error.base,
+      info: context.theme.text.feedback.info.base
     });
     function Panel(props) {
       const sessionID = props.sessionID;

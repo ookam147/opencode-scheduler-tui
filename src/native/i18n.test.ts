@@ -8,14 +8,16 @@ describe("native UI language", () => {
     expect(words("en").outcomes.checked).toBe("Checked, did not fire")
     expect(words("en").outcomes.expired).toBe("Condition timed out")
   })
-  test("states that gate checks run without a model call and that repeated failures pause the task", () => {
+  test("explains if/until by their core rule and that repeated failures pause the task", () => {
     for (const language of ["zh", "en"] as const) {
       const text = words(language)
-      expect(`${text.conditionIfNote} ${text.conditionUntilNote}`)
-        .toContain(language === "zh" ? "不调用模型" : "no model call")
+      expect(text.conditionIfNote).toContain(language === "zh" ? "每次执行前判断" : "before every run")
+      expect(text.conditionUntilNote).toContain(language === "zh" ? "等待条件成立，然后执行一次" : "then runs once")
       expect(text.conditionFailureNote).toContain(language === "zh" ? "3 次" : "Three")
+      // Only check errors count toward the pause; an unmet condition must not read as a failure.
+      expect(text.conditionFailureNote).toContain(language === "zh" ? "条件不成立不算出错" : "unmet condition is not an error")
       // An `until` gate still wakes the session when it times out, so the wording must not promise silence.
-      expect(text.conditionUntilNote).toContain(language === "zh" ? "超时也会发送提示词" : "On timeout the prompt is still sent")
+      expect(text.conditionUntilNote).toContain(language === "zh" ? "超时仍未成立也会执行一次" : "still runs once")
     }
   })
   test("uses the agreed execution note and explicit identifier labels", () => {

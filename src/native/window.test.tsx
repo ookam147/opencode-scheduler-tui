@@ -47,7 +47,7 @@ describe("native schedule window", () => {
       // The one-shot wording must be distinguishable from the recurring gate.
       expect(frame).toContain(language === "zh" ? "满足即结束（until）" : "Fires once when met (until)")
       expect(frame).not.toContain(language === "zh" ? "每次检查（if）" : "Checked each slot (if)")
-      expect(frame).toContain(language === "zh" ? "连续 3 次检查失败" : "Three consecutive check failures")
+      expect(frame).toContain(language === "zh" ? "连续 3 次会自动暂停" : "Three consecutive check errors")
       if (language === "en") expect(frame).not.toMatch(/[\u4e00-\u9fff]/)
     } finally { m.app.renderer.destroy() }
   })

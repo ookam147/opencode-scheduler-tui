@@ -56,4 +56,8 @@ UI 仅借鉴 `opencode-quota` 的固定外壳、分类 rail、焦点和滚动分
 
 HTTP 路由未变（create/list/get/pause/resume/delete），SDK 层时间戳仍是 epoch 毫秒；Code Mode 工具签名展示的 ISO 字符串属工具层表示，不影响本插件。`when` 在请求层变为可选（配合 `until` 时服务端默认 `{ every: "30 seconds" }`），但 `Schedule.Info.when` 仍必填，故数据模型无需放宽。
 
-`lastOutput` 仅在 `create` 的返回值中由 `toInfo(row, seeded.message)` 填充，`list` 与 `get` 一律不带该字段，故只读窗口不展示它。shell 条件的 `is`/`matches`/`changes` 三者服务端限定最多选一；`expired` 表示 `until` 超时后仍会唤醒会话并在提示词后追加未匹配说明；连续 3 次检查失败（`MAX_CHECK_FAILURES`）会将任务置为 paused。
+`lastOutput` 仅在 `create` 的返回值中由 `toInfo(row, seeded.message)` 填充，`list` 与 `get` 一律不带该字段，故只读窗口不展示它。shell 条件的 `is`/`matches`/`changes` 三者服务端限定最多选一；`expired` 表示 `until` 超时后仍会唤醒会话并在提示词后追加未匹配说明。
+
+「检查失败」指检查本身出错（超过 30 秒、带判定时命令非零退出、agent 缺失、权限拒绝等），不是条件不成立：条件不成立记为 `checked`，不计次。出错后 1 分钟重试（`CHECK_FAILED_RETRY`），连续 3 次（`MAX_CHECK_FAILURES`，上游硬编码、不可配置）即置为 paused；检查写法无效（如非法正则）则不重试直接暂停。暂停时会附带 `[Schedule paused after N failed checks: …]` 发送一次提示词。注意 `matches` 用未 trim 的原始 stdout 匹配，`is` 会 trim。
+
+以上条件门控语义已核对 2.2.3 与 2.2.5 一致（`schedule/check.ts` 无差异）；2.2.5 在调度层仅新增同一数据目录下的主进程选举（lease 行，防止多进程重复触发），不影响本插件。
