@@ -8,6 +8,8 @@ The host owns timing, persistence and prompt delivery. The plugin does not insta
 
 ## Task center
 
+![Schedules window](docs/screenshots/native-en.png)
+
 Inside a conversation, run `/schedule_status` or **Show or hide scheduled tasks** in the command palette. Like the Quota window, it opens above the message box, covers only the conversation area and gives way to the sidebar. Run the command again or press `Esc` to close; the keyboard returns to the message box.
 
 - Fixed header, status tabs, category rail, independent list/detail scrolling and keyboard footer; responsive layout inspired by the Quota TUI, independently implemented.

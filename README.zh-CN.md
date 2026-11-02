@@ -8,6 +8,8 @@
 
 ## 界面与能力
 
+![任务窗口](docs/screenshots/native-zh.png)
+
 在会话中输入 `/schedule_status`，或在命令面板选择 **Show or hide scheduled tasks**。窗口与 Quota 一样显示在对话框上方，只覆盖对话区域，开启侧边栏时自动让位。再次输入命令或按 `Esc` 关闭，键盘焦点交还输入框。
 
 - 参考 Quota 的布局思路独立实现：固定标题、状态页签、分类侧栏、列表与详情独立滚动、底部快捷键；窄屏隐藏分类栏并调整布局。
