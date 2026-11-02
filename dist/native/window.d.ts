@@ -3,7 +3,7 @@ import type { BoxRenderable, RGBA } from "@opentui/core";
 import { type Accessor, type JSX } from "solid-js";
 import { type ScheduleRow } from "./model";
 import { type Language } from "./i18n";
-export type ScheduleWindowTheme = Record<"text" | "muted" | "accent" | "background" | "raised" | "border" | "success" | "warning" | "error", string | RGBA> & {
+export type ScheduleWindowTheme = Record<"text" | "muted" | "accent" | "background" | "raised" | "border" | "success" | "warning" | "error" | "info", string | RGBA> & {
     faint?: string | RGBA;
 };
 export type ScheduleWindowProps = {

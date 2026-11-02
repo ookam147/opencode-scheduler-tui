@@ -52,6 +52,7 @@ export default Plugin.define({
       success: context.theme.text.feedback.success.base,
       warning: context.theme.text.feedback.warning.base,
       error: context.theme.text.feedback.error.base,
+      info: context.theme.text.feedback.info.base,
     })
 
     function Panel(props: { sessionID: string }) {

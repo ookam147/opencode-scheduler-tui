@@ -34,7 +34,7 @@ function host(route: { type: string; sessionID?: string }) {
       dialog: { clear() {}, confirm: async (value: unknown) => { confirmations.push(value); return state.confirmDelete } },
       toast: { show: (value: unknown) => { toasts.push(value) } },
     },
-    theme: { text: { base: white, muted: white, faint: white, action: { primary: { selected: white } }, feedback: { success: { base: white }, warning: { base: white }, error: { base: white } } }, background: { base: "#101010", raised: { high: "#333333" } }, border: { base: white } },
+    theme: { text: { base: white, muted: white, faint: white, action: { primary: { selected: white } }, feedback: { success: { base: white }, warning: { base: white }, error: { base: white }, info: { base: white } } }, background: { base: "#101010", raised: { high: "#333333" } }, border: { base: white } },
   } as unknown as Plugin.Context
   return { context, layers, toasts, navigation, reads, state, deletions, confirmations }
 }

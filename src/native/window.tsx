@@ -4,11 +4,11 @@ import { useTerminalDimensions } from "@opentui/solid"
 import { createEffect, createMemo, createSignal, For, onCleanup, onMount, Show, type Accessor, type JSX } from "solid-js"
 import { clockTime, columns, fit, nextLabel, relativeTime, STATUS_GLYPHS } from "./format"
 import { countSchedules, scheduleCheck, selectSchedules,
-  type ScheduleCondition, type ScheduleFilter, type ScheduleRow, type ScheduleWhen } from "./model"
+  type ScheduleCheckMode, type ScheduleCondition, type ScheduleFilter, type ScheduleRow, type ScheduleWhen } from "./model"
 import { detectLanguage, words, type Language } from "./i18n"
 
 export type ScheduleWindowTheme = Record<
-  "text" | "muted" | "accent" | "background" | "raised" | "border" | "success" | "warning" | "error",
+  "text" | "muted" | "accent" | "background" | "raised" | "border" | "success" | "warning" | "error" | "info",
   string | RGBA
 > & { faint?: string | RGBA }
 export type ScheduleWindowProps = {
@@ -194,6 +194,9 @@ export function ScheduleWindow(props: ScheduleWindowProps) {
   }
   const statusColor = (status: ScheduleRow["status"]) =>
     status === "active" ? theme().success : status === "paused" ? theme().warning : theme().muted
+  /** `if` and `until` gates need distinct colours in the list and details, so the two kinds are easy to tell apart. */
+  const gateColor = (mode: ScheduleCheckMode | undefined) =>
+    mode === "until" ? theme().info : theme().warning
   const pickFilter = (value: ScheduleFilter) => { setFilter(value); root?.focus() }
   const title = (row: ScheduleRow) => row.name || row.prompt.replace(/\s+/g, " ").trim() || row.id
 
@@ -280,7 +283,7 @@ export function ScheduleWindow(props: ScheduleWindowProps) {
               onMouseUp={() => { setSelectedID(row.id); setShowWarnings(false); root?.focus() }}>
               <text wrapMode="none" selectable={false}>
                 <span style={{ fg: statusColor(row.status) }}>{`${STATUS_GLYPHS[row.status]} `}</span>
-                <span style={{ fg: theme().warning }}>{gate()}</span>
+                <span style={{ fg: gateColor(scheduleCheck(row)?.mode) }}>{gate()}</span>
                 {chosen()
                   ? <b style={{ fg: theme().accent }}>{name()}</b>
                   : <span style={{ fg: row.status === "done" ? theme().muted : theme().text }}>{name()}</span>}
@@ -312,12 +315,12 @@ export function ScheduleWindow(props: ScheduleWindowProps) {
       <>
         <text fg={theme().muted} flexShrink={0}>{text().condition}</text>
         <text wrapMode="word" flexShrink={0}>
-          <span style={{ fg: theme().warning }}>{`${GATE_GLYPH} `}</span>
+          <span style={{ fg: gateColor(gate().mode) }}>{`${GATE_GLYPH} `}</span>
           <span style={{ fg: theme().text }}>
             {gate().mode === "if" ? text().conditionIf : text().conditionUntil}
           </span>
         </text>
-        <box flexShrink={0} border={["left"]} borderColor={theme().warning} paddingLeft={1}>
+        <box flexShrink={0} border={["left"]} borderColor={gateColor(gate().mode)} paddingLeft={1}>
           <box flexDirection="column" flexShrink={0}>
             <Field label={gate().condition.type === "shell" ? text().conditionShell : text().conditionCode}>
               {conditionTarget(gate().condition)}

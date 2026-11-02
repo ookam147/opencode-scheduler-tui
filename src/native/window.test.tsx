@@ -8,7 +8,7 @@ import { reconcileWindowSelection, ScheduleWindow, type ScheduleWindowTheme } fr
 
 const theme: ScheduleWindowTheme = {
   text: "#ffffff", muted: "#999999", accent: "#55aaff", background: "#101010",
-  raised: "#303030", border: "#555555", success: "#22cc88", warning: "#ffaa33", error: "#ff5555",
+  raised: "#303030", border: "#555555", success: "#22cc88", warning: "#ffaa33", error: "#ff5555", info: "#55aaff",
 }
 function row(id: string, status: ScheduleRow["status"] = "active", sessionID = "session-1"): ScheduleRow {
   return { id, name: `Task ${id}`, prompt: `Prompt for ${id}`, when: { type: "every", every: "1h" }, tz: "UTC", status, sessionID, runCount: 3, lastOutcome: "fired" }
