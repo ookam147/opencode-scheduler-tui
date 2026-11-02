@@ -40,6 +40,7 @@ export declare function words(language?: Language): {
     conditionUntil: string;
     conditionIfNote: string;
     conditionUntilNote: string;
+    waitingTag: string;
     conditionFailureNote: string;
     conditionShell: string;
     conditionCode: string;

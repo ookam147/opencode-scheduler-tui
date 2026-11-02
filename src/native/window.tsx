@@ -277,7 +277,10 @@ export function ScheduleWindow(props: ScheduleWindowProps) {
             const chosen = () => selectedID() === row.id
             /** Keeps the row's total width stable, so the gate marker never shifts the columns beside it. */
             const gate = () => scheduleCheck(row) ? `${GATE_GLYPH} ` : ""
-            const name = () => fit(title(row), nameWidth() - columns(gate()))
+            /** An active gate whose last check did not pass is still waiting; say so without opening the details. */
+            const waiting = () => row.status === "active" && scheduleCheck(row) && row.lastOutcome === "checked"
+              ? ` ${text().waitingTag}` : ""
+            const name = () => fit(title(row), nameWidth() - columns(gate()) - columns(waiting()))
             return <box id={`schedule-row-${row.id}`} height={1} flexShrink={0}
               backgroundColor={chosen() ? theme().raised : undefined}
               onMouseUp={() => { setSelectedID(row.id); setShowWarnings(false); root?.focus() }}>
@@ -287,6 +290,7 @@ export function ScheduleWindow(props: ScheduleWindowProps) {
                 {chosen()
                   ? <b style={{ fg: theme().accent }}>{name()}</b>
                   : <span style={{ fg: row.status === "done" ? theme().muted : theme().text }}>{name()}</span>}
+                <span style={{ fg: theme().muted }}>{waiting()}</span>
                 <span style={{ fg: theme().muted }}>{whenWidth() ? `  ${fit(describeWhen(row.when), whenWidth())}` : ""}</span>
                 <span style={{ fg: row.status === "active" ? theme().text : faint() }}>{`  ${fit(nextLabel(row, now(), language()), NEXT_WIDTH, "right")}`}</span>
               </text>

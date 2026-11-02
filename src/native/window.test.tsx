@@ -51,6 +51,24 @@ describe("native schedule window", () => {
       if (language === "en") expect(frame).not.toMatch(/[\u4e00-\u9fff]/)
     } finally { m.app.renderer.destroy() }
   })
+  test.each(["zh", "en"] as const)("tags only active gates whose last check did not pass as waiting (%s)", async (language) => {
+    const gate = { type: "shell" as const, run: "test -f /tmp/ready" }
+    const waiting: ScheduleRow = { ...row("waiting"), name: "Wait gate", until: gate, lastOutcome: "checked" }
+    const fired: ScheduleRow = { ...row("fired"), name: "Fired gate", if: gate, lastOutcome: "fired" }
+    const paused: ScheduleRow = { ...row("paused", "paused"), name: "Paused gate", if: gate, lastOutcome: "checked" }
+    const plain: ScheduleRow = { ...row("plain"), lastOutcome: "checked" }
+    const m = await mount([waiting, fired, paused, plain], 150, 30, language)
+    try {
+      const lines = m.app.captureCharFrame().split("\n")
+      const tag = language === "zh" ? "等待条件" : "waiting"
+      // List rows carry the plan column; the detail header only repeats the selected name.
+      const line = (name: string) => lines.find((item) => item.includes(name) && item.includes(language === "zh" ? "每隔 1h" : "Every 1h"))!
+      expect(line("Wait gate")).toContain(tag)
+      for (const name of ["Fired gate", "Paused gate", "Task plain"]) expect(line(name)).not.toContain(tag)
+      const column = (text: string) => columns(text.slice(0, text.indexOf(language === "zh" ? "每隔 1h" : "Every 1h")))
+      expect(column(line("Wait gate"))).toBe(column(line("Fired gate")))
+    } finally { m.app.renderer.destroy() }
+  })
   test("shows a code gate with its confinement note, and marks only gated rows in the list", async () => {
     const plain = row("plain")
     const coded: ScheduleRow = { ...row("coded"), name: "Inbox watch",
