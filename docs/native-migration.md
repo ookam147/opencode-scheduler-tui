@@ -2,7 +2,7 @@
 
 ## 本次边界
 
-默认 package exports 已切换到 `src/native/` 对应构建产物。旧 `src/index.ts`、`src/status.ts`、`src/tui.tsx` 保留用于回归和参考，不会从新默认入口加载。没有修改 `AGENTS.md`、`opencode.json`、用户 CLI 配置或任何 OS 定时任务。
+package exports 只指向 `src/native/` 对应构建产物。旧版 OS 调度实现（`src/index.ts`、`src/server.ts`、`src/status.ts`、`src/tui.tsx` 及其测试、构建产物和 `@opencode-ai/plugin`、`cron-parser` 依赖）已删除；需要参考时请查看 1.4.1 及更早的 Git 历史。旧版的 `cleanup_global` 等清理工具也随之移除，旧系统任务需按[旧版文档](./legacy-readme.zh-CN.md)所述位置手动盘点。没有修改 `AGENTS.md`、`opencode.json`、用户 CLI 配置或任何 OS 定时任务。
 
 因此，已有 launchd/systemd/cron/schtasks 任务可能仍在后台运行。**切换插件入口不等于停掉旧任务**。应先盘点，再经确认停用旧系统任务，最后按会话重新创建原生任务，防止重复执行。不要把 shell 脚本、独立工作目录或旧权限设置无损映射为 prompt。
 
@@ -46,7 +46,7 @@ UI 仅借鉴 `opencode-quota` 的固定外壳、分类 rail、焦点和滚动分
 
 ## 依赖注意
 
-目标 SDK 为 `@opencode/plugin@2.2.3`，OpenTUI 为 0.8.0，与宿主 2.2.3 的 catalog 一致（`@opencode/plugin@2.2.3` 的 peer 要求 `@opentui/core >= 0.8.0`）。运行时 SDK/OpenTUI/Solid 均保持 external，避免与宿主的响应式实例混用。`@opencode/client` 需显式声明为开发依赖，否则会被嵌套安装而导致根级类型导入无法解析。旧 SDK 和 cron-parser 仅供源码回归开发使用。
+目标 SDK 为 `@opencode/plugin@2.2.3`，OpenTUI 为 0.8.0，与宿主 2.2.3 的 catalog 一致（`@opencode/plugin@2.2.3` 的 peer 要求 `@opentui/core >= 0.8.0`）。运行时 SDK/OpenTUI/Solid 均保持 external，避免与宿主的响应式实例混用。`@opencode/client` 需显式声明为开发依赖，否则会被嵌套安装而导致根级类型导入无法解析。
 
 安装时 npm 对 Node 24 发出 OpenTUI Node>=26.4.0 引擎警告；构建测试使用 Bun 1.4.4。依赖审计仍有上游告警，尚未通过跨版本强制升级处理，不应宣称零漏洞。
 

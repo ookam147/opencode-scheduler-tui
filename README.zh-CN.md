@@ -89,7 +89,7 @@ OpenCode 2.2.3 起，定时任务可以附带一个条件；Service 在唤醒会
 
 ## 迁移与验证
 
-旧版 OS 调度源码及回归测试保留，但默认发布入口已经切换到 `dist/native/server.js` 和 `dist/native/tui.js`。已有系统定时器和任务文件**不会自动删除，也不会自动迁移**；详见[迁移说明](./docs/native-migration.md)。[旧版文档](./docs/legacy-readme.zh-CN.md)仅供参考。
+旧版 OS 调度源码及测试已删除（可在 1.4.1 及更早的 Git 历史中查看），发布入口只有 `dist/native/server.js` 和 `dist/native/tui.js`。已有系统定时器和任务文件**不会自动删除，也不会自动迁移**；详见[迁移说明](./docs/native-migration.md)。[旧版文档](./docs/legacy-readme.zh-CN.md)仅供参考。
 
 ```sh
 npm run typecheck

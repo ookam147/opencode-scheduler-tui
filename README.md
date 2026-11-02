@@ -78,7 +78,7 @@ Current-session data refreshes every five seconds while the page is open. All-se
 ## Migration and validation
 
 - [Migration notes](./docs/native-migration.md)
-- Old OS scheduler sources/tests remain as regression/reference material, but are not the default package exports. Existing system timers/files are **not** removed or converted.
+- Old OS scheduler sources/tests have been removed (see Git history for 1.4.1 and earlier); the package exports only `dist/native/server.js` and `dist/native/tui.js`. Existing system timers/files are **not** removed or converted.
 - [Legacy documentation](./docs/legacy-readme.md) describes the old implementation, not the current native entrypoint.
 
 ```sh

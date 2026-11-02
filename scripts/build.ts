@@ -1,8 +1,9 @@
 import solidPlugin from "@opentui/solid/bun-plugin"
 
 const result = await Bun.build({
-  entrypoints: ["src/index.ts", "src/server.ts", "src/tui.tsx", "src/native/server.ts", "src/native/tui.tsx"],
+  entrypoints: ["src/native/server.ts", "src/native/tui.tsx"],
   outdir: "dist",
+  root: "src",
   target: "bun",
   format: "esm",
   external: [
