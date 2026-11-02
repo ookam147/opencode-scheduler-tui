@@ -7,7 +7,9 @@ export type NativeScheduleClientSource = {
     };
     session: Pick<OpenCodeClient["session"], "list" | "get">;
 };
-export declare function createNativeScheduleClient(client: NativeScheduleClientSource, language?: "zh" | "en"): {
+export declare function createNativeScheduleClient(client: NativeScheduleClientSource, language?: "zh" | "en", options?: {
+    directoryExists?: (directory: string) => Promise<boolean>;
+}): {
     list(options: {
         scope: "current" | "all";
         sessionID?: string;

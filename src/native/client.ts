@@ -1,3 +1,4 @@
+import { access } from "node:fs/promises"
 import type { OpenCodeClient } from "@opencode/client"
 import type { NativeSchedule, ScheduleRow, ScheduleSession } from "./model"
 
@@ -40,7 +41,11 @@ function message(error: unknown) {
   return error instanceof Error ? error.message : String(error)
 }
 
-export function createNativeScheduleClient(client: NativeScheduleClientSource, language: "zh" | "en" = "zh") {
+const exists = (directory: string) => access(directory).then(() => true, () => false)
+
+export function createNativeScheduleClient(client: NativeScheduleClientSource, language: "zh" | "en" = "zh",
+  options: { directoryExists?: (directory: string) => Promise<boolean> } = {}) {
+  const directoryExists = options.directoryExists ?? exists
   const api = client.experimental.schedule
   return {
     async list(options: { scope: "current" | "all"; sessionID?: string; signal?: AbortSignal }): Promise<{
@@ -90,6 +95,10 @@ export function createNativeScheduleClient(client: NativeScheduleClientSource, l
             const schedules = await request(signal, () => api.list({ sessionID: session.id }, { signal }))
             results[index] = schedules.map((info) => ({ ...toSchedule(info), sessionID: info.sessionID ?? session.id, session }))
           } catch (error) {
+            signal?.throwIfAborted()
+            // A session whose directory was deleted cannot hold runnable schedules; the service
+            // misreports it as "schedules disabled", so it is skipped rather than shown as a failure.
+            if (session.directory && !(await directoryExists(session.directory))) continue
             signal?.throwIfAborted()
             failures[index] = `${session.title ?? (language === "zh" ? "未命名会话" : "Untitled session")} (${session.id}): ${message(error)}${session.directory ? `\n  ${session.directory}` : ""}`
           }

@@ -29,7 +29,7 @@ function fake() {
       delete: async ({ scheduleID }) => { calls.push(`delete:${scheduleID}`) },
     } },
   }
-  return { source, calls, adapter: createNativeScheduleClient(source) }
+  return { source, calls, adapter: createNativeScheduleClient(source, "zh", { directoryExists: async () => true }) }
 }
 
 describe("native schedule adapter", () => {
@@ -115,6 +115,24 @@ describe("native schedule adapter", () => {
     expect(result.warnings).toHaveLength(1)
     expect(result.warnings[0]).toContain("ses_bad")
     expect(result.warnings[0]).toContain("403 Forbidden")
+  })
+
+  test("a failing session whose directory was deleted is skipped, not reported", async () => {
+    const { source } = fake()
+    const checked: string[] = []
+    const adapter = createNativeScheduleClient(source, "zh", {
+      directoryExists: async (directory) => { checked.push(directory); return directory !== "/workspace/ses_gone" },
+    })
+    source.session.list = async () => ({ data: [session("ses_gone"), session("ses_bad"), session("ses_ok")], cursor: {} })
+    source.experimental.schedule.list = async ({ sessionID }) => {
+      if (sessionID !== "ses_ok") throw new Error("Scheduled tasks are disabled")
+      return [schedule("sch_ok", sessionID)]
+    }
+    const result = await adapter.list({ scope: "all" })
+    expect(result.rows.map((row) => row.id)).toEqual(["sch_ok"])
+    expect(result.warnings).toHaveLength(1)
+    expect(result.warnings[0]).toContain("ses_bad")
+    expect(checked.sort()).toEqual(["/workspace/ses_bad", "/workspace/ses_gone"])
   })
 
   test("session enumeration failures and repeating cursors reject", async () => {
