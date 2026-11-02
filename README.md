@@ -2,7 +2,7 @@
 
 [简体中文](./README.zh-CN.md)
 
-A session-aware TUI for **OpenCode's native schedule service**, targeting OpenCode **2.2.1**. This working-tree migration is not a published release.
+A session-aware TUI for **OpenCode's native schedule service**. Requires OpenCode **2.2.3** or later (verified on 2.2.5).
 
 The host owns timing, persistence and prompt delivery. The plugin does not install launchd/systemd/cron jobs, spawn `opencode run`, read a local SQLite database, or register competing scheduler tools.
 
@@ -20,11 +20,11 @@ Inside a conversation, run `/schedule_status` or **Show or hide scheduled tasks*
 ## Local loading
 
 ```sh
-npm install --legacy-peer-deps
+npm install
 npm run build
 ```
 
-Use Bun 1.3.14+ for build/test. OpenTUI 0.7.0's Node engine requires Node 26.4.0+; the plugin itself runs in OpenCode's Bun host.
+Use Bun 1.3.14+ for build/test. OpenTUI 0.8.0's Node engine requires Node 26.4.0+; the plugin itself runs in OpenCode's Bun host. `@opencode/plugin` is an optional peer provided by the host, so it is not installed with the plugin.
 
 For this checkout, add its **directory** to `plugins` in `~/.config/opencode/cli.json`:
 
@@ -56,18 +56,18 @@ The `d` action asks for confirmation, then calls the native schedule deletion AP
 
 ## Gated schedules
 
-OpenCode 2.2.3 can gate a schedule on a condition the service evaluates before waking a session, with no model call. Gated tasks are marked with `◆` in the list, and the details explain the gate:
+OpenCode 2.2.3 can gate a schedule on a condition the service evaluates before waking a session, with no model call. Gated tasks are marked with `◆` in the list (`if` in the theme's warning colour, `until` in its info colour), tagged `waiting` when the last check did not pass, and the details explain the gate:
 
-- `if` checks every slot and wakes the session only on the slots where the check passes.
-- `until` polls until the check passes once, then stops. On timeout the prompt is still sent, noting the condition was never met.
+- `if` is checked before every run to decide whether that run happens.
+- `until` waits for the condition to hold, then runs once. If it times out unmet, it still runs once and notes the condition was not met.
 
-A check is either a shell command run in the session's directory (passing on exit code 0, or when its output equals `is`, matches `matches`, or differs from the previous check via `changes`) or a confined Code Mode script with no network access. Three consecutive check failures pause the task. Two outcomes report check activity: `checked` (evaluated without waking) and `expired` (an `until` gate that timed out).
+A check is either a shell command run in the session's directory (passing on exit code 0, or when its output equals `is`, matches `matches`, or differs from the previous check via `changes`) or a confined Code Mode script with no network access. Three consecutive check errors (timeout, command error, etc.) pause the task; an unmet condition is not an error. Two outcomes report check activity: `checked` (evaluated without waking) and `expired` (an `until` gate that timed out).
 
 Gates are only displayed, never created here; `schedule_create` remains the agent's job. `lastOutput` is not shown because the service returns it only from creation, never from the list and get APIs this window uses.
 
 ## Refresh behavior
 
-All requests use the connected host's `context.client`, including remote services. The native list API requires a session ID. “All sessions” walks all session pages and combines schedule lists with a maximum of four concurrent requests. Inaccessible sessions produce visible warnings, not silent claims of completeness.
+All requests use the connected host's `context.client`, including remote services. The native list API requires a session ID. “All sessions” walks all session pages and combines schedule lists with a maximum of four concurrent requests. Inaccessible sessions produce visible warnings, not silent claims of completeness; sessions whose directory was deleted are skipped (judged by the local file system).
 
 Current-session data refreshes every five seconds while the page is open. All-session fan-out runs at most once per minute automatically. Mutations and `r` refresh immediately. Requests/timers are cancelled when the window closes; stale responses cannot replace a newer scope.
 

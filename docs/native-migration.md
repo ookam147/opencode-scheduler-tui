@@ -46,9 +46,9 @@ UI 仅借鉴 `opencode-quota` 的固定外壳、分类 rail、焦点和滚动分
 
 ## 依赖注意
 
-目标 SDK 为 `@opencode/plugin@2.2.3`，OpenTUI 为 0.8.0，与宿主 2.2.3 的 catalog 一致（`@opencode/plugin@2.2.3` 的 peer 要求 `@opentui/core >= 0.8.0`）。运行时 SDK/OpenTUI/Solid 均保持 external，避免与宿主的响应式实例混用。`@opencode/client` 需显式声明为开发依赖，否则会被嵌套安装而导致根级类型导入无法解析。
+开发依赖为 `@opencode/plugin`/`@opencode/client`/`@opencode/theme@2.2.5`，OpenTUI 为 0.8.0。`@opencode/plugin` 对使用者是可选的对等依赖（`>=2.2.3 <3`），不写入 `dependencies`：宿主的 `ensurePluginRuntime()` 会把 `@opencode/plugin` 与 `effect` 映射到宿主自身的模块，并拒绝加载插件 `node_modules` 里的副本，随插件安装只会白白下载一份 SDK。运行时 SDK/OpenTUI/Solid 均保持 external，避免与宿主的响应式实例混用。`@opencode/client` 需显式声明为开发依赖，否则会被嵌套安装而导致根级类型导入无法解析。
 
-安装时 npm 对 Node 24 发出 OpenTUI Node>=26.4.0 引擎警告；构建测试使用 Bun 1.4.4。依赖审计仍有上游告警，尚未通过跨版本强制升级处理，不应宣称零漏洞。
+安装时 npm 对 Node 24 发出 OpenTUI Node>=26.4.0 引擎警告；构建测试使用 Bun 1.4.4。`npm audit --omit=dev` 为 0；完整审计仍有来自开发工具链的中等告警，尚未通过跨版本强制升级处理，不影响插件使用者。
 
 ## 条件门控（2.2.3 新增）
 

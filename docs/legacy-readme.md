@@ -14,9 +14,9 @@ This is an [OpenCode](https://opencode.ai) plugin that uses your OS's native sch
 
 As of `v1.4.0`, the plugin includes an OS-verified status API and a mouse-enabled OpenCode TUI task center. Jobs remain scoped by `workdir`, and scheduled runs are supervised (no overlap + optional timeout).
 
-![TUI Main Interface](docs/screenshots/tui-main.png)
-![Task Detail](docs/screenshots/tui-detail.png)
-![Session Sidebar](docs/screenshots/tui-sidebar.png)
+![TUI Main Interface](screenshots/tui-main.png)
+![Task Detail](screenshots/tui-detail.png)
+![Session Sidebar](screenshots/tui-sidebar.png)
 
 ## Install
 
