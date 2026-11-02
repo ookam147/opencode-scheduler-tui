@@ -43,7 +43,8 @@ const SCOPES: Scope[] = ["current", "all"]
 const RAIL_WIDTH = 16
 /** Wide enough for the status list beside the task list and the details. */
 const WIDE = 110
-const NEXT_WIDTH = 10
+/** Fits the longest relative time per language: "59 分钟后" and "in 59 minutes". */
+const NEXT_WIDTH = { zh: 10, en: 13 } as const
 const WHEN_WIDTH = 20
 const LABEL_WIDTH = 8
 const HINT_GAP = "  "
@@ -113,7 +114,8 @@ export function ScheduleWindow(props: ScheduleWindowProps) {
   /** Inside the list: its scrollbar column stays free. */
   const rowWidth = () => listWidth() - 2
   const whenWidth = () => rowWidth() >= 56 ? WHEN_WIDTH : 0
-  const nameWidth = () => Math.max(6, rowWidth() - 2 - NEXT_WIDTH - 2 - (whenWidth() ? whenWidth() + 2 : 0))
+  const nextWidth = () => NEXT_WIDTH[language()]
+  const nameWidth = () => Math.max(6, rowWidth() - 2 - nextWidth() - 2 - (whenWidth() ? whenWidth() + 2 : 0))
 
   const scoped = createMemo(() => scope() === "all" ? props.rows()
     : props.rows().filter((row) => !!props.currentSessionID() && row.sessionID === props.currentSessionID()))
@@ -269,7 +271,7 @@ export function ScheduleWindow(props: ScheduleWindowProps) {
     <box flexDirection="column" width={wide() ? listWidth() : "100%"} height={wide() ? "100%" : "45%"}
       flexShrink={0} minHeight={0} paddingLeft={wide() ? 1 : 0}>
       <text fg={faint()} wrapMode="none" flexShrink={0}>
-        {`  ${fit(text().task, nameWidth())}  ${whenWidth() ? `${fit(text().plan, whenWidth())}  ` : ""}${fit(text().next, NEXT_WIDTH, "right")}`}
+        {`  ${fit(text().task, nameWidth())}  ${whenWidth() ? `${fit(text().plan, whenWidth())}  ` : ""}${fit(text().next, nextWidth(), "right")}`}
       </text>
       <scrollbox id="schedule-list" ref={list} flexGrow={1} flexBasis={0} minHeight={0} scrollX={false}>
         <Show when={visible().length} fallback={<text fg={theme().muted} wrapMode="word" marginTop={1}>{`  ${emptyText()}`}</text>}>
@@ -280,7 +282,10 @@ export function ScheduleWindow(props: ScheduleWindowProps) {
             /** An active gate whose last check did not pass is still waiting; say so without opening the details. */
             const waiting = () => row.status === "active" && scheduleCheck(row) && row.lastOutcome === "checked"
               ? ` ${text().waitingTag}` : ""
-            const name = () => fit(title(row), nameWidth() - columns(gate()) - columns(waiting()))
+            const room = () => nameWidth() - columns(gate()) - columns(waiting())
+            /** Unpadded, so the waiting tag follows the name; the padding goes after the tag instead. */
+            const name = () => fit(title(row), room()).trimEnd()
+            const pad = () => " ".repeat(Math.max(0, room() - columns(name())))
             return <box id={`schedule-row-${row.id}`} height={1} flexShrink={0}
               backgroundColor={chosen() ? theme().raised : undefined}
               onMouseUp={() => { setSelectedID(row.id); setShowWarnings(false); root?.focus() }}>
@@ -290,9 +295,9 @@ export function ScheduleWindow(props: ScheduleWindowProps) {
                 {chosen()
                   ? <b style={{ fg: theme().accent }}>{name()}</b>
                   : <span style={{ fg: row.status === "done" ? theme().muted : theme().text }}>{name()}</span>}
-                <span style={{ fg: theme().muted }}>{waiting()}</span>
+                <span style={{ fg: theme().muted }}>{`${waiting()}${pad()}`}</span>
                 <span style={{ fg: theme().muted }}>{whenWidth() ? `  ${fit(describeWhen(row.when), whenWidth())}` : ""}</span>
-                <span style={{ fg: row.status === "active" ? theme().text : faint() }}>{`  ${fit(nextLabel(row, now(), language()), NEXT_WIDTH, "right")}`}</span>
+                <span style={{ fg: row.status === "active" ? theme().text : faint() }}>{`  ${fit(nextLabel(row, now(), language()), nextWidth(), "right")}`}</span>
               </text>
             </box>
           }}</For>

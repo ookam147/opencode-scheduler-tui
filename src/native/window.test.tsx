@@ -63,10 +63,20 @@ describe("native schedule window", () => {
       const tag = language === "zh" ? "等待条件" : "waiting"
       // List rows carry the plan column; the detail header only repeats the selected name.
       const line = (name: string) => lines.find((item) => item.includes(name) && item.includes(language === "zh" ? "每隔 1h" : "Every 1h"))!
-      expect(line("Wait gate")).toContain(tag)
+      // The tag follows the name directly, not the far edge of a wide name column.
+      expect(line("Wait gate")).toContain(`Wait gate ${tag}`)
       for (const name of ["Fired gate", "Paused gate", "Task plain"]) expect(line(name)).not.toContain(tag)
       const column = (text: string) => columns(text.slice(0, text.indexOf(language === "zh" ? "每隔 1h" : "Every 1h")))
       expect(column(line("Wait gate"))).toBe(column(line("Fired gate")))
+    } finally { m.app.renderer.destroy() }
+  })
+  test("the English next column fits a full relative time without truncation", async () => {
+    const soon: ScheduleRow = { ...row("soon"), nextDueAt: Date.now() + 58 * 60_000 + 20_000 }
+    const m = await mount([soon], 150, 20, "en")
+    try {
+      const listRow = m.app.captureCharFrame().split("\n").find((line) => line.includes("Every 1h"))!
+      expect(listRow).toContain("in 58 minutes")
+      expect(listRow).not.toContain("min…")
     } finally { m.app.renderer.destroy() }
   })
   test("shows a code gate with its confinement note, and marks only gated rows in the list", async () => {

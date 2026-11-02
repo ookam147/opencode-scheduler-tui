@@ -539,7 +539,10 @@ var FILTERS = ["all", "active", "paused", "done"];
 var SCOPES = ["current", "all"];
 var RAIL_WIDTH = 16;
 var WIDE2 = 110;
-var NEXT_WIDTH = 10;
+var NEXT_WIDTH = {
+  zh: 10,
+  en: 13
+};
 var WHEN_WIDTH = 20;
 var LABEL_WIDTH = 8;
 var HINT_GAP = "  ";
@@ -604,7 +607,8 @@ function ScheduleWindow(props) {
   const listWidth = () => wide() ? width() - RAIL_WIDTH - 1 - detailWidth() : width();
   const rowWidth = () => listWidth() - 2;
   const whenWidth = () => rowWidth() >= 56 ? WHEN_WIDTH : 0;
-  const nameWidth = () => Math.max(6, rowWidth() - 2 - NEXT_WIDTH - 2 - (whenWidth() ? whenWidth() + 2 : 0));
+  const nextWidth = () => NEXT_WIDTH[language()];
+  const nameWidth = () => Math.max(6, rowWidth() - 2 - nextWidth() - 2 - (whenWidth() ? whenWidth() + 2 : 0));
   const scoped = createMemo(() => scope() === "all" ? props.rows() : props.rows().filter((row) => !!props.currentSessionID() && row.sessionID === props.currentSessionID()));
   const counts = createMemo(() => countSchedules(scoped()));
   const visible = createMemo(() => selectSchedules(scoped(), {
@@ -987,7 +991,7 @@ function ScheduleWindow(props) {
     _$setProp(_el$10, "minHeight", 0);
     _$setProp(_el$11, "wrapMode", "none");
     _$setProp(_el$11, "flexShrink", 0);
-    _$insert(_el$11, () => `  ${fit(text().task, nameWidth())}  ${whenWidth() ? `${fit(text().plan, whenWidth())}  ` : ""}${fit(text().next, NEXT_WIDTH, "right")}`);
+    _$insert(_el$11, () => `  ${fit(text().task, nameWidth())}  ${whenWidth() ? `${fit(text().plan, whenWidth())}  ` : ""}${fit(text().next, nextWidth(), "right")}`);
     var _ref$ = list;
     typeof _ref$ === "function" ? _$use(_ref$, _el$12) : list = _el$12;
     _$setProp(_el$12, "id", "schedule-list");
@@ -1018,7 +1022,9 @@ function ScheduleWindow(props) {
             const chosen = () => selectedID() === row.id;
             const gate = () => scheduleCheck(row) ? `${GATE_GLYPH} ` : "";
             const waiting = () => row.status === "active" && scheduleCheck(row) && row.lastOutcome === "checked" ? ` ${text().waitingTag}` : "";
-            const name = () => fit(title(row), nameWidth() - columns(gate()) - columns(waiting()));
+            const room = () => nameWidth() - columns(gate()) - columns(waiting());
+            const name = () => fit(title(row), room()).trimEnd();
+            const pad = () => " ".repeat(Math.max(0, room() - columns(name())));
             return (() => {
               var _el$14 = _$createElement("box"), _el$15 = _$createElement("text"), _el$16 = _$createElement("span"), _el$17 = _$createElement("span"), _el$18 = _$createElement("span"), _el$19 = _$createElement("span"), _el$20 = _$createElement("span");
               _$insertNode(_el$14, _el$15);
@@ -1056,12 +1062,12 @@ function ScheduleWindow(props) {
                   return _el$22;
                 })();
               })(), _el$18);
-              _$insert(_el$18, waiting);
+              _$insert(_el$18, () => `${waiting()}${pad()}`);
               _$insert(_el$19, (() => {
                 var _c$3 = _$memo(() => !!whenWidth());
                 return () => _c$3() ? `  ${fit(describeWhen(row.when), whenWidth())}` : "";
               })());
-              _$insert(_el$20, () => `  ${fit(nextLabel(row, now(), language()), NEXT_WIDTH, "right")}`);
+              _$insert(_el$20, () => `  ${fit(nextLabel(row, now(), language()), nextWidth(), "right")}`);
               _$effect((_p$) => {
                 var _v$15 = `schedule-row-${row.id}`, _v$16 = chosen() ? theme().raised : undefined, _v$17 = {
                   fg: statusColor(row.status)
