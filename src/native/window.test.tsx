@@ -29,6 +29,7 @@ async function mount(rows: AutomationRow[], width = 110, height = 26, language: 
   async function key(value: string) {
     if (value === "right" || value === "left") app.mockInput.pressArrow(value)
     else if (value === "tab") app.mockInput.pressTab()
+    else if (value === "escape") app.mockInput.pressEscape()
     else app.mockInput.pressKey(value)
     await new Promise((resolve) => setTimeout(resolve, 35))
     await app.flush()
@@ -48,6 +49,20 @@ describe("automation window", () => {
       expect(frame).toContain(language === "zh" ? "Shell 命令" : "Shell command")
       expect(frame).toContain("curl: (22) 503")
       expect(frame).toContain(language === "zh" ? "上次输出" : "Last output")
+      if (language === "en") expect(frame).not.toMatch(/[\u4e00-\u9fff]/)
+    } finally { m.app.renderer.destroy() }
+  })
+  test.each(["zh", "en"] as const)("says whether a code run woke an agent and shows its saved state (%s)", async (language) => {
+    const code: AutomationRow = { ...row("code"), name: "Order watch",
+      action: { type: "code", code: "return orders.length ? { send: { prompt: 'x' } } : undefined" },
+      lastOutcome: "fired", lastRunAt: Date.now() - 60_000, lastOutput: "Prompted ses_abc", state: { lastOrder: 1042 } }
+    const m = await mount([code], 150, 50, language)
+    try {
+      const frame = m.app.captureCharFrame()
+      expect(frame).toContain(language === "zh" ? "已唤醒 AI" : "woke an agent")
+      expect(frame).toContain(language === "zh" ? "保存的状态" : "Saved state")
+      expect(frame).toContain('"lastOrder": 1042')
+      expect(frame).not.toContain(language === "zh" ? "无网络访问" : "no network access")
       if (language === "en") expect(frame).not.toMatch(/[\u4e00-\u9fff]/)
     } finally { m.app.renderer.destroy() }
   })
@@ -90,11 +105,34 @@ describe("automation window", () => {
       let frame = m.app.captureCharFrame()
       expect(frame).toContain("Code Mode 脚本")
       expect(frame).toContain("tools.slack.read_thread")
-      expect(frame).toContain("无网络访问")
+      // Explanations live in help, not among the task's own content.
+      expect(frame).not.toContain("不调用 AI")
       await m.key("down")
       frame = m.app.captureCharFrame()
-      expect(frame).toContain("子代理 explore")
-      expect(frame).toContain("不回报")
+      // A subagent run names its own action kind and where it goes.
+      expect(frame).toMatch(/动作\s+子代理 explore/)
+      expect(frame).not.toContain("发送到")
+    } finally { m.app.renderer.destroy() }
+  })
+  test.each(["zh", "en"] as const)("h swaps the details for help and back; esc leaves help before closing (%s)", async (language) => {
+    const m = await mount([row("a")], 150, 44, language)
+    try {
+      const help = language === "zh" ? "列表标记" : "List markers"
+      expect(m.app.captureCharFrame()).not.toContain(help)
+      expect(m.app.captureCharFrame()).toContain(language === "zh" ? "h 帮助" : "h Help")
+      await m.key("h")
+      let frame = m.app.captureCharFrame()
+      expect(frame).toContain(help)
+      expect(frame).toContain(language === "zh" ? "原会话收不到消息" : "the original session gets no message")
+      expect(frame).not.toContain("Prompt for a")
+      if (language === "en") expect(frame).not.toMatch(/[\u4e00-\u9fff]/)
+      await m.key("escape")
+      frame = m.app.captureCharFrame()
+      expect(frame).not.toContain(help)
+      expect(frame).toContain("Prompt for a")
+      expect(m.calls).not.toContain("close")
+      await m.key("h"); await m.key("h")
+      expect(m.app.captureCharFrame()).not.toContain(help)
     } finally { m.app.renderer.destroy() }
   })
   test("an event watch shows its server, event and arguments", async () => {
@@ -128,8 +166,7 @@ describe("automation window", () => {
       const frame = m.app.captureCharFrame()
       expect(frame).toContain("Inbound")
       expect(frame).not.toContain("Task elsewhere")
-      expect(frame).toContain("Target")
-      expect(frame).toContain("Here")
+      expect(frame).toMatch(/Sends to\s+Here/)
     } finally { m.app.renderer.destroy() }
   })
   test("the English next column fits a full relative time without truncation", async () => {
@@ -157,9 +194,9 @@ describe("automation window", () => {
       expect(sessionLine).toBeGreaterThan(scheduleLine)
       expect(lines[scheduleLine]).toContain("english")
       expect(lines[sessionLine]).toContain("session-1")
-      // The creator is the default target, so no separate target row is drawn.
-      expect(frame).not.toMatch(language === "zh" ? /目标\s{2,}/ : /Target\s{2,}/)
-      expect(frame).toContain(language === "zh" ? "未绑定独立模型" : "separate model is bound")
+      // A plain prompt back to its creator needs no separate destination row.
+      expect(frame).toMatch(language === "zh" ? /动作\s+提示词/ : /Action\s+Prompt/)
+      expect(frame).not.toContain(language === "zh" ? "发送到" : "Sends to")
       if (language === "en") expect(frame).not.toMatch(/[\u4e00-\u9fff]/)
     } finally { m.app.renderer.destroy() }
   })

@@ -3,7 +3,7 @@ import type { BoxRenderable, KeyEvent, RGBA, ScrollBoxRenderable } from "@opentu
 import { useTerminalDimensions } from "@opentui/solid"
 import { createEffect, createMemo, createSignal, For, onCleanup, onMount, Show, type Accessor, type JSX } from "solid-js"
 import { clockTime, columns, fit, nextLabel, relativeTime, STATUS_GLYPHS } from "./format"
-import { actionBody, belongsTo, countAutomations, selectAutomations, sortAutomations, targetSessionID,
+import { actionBody, belongsTo, codeWake, countAutomations, selectAutomations, sortAutomations, targetSessionID,
   type AutomationAction, type AutomationFilter, type AutomationSort, type AutomationRow, type AutomationTrigger } from "./model"
 import { words, type Language } from "./i18n"
 import { FILTERS, SCOPES, type Scope, type TimeFormat } from "./settings"
@@ -154,7 +154,8 @@ export function AutomationWindow(props: AutomationWindowProps) {
   const exitSearch = () => { setSearching(false); root?.focus() }
   const close = () => { Promise.resolve().then(() => props.close()).catch((error) => { if (alive) setActionError(String(error)) }) }
   const escape = () => {
-    if (query()) setQuery("")
+    if (helping()) setHelping(false)
+    else if (query()) setQuery("")
     else close()
   }
   const switchFilter = (delta: number) => setFilter(FILTERS[(FILTERS.indexOf(filter()) + delta + FILTERS.length) % FILTERS.length]!)
@@ -171,6 +172,8 @@ export function AutomationWindow(props: AutomationWindowProps) {
   const remove = () => { const row = selected(); if (row) void invoke(() => props.remove(row)) }
   const open = () => { const row = selected(); if (row && targetSessionID(row)) void invoke(() => props.openSession(row)) }
   const settings = () => { if (props.openSettings) void invoke(() => props.openSettings!()) }
+  const [helping, setHelping] = createSignal(false)
+  const toggleHelp = () => { setHelping(!helping()); detail?.scrollTo(0) }
   const actions = [
     { key: "up", run: () => move(-1) }, { key: "k", run: () => move(-1) },
     { key: "down", run: () => move(1) }, { key: "j", run: () => move(1) },
@@ -180,7 +183,7 @@ export function AutomationWindow(props: AutomationWindowProps) {
     { key: "s", run: () => setScope(scope() === "all" ? "current" : "all") },
     { key: "escape", run: escape },
     { key: "r", run: () => { void invoke(props.refresh) } }, { key: "p", run: toggle },
-    { key: "d", run: remove }, { key: "o", run: open }, { key: "c", run: settings },
+    { key: "d", run: remove }, { key: "o", run: open }, { key: "c", run: settings }, { key: "h", run: toggleHelp },
     { key: "pageup", run: () => detail?.scrollBy(-Math.max(1, detail.height - 1)) },
     { key: "pagedown", run: () => detail?.scrollBy(Math.max(1, detail.height - 1)) },
   ].map((action) => ({ ...action, run: () => { if (!searching()) action.run() } }))
@@ -243,7 +246,8 @@ export function AutomationWindow(props: AutomationWindowProps) {
       ...(row ? [{ key: "d", label: text().remove }] : []),
       ...(row && targetSessionID(row) ? [{ key: "o", label: text().openSession }] : []),
       ...(props.openSettings ? [{ key: "c", label: text().settings }] : []),
-      { key: "esc", label: query() ? text().clearSearch : text().close },
+      { key: helping() ? "h/esc" : "h", label: helping() ? text().helpClose : text().help },
+      ...(helping() ? [] : [{ key: "esc", label: query() ? text().clearSearch : text().close }]),
     ]
   }
 
@@ -310,27 +314,46 @@ export function AutomationWindow(props: AutomationWindowProps) {
       </scrollbox>
     </box>
 
-  const executionNote = (action: AutomationAction) =>
-    action.type === "prompt"
-      ? action.to.subagent ? text().executionNotes.subagent(action.to.subagent) : text().executionNotes.prompt
-      : text().executionNotes[action.type]
-
   const output = (value: string) => value.length > OUTPUT_LIMIT ? `${value.slice(0, OUTPUT_LIMIT)}…` : value
+
+  /** Replaces the details while open, so explanations never sit among a task's own content. */
+  const Help = () => {
+    const keyWidth = () => Math.max(...text().helpSections.flatMap((section) => section.items.map(([key]) => columns(key)))) + 2
+    return <box id="automation-help" flexDirection="column" flexShrink={0}>
+      <text fg={theme().text} flexShrink={0}><b>{text().helpTitle}</b></text>
+      <For each={text().helpSections}>{(section) =>
+        <>
+          <box height={1} flexShrink={0} />
+          <text fg={theme().muted} flexShrink={0}>{section.title}</text>
+          <For each={section.items}>{([key, value]) =>
+            <box flexDirection="row" flexShrink={0}>
+              <text fg={theme().accent} wrapMode="none" flexShrink={0} width={keyWidth()}>{key}</text>
+              <text fg={theme().text} wrapMode="word" flexGrow={1} flexShrink={1} minWidth={0}>{value}</text>
+            </box>}
+          </For>
+        </>}
+      </For>
+    </box>
+  }
 
   const Detail = (detailProps: { row: AutomationRow }) => {
     const row = () => detailProps.row
     const action = () => row().action
-    const target = () => {
+    /** Only a prompt to another session needs saying; a subagent is named beside the action. */
+    const sendTo = () => {
       const current = action()
-      if (current.type !== "prompt") return undefined
-      if (current.to.subagent) return text().toSubagent(current.to.subagent)
-      // Prompting its own creator is the default; only name a target that differs.
-      if (current.to.session === row().sessionID) return undefined
+      if (current.type !== "prompt" || current.to.subagent || current.to.session === row().sessionID) return undefined
       return sessionName(row().target) || current.to.session
     }
+    const subagent = () => { const current = action(); return current.type === "prompt" ? current.to.subagent : undefined }
     const eventArgs = () => {
       const trigger = row().trigger
       return trigger.type === "event" && trigger.args && Object.keys(trigger.args).length ? JSON.stringify(trigger.args) : undefined
+    }
+    const wake = () => { const value = codeWake(row()); return value ? ` · ${text().wakes[value]}` : "" }
+    const state = () => {
+      const value = row().state
+      return value === undefined || value === null ? undefined : JSON.stringify(value, null, 2)
     }
     return <box flexDirection="column" flexShrink={0}>
       <text fg={theme().text} wrapMode="word" flexShrink={0}><b>{title(row())}</b></text>
@@ -349,25 +372,34 @@ export function AutomationWindow(props: AutomationWindowProps) {
       <Field label={text().runs}>{text().runCount(row().runCount)}</Field>
       <Field label={text().last} color={row().lastOutcome === "failed" ? theme().error : undefined}>
         {row().lastRunAt !== undefined
-          ? `${clockTime(row().lastRunAt, now(), language())}${row().lastOutcome ? ` · ${text().outcomes[row().lastOutcome!]}` : ""}`
-          : row().lastOutcome ? text().outcomes[row().lastOutcome!] : text().neverFired}
+          ? `${clockTime(row().lastRunAt, now(), language())}${row().lastOutcome ? ` · ${text().outcomes[row().lastOutcome!]}` : ""}${wake()}`
+          : row().lastOutcome ? `${text().outcomes[row().lastOutcome!]}${wake()}` : text().neverFired}
       </Field>
       <box height={1} flexShrink={0} />
       <text flexShrink={0}>
         <span style={{ fg: theme().muted }}>{`${text().action}  `}</span>
-        <span style={{ fg: actionColor(action()) }}>{text().actions[action().type]}</span>
+        <span style={{ fg: actionColor(action()) }}>{text().actions[actionKind(action()) ?? "prompt"]}</span>
+        <Show when={subagent()}>{(agent) => <span style={{ fg: theme().text }}>{` ${agent()}`}</span>}</Show>
       </text>
       <box flexShrink={0} border={["left"]} borderColor={actionColor(action())} paddingLeft={1} marginTop={0}>
         <text fg={theme().text} wrapMode="word">{actionBody(action()).trim() || "—"}</text>
       </box>
-      <Show when={target()}>{(value) => <Field label={text().target}>{value()}</Field>}</Show>
-      <text fg={faint()} wrapMode="word" flexShrink={0}>{executionNote(action())}</text>
+      <Show when={sendTo()}>{(value) => <Field label={text().sendTo}>{value()}</Field>}</Show>
       <Show when={row().lastOutput}>{(value) =>
         <>
           <box height={1} flexShrink={0} />
           <text fg={theme().muted} flexShrink={0}>{text().lastOutput}</text>
           <box flexShrink={0} border={["left"]} borderColor={row().lastOutcome === "failed" ? theme().error : theme().border} paddingLeft={1}>
             <text fg={row().lastOutcome === "failed" ? theme().error : faint()} wrapMode="word">{output(value())}</text>
+          </box>
+        </>}
+      </Show>
+      <Show when={state()}>{(value) =>
+        <>
+          <box height={1} flexShrink={0} />
+          <text fg={theme().muted} flexShrink={0}>{text().savedState}</text>
+          <box flexShrink={0} border={["left"]} borderColor={theme().border} paddingLeft={1}>
+            <text fg={faint()} wrapMode="word">{output(value())}</text>
           </box>
         </>}
       </Show>
@@ -440,8 +472,10 @@ export function AutomationWindow(props: AutomationWindowProps) {
       <List />
       <scrollbox id="automation-detail" ref={detail} flexGrow={1} flexBasis={0} minWidth={0} minHeight={0} scrollX={false}
         border={wide() ? ["left"] : ["top"]} borderColor={theme().border} paddingLeft={wide() ? 2 : 0} paddingRight={1}>
-        <Show when={selected()} fallback={<text fg={faint()} wrapMode="word">{visible().length ? text().selectTask : ""}</text>}>
-          {(row) => <Detail row={row()} />}
+        <Show when={!helping()} fallback={<Help />}>
+          <Show when={selected()} fallback={<text fg={faint()} wrapMode="word">{visible().length ? text().selectTask : ""}</text>}>
+            {(row) => <Detail row={row()} />}
+          </Show>
         </Show>
       </scrollbox>
     </box>

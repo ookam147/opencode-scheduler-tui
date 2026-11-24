@@ -9,13 +9,16 @@ describe("native UI language", () => {
     expect(words("zh").outcomes.disabled).toBe("配置已关闭")
     expect(words("en").outcomes.expired).toBe("Expired")
   })
-  test("explains each action kind, including subagent runs and the code failure pause", () => {
+  test("help explains every list marker and action kind in both languages, in the same shape", () => {
+    const shape = (language: "zh" | "en") => words(language).helpSections.map((section) => section.items.length)
+    expect(shape("en")).toEqual(shape("zh"))
     for (const language of ["zh", "en"] as const) {
-      const notes = words(language).executionNotes
-      expect(notes.prompt).toContain(language === "zh" ? "未绑定独立模型" : "no separate model is bound")
-      expect(notes.subagent("explore")).toContain("explore")
-      expect(notes.code).toContain(language === "zh" ? "连续 3 次失败" : "Three consecutive failures")
-      expect(notes.shell).toContain(language === "zh" ? "退出码" : "exit code")
+      const [markers, actions] = words(language).helpSections
+      expect(markers!.items.map(([key]) => key)).toEqual(expect.arrayContaining(["●", "‖", "✓", "↳", "λ", "$"]))
+      const body = actions!.items.map(([, value]) => value).join(" ")
+      expect(body).toContain(language === "zh" ? "原会话收不到消息" : "the original session gets no message")
+      expect(body).toContain(language === "zh" ? "连续失败 3 次" : "3 failures in a row")
+      expect(body).toContain(language === "zh" ? "退出码" : "exit code")
     }
   })
   test("uses explicit identifier labels", () => {

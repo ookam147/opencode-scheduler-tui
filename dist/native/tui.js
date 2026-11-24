@@ -9,6 +9,14 @@ import { createEffect as createEffect2, createSignal as createSignal2, onCleanup
 function targetSessionID(row) {
   return row.action.type === "prompt" && row.action.to.session ? row.action.to.session : row.sessionID;
 }
+var HANDOFF = /^(Prompted|Started subagent) ses_\S+$/m;
+function codeWake(row) {
+  if (row.action.type !== "code" || row.lastOutcome !== "fired" && row.lastOutcome !== "late")
+    return;
+  const first = row.lastOutput?.split(`
+`, 1)[0] ?? "";
+  return HANDOFF.test(first) ? "woke" : "quiet";
+}
 function belongsTo(row, sessionID) {
   return !!sessionID && (row.sessionID === sessionID || targetSessionID(row) === sessionID);
 }
@@ -79,8 +87,7 @@ function countAutomations(rows) {
 
 // src/native/client.ts
 function toAutomation(info) {
-  const { state: _state, ...automation } = info;
-  return automation;
+  return info;
 }
 function request(signal, run) {
   signal?.throwIfAborted();
@@ -171,18 +178,38 @@ var zh = {
   last: "\u4E0A\u6B21",
   lastOutput: "\u4E0A\u6B21\u8F93\u51FA",
   session: "\u521B\u5EFA\u4F1A\u8BDD",
-  target: "\u76EE\u6807",
   unknownSession: "\u672A\u77E5\u4F1A\u8BDD",
   eventArgs: "\u4E8B\u4EF6\u53C2\u6570",
   action: "\u52A8\u4F5C",
-  actions: { prompt: "\u63D0\u793A\u8BCD", code: "Code Mode \u811A\u672C", shell: "Shell \u547D\u4EE4" },
-  executionNotes: {
-    prompt: "\u89E6\u53D1\u65F6\u628A\u63D0\u793A\u8BCD\u53D1\u9001\u5230\u76EE\u6807\u4F1A\u8BDD\uFF0C\u5E76\u76F4\u63A5\u6CBF\u7528\u8BE5\u4F1A\u8BDD\u7684\u5F53\u524D\u914D\u7F6E\uFF08\u672A\u7ED1\u5B9A\u72EC\u7ACB\u6A21\u578B\uFF09\u3002",
-    subagent: (agent) => `\u6BCF\u6B21\u89E6\u53D1\u5728\u521B\u5EFA\u4F1A\u8BDD\u4E0B\u65B0\u5EFA\u4E00\u4E2A\u5B50\u4F1A\u8BDD\uFF0C\u7531 ${agent} \u6267\u884C\uFF1B\u5B50\u4F1A\u8BDD\u4E0D\u56DE\u62A5\u3001\u4E5F\u4E0D\u5524\u9192\u7236\u4F1A\u8BDD\u3002`,
-    code: "\u5728\u53D7\u9650 Code Mode \u4E2D\u8FD0\u884C\uFF0C\u4E0D\u8C03\u7528\u6A21\u578B\u3001\u65E0\u7F51\u7EDC\u8BBF\u95EE\uFF1B\u5DE5\u5177\u5728\u521B\u5EFA\u65F6\u4E00\u6B21\u6027\u6388\u6743\u3002\u8FDE\u7EED 3 \u6B21\u5931\u8D25\u4F1A\u81EA\u52A8\u6682\u505C\u3002",
-    shell: "\u5728\u4EFB\u52A1\u76EE\u5F55\u4E2D\u8FD0\u884C\u56FA\u5B9A\u547D\u4EE4\uFF0C\u8BB0\u5F55\u9000\u51FA\u7801\u4E0E\u8F93\u51FA\uFF1B\u547D\u4EE4\u5DF2\u5728\u521B\u5EFA\u65F6\u5BA1\u6279\u3002"
-  },
-  toSubagent: (agent) => `\u5B50\u4EE3\u7406 ${agent}\uFF08\u6BCF\u6B21\u65B0\u5EFA\u5B50\u4F1A\u8BDD\uFF09`,
+  actions: { prompt: "\u63D0\u793A\u8BCD", subagent: "\u5B50\u4EE3\u7406", code: "Code Mode \u811A\u672C", shell: "Shell \u547D\u4EE4" },
+  sendTo: "\u53D1\u9001\u5230",
+  help: "\u5E2E\u52A9",
+  helpTitle: "\u5E2E\u52A9",
+  helpClose: "\u8FD4\u56DE",
+  helpSections: [
+    { title: "\u5217\u8868\u6807\u8BB0", items: [
+      ["\u25CF", "\u8FD0\u884C\u4E2D\uFF1A\u4F1A\u6309\u8BA1\u5212\u89E6\u53D1"],
+      ["\u2016", "\u5DF2\u6682\u505C\uFF1A\u4E0D\u4F1A\u89E6\u53D1\uFF0C\u6062\u590D\u540E\u7EE7\u7EED"],
+      ["\u2713", "\u5DF2\u7ED3\u675F\uFF1A\u4E0D\u4F1A\u518D\u89E6\u53D1"],
+      ["\u65E0\u6807\u8BB0", "\u63D0\u793A\u8BCD\uFF1A\u53D1\u5230\u4F1A\u8BDD\uFF0C\u5524\u9192 AI"],
+      ["\u21B3", "\u5B50\u4EE3\u7406\uFF1A\u53D1\u7ED9\u5B50\u4EE3\u7406\uFF0C\u5524\u9192 AI"],
+      ["\u03BB", "Code Mode \u811A\u672C\uFF1A\u8FD0\u884C\u811A\u672C\uFF0C\u6309\u9700\u5524\u9192 AI"],
+      ["$", "Shell \u547D\u4EE4\uFF1A\u8FD0\u884C\u547D\u4EE4\uFF0C\u4E0D\u8C03\u7528 AI"],
+      ["\u5931\u8D25", "\u4E0A\u6B21\u8FD0\u884C\u5931\u8D25"]
+    ] },
+    { title: "\u56DB\u79CD\u52A8\u4F5C", items: [
+      ["\u63D0\u793A\u8BCD", "\u89E6\u53D1\u65F6\u628A\u63D0\u793A\u8BCD\u53D1\u8FDB\u76EE\u6807\u4F1A\u8BDD\uFF0C\u4F1A\u8BDD\u91CC\u7684 AI \u63A5\u7740\u5904\u7406\uFF0C\u56DE\u590D\u51FA\u73B0\u5728\u90A3\u4E2A\u4F1A\u8BDD\u91CC\u3002"],
+      ["\u5B50\u4EE3\u7406", "\u6BCF\u6B21\u89E6\u53D1\u65B0\u5F00\u4E00\u4E2A\u5B50\u4F1A\u8BDD\uFF0C\u4EA4\u7ED9\u6307\u5B9A\u7684\u5B50\u4EE3\u7406\u5904\u7406\u3002\u7ED3\u679C\u53EA\u7559\u5728\u5B50\u4F1A\u8BDD\u91CC\uFF0C\u539F\u4F1A\u8BDD\u6536\u4E0D\u5230\u6D88\u606F\uFF0C\u539F\u6765\u7684 AI \u4E5F\u4E0D\u4F1A\u88AB\u53EB\u9192\uFF1B\u8981\u770B\u7ED3\u679C\uFF0C\u9700\u4ECE\u4F1A\u8BDD\u5217\u8868\u6253\u5F00\u90A3\u4E2A\u5B50\u4F1A\u8BDD\u3002"],
+      ["Code Mode", "\u8FD0\u884C\u4E00\u6BB5\u811A\u672C\uFF0C\u4E0D\u8C03\u7528 AI\u3002\u811A\u672C\u53EF\u4EE5\u67E5\u6570\u636E\uFF08\u4F8B\u5982\u7528 fetch \u8BF7\u6C42\u63A5\u53E3\uFF09\uFF0C\u8FD4\u56DE send \u65F6\u624D\u5524\u9192 AI\uFF0C\u8FD4\u56DE done \u65F6\u7ED3\u675F\u4EFB\u52A1\uFF0C\u8FD4\u56DE state \u7559\u7ED9\u4E0B\u6B21\u8FD0\u884C\u3002\u5355\u6B21\u9650\u65F6 30 \u79D2\uFF0C\u8FDE\u7EED\u5931\u8D25 3 \u6B21\u81EA\u52A8\u6682\u505C\u3002"],
+      ["Shell", "\u5728\u4EFB\u52A1\u76EE\u5F55\u91CC\u8FD0\u884C\u4E00\u6761\u56FA\u5B9A\u547D\u4EE4\uFF0C\u4E0D\u8C03\u7528 AI\uFF0C\u8BB0\u5F55\u9000\u51FA\u7801\u548C\u8F93\u51FA\u3002"]
+    ] },
+    { title: "\u8BE6\u60C5\u91CC\u7684\u5B57\u6BB5", items: [
+      ["\u4E0A\u6B21", "\u4E0A\u6B21\u8FD0\u884C\u7684\u65F6\u95F4\u548C\u7ED3\u679C\u3002Code Mode \u4F1A\u6CE8\u660E\u8FD9\u6B21\u662F\u5426\u5524\u9192\u4E86 AI\u3002"],
+      ["\u4E0A\u6B21\u8F93\u51FA", "\u4E0A\u6B21\u8FD0\u884C\u7559\u4E0B\u7684\u8BB0\u5F55\uFF1AShell \u7684\u9000\u51FA\u7801\u548C\u8F93\u51FA\u3001\u811A\u672C\u7684\u65E5\u5FD7\u3001\u6682\u505C\u539F\u56E0\u7B49\u3002"],
+      ["\u4FDD\u5B58\u7684\u72B6\u6001", "Code Mode \u811A\u672C\u7559\u7ED9\u4E0B\u6B21\u8FD0\u884C\u7684\u6570\u636E\u3002"],
+      ["\u53D1\u9001\u5230", "\u63D0\u793A\u8BCD\u53D1\u5F80\u7684\u4F1A\u8BDD\uFF1B\u53EA\u6709\u53D1\u5230\u521B\u5EFA\u4F1A\u8BDD\u4EE5\u5916\u7684\u4F1A\u8BDD\u65F6\u624D\u663E\u793A\u3002"]
+    ] }
+  ],
   automationID: "\u4EFB\u52A1 ID",
   sessionID: "\u4F1A\u8BDD ID",
   statuses: { all: "\u5168\u90E8", active: "\u8FD0\u884C\u4E2D", paused: "\u5DF2\u6682\u505C", done: "\u5DF2\u7ED3\u675F" },
@@ -195,6 +222,8 @@ var zh = {
     expired: "\u5DF2\u8FC7\u671F"
   },
   failedTag: "\u5931\u8D25",
+  wakes: { woke: "\u5DF2\u5524\u9192 AI", quiet: "\u672A\u5524\u9192 AI" },
+  savedState: "\u4FDD\u5B58\u7684\u72B6\u6001",
   done: "\u5B8C\u6210",
   backToList: "\u8FD4\u56DE\u5217\u8868",
   clickWindow: "\u70B9\u51FB\u6B64\u7A97\u53E3",
@@ -272,18 +301,38 @@ var en = {
   last: "Last",
   lastOutput: "Last output",
   session: "Created in",
-  target: "Target",
   unknownSession: "Unknown session",
   eventArgs: "Event args",
   action: "Action",
-  actions: { prompt: "Prompt", code: "Code Mode script", shell: "Shell command" },
-  executionNotes: {
-    prompt: "When triggered, the prompt is sent to the target session using that session's current configuration (no separate model is bound).",
-    subagent: (agent) => `Each run starts a new child of the creating session with ${agent}; the child neither reports to nor wakes its parent.`,
-    code: "Runs in confined Code Mode with no model call and no network access; tools are authorized once at creation. Three consecutive failures pause it.",
-    shell: "Runs the fixed command in the automation's directory and records its exit code and output; the command was approved at creation."
-  },
-  toSubagent: (agent) => `Subagent ${agent} (new child each run)`,
+  actions: { prompt: "Prompt", subagent: "Subagent", code: "Code Mode script", shell: "Shell command" },
+  sendTo: "Sends to",
+  help: "Help",
+  helpTitle: "Help",
+  helpClose: "Back",
+  helpSections: [
+    { title: "List markers", items: [
+      ["\u25CF", "Active: runs on schedule"],
+      ["\u2016", "Paused: will not run until resumed"],
+      ["\u2713", "Done: will not run again"],
+      ["(none)", "Prompt: sent to a session, wakes an agent"],
+      ["\u21B3", "Subagent: sent to a subagent, wakes an agent"],
+      ["\u03BB", "Code Mode script: wakes an agent only when needed"],
+      ["$", "Shell command: no AI call"],
+      ["failed", "The last run failed"]
+    ] },
+    { title: "Actions", items: [
+      ["Prompt", "Sends the prompt into the target session; the agent there handles it and replies in that session."],
+      ["Subagent", "Each run opens a new child session and hands the prompt to the named subagent. The result stays in that child session: the original session gets no message and its agent is not woken. Open the child session from the session list to see it."],
+      ["Code Mode", "Runs a script without calling AI. The script can read data (for example with fetch); returning send wakes an agent, done ends the automation, and state is kept for the next run. Each run is capped at 30 seconds; 3 failures in a row pause it."],
+      ["Shell", "Runs one fixed command in the automation's directory without calling AI, and records its exit code and output."]
+    ] },
+    { title: "Detail fields", items: [
+      ["Last", "When it last ran and how that went. For Code Mode, whether that run woke an agent."],
+      ["Last output", "What the last run left behind: a shell's exit code and output, a script's logs, or why it paused."],
+      ["Saved state", "Data a Code Mode script keeps for its next run."],
+      ["Sends to", "The session the prompt goes to; shown only when it is not the creating session."]
+    ] }
+  ],
   automationID: "Automation ID",
   sessionID: "Session ID",
   statuses: { all: "All", active: "Active", paused: "Paused", done: "Done" },
@@ -296,6 +345,8 @@ var en = {
     expired: "Expired"
   },
   failedTag: "failed",
+  wakes: { woke: "woke an agent", quiet: "no agent woken" },
+  savedState: "Saved state",
   done: "Done",
   backToList: "Back to list",
   clickWindow: "Click this window",
@@ -628,7 +679,9 @@ function AutomationWindow(props) {
     });
   };
   const escape = () => {
-    if (query())
+    if (helping())
+      setHelping(false);
+    else if (query())
       setQuery("");
     else
       close();
@@ -659,6 +712,11 @@ function AutomationWindow(props) {
   const settings = () => {
     if (props.openSettings)
       invoke(() => props.openSettings());
+  };
+  const [helping, setHelping] = createSignal(false);
+  const toggleHelp = () => {
+    setHelping(!helping());
+    detail?.scrollTo(0);
   };
   const actions = [{
     key: "up",
@@ -710,6 +768,9 @@ function AutomationWindow(props) {
   }, {
     key: "c",
     run: settings
+  }, {
+    key: "h",
+    run: toggleHelp
   }, {
     key: "pageup",
     run: () => detail?.scrollBy(-Math.max(1, detail.height - 1))
@@ -880,9 +941,12 @@ function AutomationWindow(props) {
       key: "c",
       label: text().settings
     }] : [], {
+      key: helping() ? "h/esc" : "h",
+      label: helping() ? text().helpClose : text().help
+    }, ...helping() ? [] : [{
       key: "esc",
       label: query() ? text().clearSearch : text().close
-    }];
+    }]];
   };
   const notice = () => {
     const failure = actionError() || props.error();
@@ -1083,66 +1147,135 @@ function AutomationWindow(props) {
     });
     return _el$10;
   })();
-  const executionNote = (action) => action.type === "prompt" ? action.to.subagent ? text().executionNotes.subagent(action.to.subagent) : text().executionNotes.prompt : text().executionNotes[action.type];
   const output = (value) => value.length > OUTPUT_LIMIT ? `${value.slice(0, OUTPUT_LIMIT)}\u2026` : value;
+  const Help = () => {
+    const keyWidth = () => Math.max(...text().helpSections.flatMap((section) => section.items.map(([key]) => columns(key)))) + 2;
+    return (() => {
+      var _el$24 = _$createElement("box"), _el$25 = _$createElement("text"), _el$26 = _$createElement("b");
+      _$insertNode(_el$24, _el$25);
+      _$setProp(_el$24, "id", "automation-help");
+      _$setProp(_el$24, "flexDirection", "column");
+      _$setProp(_el$24, "flexShrink", 0);
+      _$insertNode(_el$25, _el$26);
+      _$setProp(_el$25, "flexShrink", 0);
+      _$insert(_el$26, () => text().helpTitle);
+      _$insert(_el$24, _$createComponent(For, {
+        get each() {
+          return text().helpSections;
+        },
+        children: (section) => [(() => {
+          var _el$27 = _$createElement("box");
+          _$setProp(_el$27, "height", 1);
+          _$setProp(_el$27, "flexShrink", 0);
+          return _el$27;
+        })(), (() => {
+          var _el$28 = _$createElement("text");
+          _$setProp(_el$28, "flexShrink", 0);
+          _$insert(_el$28, () => section.title);
+          _$effect((_$p) => _$setProp(_el$28, "fg", theme().muted, _$p));
+          return _el$28;
+        })(), _$createComponent(For, {
+          get each() {
+            return section.items;
+          },
+          children: ([key, value]) => (() => {
+            var _el$29 = _$createElement("box"), _el$30 = _$createElement("text"), _el$31 = _$createElement("text");
+            _$insertNode(_el$29, _el$30);
+            _$insertNode(_el$29, _el$31);
+            _$setProp(_el$29, "flexDirection", "row");
+            _$setProp(_el$29, "flexShrink", 0);
+            _$setProp(_el$30, "wrapMode", "none");
+            _$setProp(_el$30, "flexShrink", 0);
+            _$insert(_el$30, key);
+            _$setProp(_el$31, "wrapMode", "word");
+            _$setProp(_el$31, "flexGrow", 1);
+            _$setProp(_el$31, "flexShrink", 1);
+            _$setProp(_el$31, "minWidth", 0);
+            _$insert(_el$31, value);
+            _$effect((_p$) => {
+              var _v$23 = theme().accent, _v$24 = keyWidth(), _v$25 = theme().text;
+              _v$23 !== _p$.e && (_p$.e = _$setProp(_el$30, "fg", _v$23, _p$.e));
+              _v$24 !== _p$.t && (_p$.t = _$setProp(_el$30, "width", _v$24, _p$.t));
+              _v$25 !== _p$.a && (_p$.a = _$setProp(_el$31, "fg", _v$25, _p$.a));
+              return _p$;
+            }, {
+              e: undefined,
+              t: undefined,
+              a: undefined
+            });
+            return _el$29;
+          })()
+        })]
+      }), null);
+      _$effect((_$p) => _$setProp(_el$25, "fg", theme().text, _$p));
+      return _el$24;
+    })();
+  };
   const Detail = (detailProps) => {
     const row = () => detailProps.row;
     const action = () => row().action;
-    const target = () => {
+    const sendTo = () => {
       const current = action();
-      if (current.type !== "prompt")
-        return;
-      if (current.to.subagent)
-        return text().toSubagent(current.to.subagent);
-      if (current.to.session === row().sessionID)
+      if (current.type !== "prompt" || current.to.subagent || current.to.session === row().sessionID)
         return;
       return sessionName(row().target) || current.to.session;
+    };
+    const subagent = () => {
+      const current = action();
+      return current.type === "prompt" ? current.to.subagent : undefined;
     };
     const eventArgs = () => {
       const trigger = row().trigger;
       return trigger.type === "event" && trigger.args && Object.keys(trigger.args).length ? JSON.stringify(trigger.args) : undefined;
     };
+    const wake = () => {
+      const value = codeWake(row());
+      return value ? ` \xB7 ${text().wakes[value]}` : "";
+    };
+    const state = () => {
+      const value = row().state;
+      return value === undefined || value === null ? undefined : JSON.stringify(value, null, 2);
+    };
     return (() => {
-      var _el$24 = _$createElement("box"), _el$25 = _$createElement("text"), _el$26 = _$createElement("b"), _el$27 = _$createElement("text"), _el$28 = _$createElement("span"), _el$29 = _$createElement("span"), _el$30 = _$createElement("box"), _el$31 = _$createElement("box"), _el$32 = _$createElement("text"), _el$33 = _$createElement("span"), _el$34 = _$createElement("span"), _el$35 = _$createElement("box"), _el$36 = _$createElement("text"), _el$37 = _$createElement("text"), _el$38 = _$createElement("box"), _el$39 = _$createElement("text"), _el$40 = _$createElement("text"), _el$41 = _$createElement("text"), _el$42 = _$createElement("box"), _el$43 = _$createElement("box"), _el$44 = _$createElement("box"), _el$45 = _$createElement("text"), _el$46 = _$createElement("text");
-      _$insertNode(_el$24, _el$25);
-      _$insertNode(_el$24, _el$27);
-      _$insertNode(_el$24, _el$30);
-      _$insertNode(_el$24, _el$31);
-      _$insertNode(_el$24, _el$32);
-      _$insertNode(_el$24, _el$35);
-      _$insertNode(_el$24, _el$37);
-      _$insertNode(_el$24, _el$38);
-      _$insertNode(_el$24, _el$39);
-      _$insertNode(_el$24, _el$40);
-      _$insertNode(_el$24, _el$41);
-      _$insertNode(_el$24, _el$42);
-      _$insertNode(_el$24, _el$43);
-      _$insertNode(_el$24, _el$44);
-      _$insertNode(_el$24, _el$45);
-      _$insertNode(_el$24, _el$46);
-      _$setProp(_el$24, "flexDirection", "column");
-      _$setProp(_el$24, "flexShrink", 0);
-      _$insertNode(_el$25, _el$26);
-      _$setProp(_el$25, "wrapMode", "word");
-      _$setProp(_el$25, "flexShrink", 0);
-      _$insert(_el$26, () => title(row()));
-      _$insertNode(_el$27, _el$28);
-      _$insertNode(_el$27, _el$29);
-      _$setProp(_el$27, "wrapMode", "none");
-      _$setProp(_el$27, "flexShrink", 0);
-      _$insert(_el$28, () => `${STATUS_GLYPHS[row().status]} ${text().statuses[row().status]}`);
-      _$insert(_el$29, () => `  \xB7  ${describeTrigger(row().trigger)}`);
-      _$setProp(_el$30, "height", 1);
-      _$setProp(_el$30, "flexShrink", 0);
-      _$insert(_el$24, _$createComponent(Field, {
+      var _el$32 = _$createElement("box"), _el$33 = _$createElement("text"), _el$34 = _$createElement("b"), _el$35 = _$createElement("text"), _el$36 = _$createElement("span"), _el$37 = _$createElement("span"), _el$38 = _$createElement("box"), _el$39 = _$createElement("box"), _el$40 = _$createElement("text"), _el$41 = _$createElement("span"), _el$42 = _$createElement("span"), _el$43 = _$createElement("box"), _el$44 = _$createElement("text"), _el$45 = _$createElement("box"), _el$46 = _$createElement("text"), _el$47 = _$createElement("text"), _el$48 = _$createElement("text"), _el$49 = _$createElement("box"), _el$50 = _$createElement("box"), _el$51 = _$createElement("box"), _el$52 = _$createElement("text"), _el$53 = _$createElement("text");
+      _$insertNode(_el$32, _el$33);
+      _$insertNode(_el$32, _el$35);
+      _$insertNode(_el$32, _el$38);
+      _$insertNode(_el$32, _el$39);
+      _$insertNode(_el$32, _el$40);
+      _$insertNode(_el$32, _el$43);
+      _$insertNode(_el$32, _el$45);
+      _$insertNode(_el$32, _el$46);
+      _$insertNode(_el$32, _el$47);
+      _$insertNode(_el$32, _el$48);
+      _$insertNode(_el$32, _el$49);
+      _$insertNode(_el$32, _el$50);
+      _$insertNode(_el$32, _el$51);
+      _$insertNode(_el$32, _el$52);
+      _$insertNode(_el$32, _el$53);
+      _$setProp(_el$32, "flexDirection", "column");
+      _$setProp(_el$32, "flexShrink", 0);
+      _$insertNode(_el$33, _el$34);
+      _$setProp(_el$33, "wrapMode", "word");
+      _$setProp(_el$33, "flexShrink", 0);
+      _$insert(_el$34, () => title(row()));
+      _$insertNode(_el$35, _el$36);
+      _$insertNode(_el$35, _el$37);
+      _$setProp(_el$35, "wrapMode", "none");
+      _$setProp(_el$35, "flexShrink", 0);
+      _$insert(_el$36, () => `${STATUS_GLYPHS[row().status]} ${text().statuses[row().status]}`);
+      _$insert(_el$37, () => `  \xB7  ${describeTrigger(row().trigger)}`);
+      _$setProp(_el$38, "height", 1);
+      _$setProp(_el$38, "flexShrink", 0);
+      _$insert(_el$32, _$createComponent(Field, {
         get label() {
           return text().next;
         },
         get children() {
           return _$memo(() => !!(row().status === "active" && row().nextDueAt !== undefined))() ? text().nextTime(clockTime(row().nextDueAt, now(), language()), relativeTime(row().nextDueAt, now(), language())) : _$memo(() => row().status === "paused")() ? text().pausedNext : _$memo(() => row().status === "done")() ? text().noMoreRuns : _$memo(() => row().trigger.type === "event")() ? text().onEvent : "\u2014";
         }
-      }), _el$31);
-      _$insert(_el$24, _$createComponent(Show, {
+      }), _el$39);
+      _$insert(_el$32, _$createComponent(Show, {
         get when() {
           return eventArgs();
         },
@@ -1154,32 +1287,32 @@ function AutomationWindow(props) {
             return args();
           }
         })
-      }), _el$31);
-      _$insert(_el$24, _$createComponent(Field, {
+      }), _el$39);
+      _$insert(_el$32, _$createComponent(Field, {
         get label() {
           return text().timeZone;
         },
         get children() {
           return row().tz;
         }
-      }), _el$31);
-      _$insert(_el$24, _$createComponent(Field, {
+      }), _el$39);
+      _$insert(_el$32, _$createComponent(Field, {
         get label() {
           return text().ends;
         },
         get children() {
           return _$memo(() => row().expires !== undefined)() ? clockTime(row().expires, now(), language()) : text().unlimited;
         }
-      }), _el$31);
-      _$insert(_el$24, _$createComponent(Field, {
+      }), _el$39);
+      _$insert(_el$32, _$createComponent(Field, {
         get label() {
           return text().runs;
         },
         get children() {
           return text().runCount(row().runCount);
         }
-      }), _el$31);
-      _$insert(_el$24, _$createComponent(Field, {
+      }), _el$39);
+      _$insert(_el$32, _$createComponent(Field, {
         get label() {
           return text().last;
         },
@@ -1187,91 +1320,136 @@ function AutomationWindow(props) {
           return _$memo(() => row().lastOutcome === "failed")() ? theme().error : undefined;
         },
         get children() {
-          return _$memo(() => row().lastRunAt !== undefined)() ? `${clockTime(row().lastRunAt, now(), language())}${row().lastOutcome ? ` \xB7 ${text().outcomes[row().lastOutcome]}` : ""}` : _$memo(() => !!row().lastOutcome)() ? text().outcomes[row().lastOutcome] : text().neverFired;
+          return _$memo(() => row().lastRunAt !== undefined)() ? `${clockTime(row().lastRunAt, now(), language())}${row().lastOutcome ? ` \xB7 ${text().outcomes[row().lastOutcome]}` : ""}${wake()}` : _$memo(() => !!row().lastOutcome)() ? `${text().outcomes[row().lastOutcome]}${wake()}` : text().neverFired;
         }
-      }), _el$31);
-      _$setProp(_el$31, "height", 1);
-      _$setProp(_el$31, "flexShrink", 0);
-      _$insertNode(_el$32, _el$33);
-      _$insertNode(_el$32, _el$34);
-      _$setProp(_el$32, "flexShrink", 0);
-      _$insert(_el$33, () => `${text().action}  `);
-      _$insert(_el$34, () => text().actions[action().type]);
-      _$insertNode(_el$35, _el$36);
-      _$setProp(_el$35, "flexShrink", 0);
-      _$setProp(_el$35, "border", ["left"]);
-      _$setProp(_el$35, "paddingLeft", 1);
-      _$setProp(_el$35, "marginTop", 0);
-      _$setProp(_el$36, "wrapMode", "word");
-      _$insert(_el$36, () => actionBody(action()).trim() || "\u2014");
-      _$insert(_el$24, _$createComponent(Show, {
+      }), _el$39);
+      _$setProp(_el$39, "height", 1);
+      _$setProp(_el$39, "flexShrink", 0);
+      _$insertNode(_el$40, _el$41);
+      _$insertNode(_el$40, _el$42);
+      _$setProp(_el$40, "flexShrink", 0);
+      _$insert(_el$41, () => `${text().action}  `);
+      _$insert(_el$42, () => text().actions[actionKind(action()) ?? "prompt"]);
+      _$insert(_el$40, _$createComponent(Show, {
         get when() {
-          return target();
+          return subagent();
+        },
+        children: (agent) => (() => {
+          var _el$54 = _$createElement("span");
+          _$insert(_el$54, () => ` ${agent()}`);
+          _$effect((_$p) => _$setProp(_el$54, "style", {
+            fg: theme().text
+          }, _$p));
+          return _el$54;
+        })()
+      }), null);
+      _$insertNode(_el$43, _el$44);
+      _$setProp(_el$43, "flexShrink", 0);
+      _$setProp(_el$43, "border", ["left"]);
+      _$setProp(_el$43, "paddingLeft", 1);
+      _$setProp(_el$43, "marginTop", 0);
+      _$setProp(_el$44, "wrapMode", "word");
+      _$insert(_el$44, () => actionBody(action()).trim() || "\u2014");
+      _$insert(_el$32, _$createComponent(Show, {
+        get when() {
+          return sendTo();
         },
         children: (value) => _$createComponent(Field, {
           get label() {
-            return text().target;
+            return text().sendTo;
           },
           get children() {
             return value();
           }
         })
-      }), _el$37);
-      _$setProp(_el$37, "wrapMode", "word");
-      _$setProp(_el$37, "flexShrink", 0);
-      _$insert(_el$37, () => executionNote(action()));
-      _$insert(_el$24, _$createComponent(Show, {
+      }), _el$45);
+      _$insert(_el$32, _$createComponent(Show, {
         get when() {
           return row().lastOutput;
         },
         children: (value) => [(() => {
-          var _el$47 = _$createElement("box");
-          _$setProp(_el$47, "height", 1);
-          _$setProp(_el$47, "flexShrink", 0);
-          return _el$47;
+          var _el$55 = _$createElement("box");
+          _$setProp(_el$55, "height", 1);
+          _$setProp(_el$55, "flexShrink", 0);
+          return _el$55;
         })(), (() => {
-          var _el$48 = _$createElement("text");
-          _$setProp(_el$48, "flexShrink", 0);
-          _$insert(_el$48, () => text().lastOutput);
-          _$effect((_$p) => _$setProp(_el$48, "fg", theme().muted, _$p));
-          return _el$48;
+          var _el$56 = _$createElement("text");
+          _$setProp(_el$56, "flexShrink", 0);
+          _$insert(_el$56, () => text().lastOutput);
+          _$effect((_$p) => _$setProp(_el$56, "fg", theme().muted, _$p));
+          return _el$56;
         })(), (() => {
-          var _el$49 = _$createElement("box"), _el$50 = _$createElement("text");
-          _$insertNode(_el$49, _el$50);
-          _$setProp(_el$49, "flexShrink", 0);
-          _$setProp(_el$49, "border", ["left"]);
-          _$setProp(_el$49, "paddingLeft", 1);
-          _$setProp(_el$50, "wrapMode", "word");
-          _$insert(_el$50, () => output(value()));
+          var _el$57 = _$createElement("box"), _el$58 = _$createElement("text");
+          _$insertNode(_el$57, _el$58);
+          _$setProp(_el$57, "flexShrink", 0);
+          _$setProp(_el$57, "border", ["left"]);
+          _$setProp(_el$57, "paddingLeft", 1);
+          _$setProp(_el$58, "wrapMode", "word");
+          _$insert(_el$58, () => output(value()));
           _$effect((_p$) => {
-            var _v$36 = row().lastOutcome === "failed" ? theme().error : theme().border, _v$37 = row().lastOutcome === "failed" ? theme().error : faint();
-            _v$36 !== _p$.e && (_p$.e = _$setProp(_el$49, "borderColor", _v$36, _p$.e));
-            _v$37 !== _p$.t && (_p$.t = _$setProp(_el$50, "fg", _v$37, _p$.t));
+            var _v$38 = row().lastOutcome === "failed" ? theme().error : theme().border, _v$39 = row().lastOutcome === "failed" ? theme().error : faint();
+            _v$38 !== _p$.e && (_p$.e = _$setProp(_el$57, "borderColor", _v$38, _p$.e));
+            _v$39 !== _p$.t && (_p$.t = _$setProp(_el$58, "fg", _v$39, _p$.t));
             return _p$;
           }, {
             e: undefined,
             t: undefined
           });
-          return _el$49;
+          return _el$57;
         })()]
-      }), _el$38);
-      _$setProp(_el$38, "height", 1);
-      _$setProp(_el$38, "flexShrink", 0);
-      _$setProp(_el$39, "flexShrink", 0);
-      _$insert(_el$39, () => text().session);
-      _$setProp(_el$40, "wrapMode", "word");
-      _$setProp(_el$40, "flexShrink", 0);
-      _$insert(_el$40, () => sessionName(row().session) || text().unknownSession);
-      _$setProp(_el$41, "wrapMode", "word");
-      _$setProp(_el$41, "flexShrink", 0);
-      _$insert(_el$41, () => row().directory);
-      _$setProp(_el$42, "height", 1);
-      _$setProp(_el$42, "flexShrink", 0);
-      _$setProp(_el$43, "flexDirection", "row");
-      _$setProp(_el$43, "gap", 1);
-      _$setProp(_el$43, "flexShrink", 0);
-      _$setProp(_el$43, "flexWrap", "wrap");
-      _$insert(_el$43, _$createComponent(Show, {
+      }), _el$45);
+      _$insert(_el$32, _$createComponent(Show, {
+        get when() {
+          return state();
+        },
+        children: (value) => [(() => {
+          var _el$59 = _$createElement("box");
+          _$setProp(_el$59, "height", 1);
+          _$setProp(_el$59, "flexShrink", 0);
+          return _el$59;
+        })(), (() => {
+          var _el$60 = _$createElement("text");
+          _$setProp(_el$60, "flexShrink", 0);
+          _$insert(_el$60, () => text().savedState);
+          _$effect((_$p) => _$setProp(_el$60, "fg", theme().muted, _$p));
+          return _el$60;
+        })(), (() => {
+          var _el$61 = _$createElement("box"), _el$62 = _$createElement("text");
+          _$insertNode(_el$61, _el$62);
+          _$setProp(_el$61, "flexShrink", 0);
+          _$setProp(_el$61, "border", ["left"]);
+          _$setProp(_el$61, "paddingLeft", 1);
+          _$setProp(_el$62, "wrapMode", "word");
+          _$insert(_el$62, () => output(value()));
+          _$effect((_p$) => {
+            var _v$40 = theme().border, _v$41 = faint();
+            _v$40 !== _p$.e && (_p$.e = _$setProp(_el$61, "borderColor", _v$40, _p$.e));
+            _v$41 !== _p$.t && (_p$.t = _$setProp(_el$62, "fg", _v$41, _p$.t));
+            return _p$;
+          }, {
+            e: undefined,
+            t: undefined
+          });
+          return _el$61;
+        })()]
+      }), _el$45);
+      _$setProp(_el$45, "height", 1);
+      _$setProp(_el$45, "flexShrink", 0);
+      _$setProp(_el$46, "flexShrink", 0);
+      _$insert(_el$46, () => text().session);
+      _$setProp(_el$47, "wrapMode", "word");
+      _$setProp(_el$47, "flexShrink", 0);
+      _$insert(_el$47, () => sessionName(row().session) || text().unknownSession);
+      _$setProp(_el$48, "wrapMode", "word");
+      _$setProp(_el$48, "flexShrink", 0);
+      _$insert(_el$48, () => row().directory);
+      _$setProp(_el$49, "height", 1);
+      _$setProp(_el$49, "flexShrink", 0);
+      _$setProp(_el$50, "flexDirection", "row");
+      _$setProp(_el$50, "gap", 1);
+      _$setProp(_el$50, "flexShrink", 0);
+      _$setProp(_el$50, "flexWrap", "wrap");
+      _$insert(_el$50, _$createComponent(Show, {
         get when() {
           return row().status !== "done";
         },
@@ -1288,7 +1466,7 @@ function AutomationWindow(props) {
           });
         }
       }), null);
-      _$insert(_el$43, _$createComponent(Button, {
+      _$insert(_el$50, _$createComponent(Button, {
         hotkey: "d",
         get label() {
           return text().remove;
@@ -1298,7 +1476,7 @@ function AutomationWindow(props) {
         },
         run: remove
       }), null);
-      _$insert(_el$43, _$createComponent(Show, {
+      _$insert(_el$50, _$createComponent(Show, {
         get when() {
           return targetSessionID(row());
         },
@@ -1315,37 +1493,36 @@ function AutomationWindow(props) {
           });
         }
       }), null);
-      _$setProp(_el$44, "height", 1);
-      _$setProp(_el$44, "flexShrink", 0);
-      _$setProp(_el$45, "wrapMode", "word");
-      _$setProp(_el$45, "flexShrink", 0);
-      _$insert(_el$45, () => `${text().automationID}: ${row().id}`);
-      _$setProp(_el$46, "wrapMode", "word");
-      _$setProp(_el$46, "flexShrink", 0);
-      _$insert(_el$46, () => `${text().sessionID}: ${row().sessionID || "\u2014"}`);
+      _$setProp(_el$51, "height", 1);
+      _$setProp(_el$51, "flexShrink", 0);
+      _$setProp(_el$52, "wrapMode", "word");
+      _$setProp(_el$52, "flexShrink", 0);
+      _$insert(_el$52, () => `${text().automationID}: ${row().id}`);
+      _$setProp(_el$53, "wrapMode", "word");
+      _$setProp(_el$53, "flexShrink", 0);
+      _$insert(_el$53, () => `${text().sessionID}: ${row().sessionID || "\u2014"}`);
       _$effect((_p$) => {
-        var _v$23 = theme().text, _v$24 = {
+        var _v$26 = theme().text, _v$27 = {
           fg: statusColor(row().status)
-        }, _v$25 = {
+        }, _v$28 = {
           fg: faint()
-        }, _v$26 = {
+        }, _v$29 = {
           fg: theme().muted
-        }, _v$27 = {
+        }, _v$30 = {
           fg: actionColor(action())
-        }, _v$28 = actionColor(action()), _v$29 = theme().text, _v$30 = faint(), _v$31 = theme().muted, _v$32 = theme().text, _v$33 = faint(), _v$34 = faint(), _v$35 = faint();
-        _v$23 !== _p$.e && (_p$.e = _$setProp(_el$25, "fg", _v$23, _p$.e));
-        _v$24 !== _p$.t && (_p$.t = _$setProp(_el$28, "style", _v$24, _p$.t));
-        _v$25 !== _p$.a && (_p$.a = _$setProp(_el$29, "style", _v$25, _p$.a));
-        _v$26 !== _p$.o && (_p$.o = _$setProp(_el$33, "style", _v$26, _p$.o));
-        _v$27 !== _p$.i && (_p$.i = _$setProp(_el$34, "style", _v$27, _p$.i));
-        _v$28 !== _p$.n && (_p$.n = _$setProp(_el$35, "borderColor", _v$28, _p$.n));
-        _v$29 !== _p$.s && (_p$.s = _$setProp(_el$36, "fg", _v$29, _p$.s));
-        _v$30 !== _p$.h && (_p$.h = _$setProp(_el$37, "fg", _v$30, _p$.h));
-        _v$31 !== _p$.r && (_p$.r = _$setProp(_el$39, "fg", _v$31, _p$.r));
-        _v$32 !== _p$.d && (_p$.d = _$setProp(_el$40, "fg", _v$32, _p$.d));
-        _v$33 !== _p$.l && (_p$.l = _$setProp(_el$41, "fg", _v$33, _p$.l));
-        _v$34 !== _p$.u && (_p$.u = _$setProp(_el$45, "fg", _v$34, _p$.u));
-        _v$35 !== _p$.c && (_p$.c = _$setProp(_el$46, "fg", _v$35, _p$.c));
+        }, _v$31 = actionColor(action()), _v$32 = theme().text, _v$33 = theme().muted, _v$34 = theme().text, _v$35 = faint(), _v$36 = faint(), _v$37 = faint();
+        _v$26 !== _p$.e && (_p$.e = _$setProp(_el$33, "fg", _v$26, _p$.e));
+        _v$27 !== _p$.t && (_p$.t = _$setProp(_el$36, "style", _v$27, _p$.t));
+        _v$28 !== _p$.a && (_p$.a = _$setProp(_el$37, "style", _v$28, _p$.a));
+        _v$29 !== _p$.o && (_p$.o = _$setProp(_el$41, "style", _v$29, _p$.o));
+        _v$30 !== _p$.i && (_p$.i = _$setProp(_el$42, "style", _v$30, _p$.i));
+        _v$31 !== _p$.n && (_p$.n = _$setProp(_el$43, "borderColor", _v$31, _p$.n));
+        _v$32 !== _p$.s && (_p$.s = _$setProp(_el$44, "fg", _v$32, _p$.s));
+        _v$33 !== _p$.h && (_p$.h = _$setProp(_el$46, "fg", _v$33, _p$.h));
+        _v$34 !== _p$.r && (_p$.r = _$setProp(_el$47, "fg", _v$34, _p$.r));
+        _v$35 !== _p$.d && (_p$.d = _$setProp(_el$48, "fg", _v$35, _p$.d));
+        _v$36 !== _p$.l && (_p$.l = _$setProp(_el$52, "fg", _v$36, _p$.l));
+        _v$37 !== _p$.u && (_p$.u = _$setProp(_el$53, "fg", _v$37, _p$.u));
         return _p$;
       }, {
         e: undefined,
@@ -1359,35 +1536,34 @@ function AutomationWindow(props) {
         r: undefined,
         d: undefined,
         l: undefined,
-        u: undefined,
-        c: undefined
+        u: undefined
       });
-      return _el$24;
+      return _el$32;
     })();
   };
   return (() => {
-    var _el$51 = _$createElement("box"), _el$52 = _$createElement("box"), _el$53 = _$createElement("text"), _el$54 = _$createElement("b"), _el$55 = _$createElement("box"), _el$57 = _$createElement("text"), _el$64 = _$createElement("box"), _el$65 = _$createElement("scrollbox"), _el$66 = _$createElement("box");
-    _$insertNode(_el$51, _el$52);
-    _$insertNode(_el$51, _el$64);
-    _$insertNode(_el$51, _el$66);
+    var _el$63 = _$createElement("box"), _el$64 = _$createElement("box"), _el$65 = _$createElement("text"), _el$66 = _$createElement("b"), _el$67 = _$createElement("box"), _el$69 = _$createElement("text"), _el$76 = _$createElement("box"), _el$77 = _$createElement("scrollbox"), _el$78 = _$createElement("box");
+    _$insertNode(_el$63, _el$64);
+    _$insertNode(_el$63, _el$76);
+    _$insertNode(_el$63, _el$78);
     _$use((box) => {
       root = box;
       box.on("focused", () => setHasKeyboard(true));
       box.on("blurred", () => setHasKeyboard(false));
       props.onRoot?.(box);
-    }, _el$51);
-    _$setProp(_el$51, "id", "native-automation-window");
-    _$setProp(_el$51, "focusable", true);
-    _$setProp(_el$51, "flexDirection", "column");
-    _$setProp(_el$51, "flexShrink", 0);
-    _$setProp(_el$51, "width", "100%");
-    _$setProp(_el$51, "overflow", "hidden");
-    _$setProp(_el$51, "border", true);
-    _$setProp(_el$51, "borderStyle", "rounded");
-    _$setProp(_el$51, "paddingLeft", 1);
-    _$setProp(_el$51, "paddingRight", 1);
-    _$setProp(_el$51, "onKeyDown", onKey);
-    _$setProp(_el$51, "onSizeChange", function() {
+    }, _el$63);
+    _$setProp(_el$63, "id", "native-automation-window");
+    _$setProp(_el$63, "focusable", true);
+    _$setProp(_el$63, "flexDirection", "column");
+    _$setProp(_el$63, "flexShrink", 0);
+    _$setProp(_el$63, "width", "100%");
+    _$setProp(_el$63, "overflow", "hidden");
+    _$setProp(_el$63, "border", true);
+    _$setProp(_el$63, "borderStyle", "rounded");
+    _$setProp(_el$63, "paddingLeft", 1);
+    _$setProp(_el$63, "paddingRight", 1);
+    _$setProp(_el$63, "onKeyDown", onKey);
+    _$setProp(_el$63, "onSizeChange", function() {
       const measured = this.width - 4;
       if (measured > 0 && measured !== width())
         queueMicrotask(() => {
@@ -1395,23 +1571,23 @@ function AutomationWindow(props) {
             setWidth(measured);
         });
     });
-    _$setProp(_el$51, "onMouseDown", () => {
+    _$setProp(_el$63, "onMouseDown", () => {
       if (!searching())
         root?.focus();
     });
-    _$insertNode(_el$52, _el$53);
-    _$insertNode(_el$52, _el$55);
-    _$insertNode(_el$52, _el$57);
-    _$setProp(_el$52, "flexDirection", "row");
-    _$setProp(_el$52, "flexShrink", 0);
-    _$setProp(_el$52, "height", 1);
-    _$setProp(_el$52, "gap", 1);
-    _$insertNode(_el$53, _el$54);
-    _$setProp(_el$53, "wrapMode", "none");
-    _$setProp(_el$53, "flexShrink", 0);
-    _$setProp(_el$53, "marginRight", 1);
-    _$insert(_el$54, () => text().title);
-    _$insert(_el$52, _$createComponent(For, {
+    _$insertNode(_el$64, _el$65);
+    _$insertNode(_el$64, _el$67);
+    _$insertNode(_el$64, _el$69);
+    _$setProp(_el$64, "flexDirection", "row");
+    _$setProp(_el$64, "flexShrink", 0);
+    _$setProp(_el$64, "height", 1);
+    _$setProp(_el$64, "gap", 1);
+    _$insertNode(_el$65, _el$66);
+    _$setProp(_el$65, "wrapMode", "none");
+    _$setProp(_el$65, "flexShrink", 0);
+    _$setProp(_el$65, "marginRight", 1);
+    _$insert(_el$66, () => text().title);
+    _$insert(_el$64, _$createComponent(For, {
       each: SCOPES,
       children: (item) => _$createComponent(Tab, {
         get label() {
@@ -1422,37 +1598,37 @@ function AutomationWindow(props) {
         },
         run: () => setScope(item)
       })
-    }), _el$55);
-    _$setProp(_el$55, "flexGrow", 1);
-    _$insert(_el$52, _$createComponent(Show, {
+    }), _el$67);
+    _$setProp(_el$67, "flexGrow", 1);
+    _$insert(_el$64, _$createComponent(Show, {
       get when() {
         return busy();
       },
       get children() {
-        var _el$56 = _$createElement("text");
-        _$setProp(_el$56, "flexShrink", 0);
-        _$insert(_el$56, (() => {
+        var _el$68 = _$createElement("text");
+        _$setProp(_el$68, "flexShrink", 0);
+        _$insert(_el$68, (() => {
           var _c$4 = _$memo(() => !!props.loading());
           return () => _c$4() ? text().refreshing : text().processing;
         })());
-        _$effect((_$p) => _$setProp(_el$56, "fg", theme().muted, _$p));
-        return _el$56;
+        _$effect((_$p) => _$setProp(_el$68, "fg", theme().muted, _$p));
+        return _el$68;
       }
-    }), _el$57);
-    _$insertNode(_el$57, _$createTextNode(`esc`));
-    _$setProp(_el$57, "flexShrink", 0);
-    _$setProp(_el$57, "selectable", false);
-    _$setProp(_el$57, "onMouseUp", close);
-    _$insert(_el$51, _$createComponent(Show, {
+    }), _el$69);
+    _$insertNode(_el$69, _$createTextNode(`esc`));
+    _$setProp(_el$69, "flexShrink", 0);
+    _$setProp(_el$69, "selectable", false);
+    _$setProp(_el$69, "onMouseUp", close);
+    _$insert(_el$63, _$createComponent(Show, {
       get when() {
         return !wide();
       },
       get children() {
-        var _el$59 = _$createElement("box");
-        _$setProp(_el$59, "flexDirection", "row");
-        _$setProp(_el$59, "flexShrink", 0);
-        _$setProp(_el$59, "height", 1);
-        _$insert(_el$59, _$createComponent(For, {
+        var _el$71 = _$createElement("box");
+        _$setProp(_el$71, "flexDirection", "row");
+        _$setProp(_el$71, "flexShrink", 0);
+        _$setProp(_el$71, "height", 1);
+        _$insert(_el$71, _$createComponent(For, {
           each: FILTERS,
           children: (item) => _$createComponent(Tab, {
             get label() {
@@ -1464,43 +1640,43 @@ function AutomationWindow(props) {
             run: () => pickFilter(item)
           })
         }));
-        return _el$59;
+        return _el$71;
       }
-    }), _el$64);
-    _$insert(_el$51, _$createComponent(Show, {
+    }), _el$76);
+    _$insert(_el$63, _$createComponent(Show, {
       get when() {
         return searching() || query();
       },
       get children() {
-        var _el$60 = _$createElement("box"), _el$61 = _$createElement("text");
-        _$insertNode(_el$60, _el$61);
-        _$setProp(_el$60, "id", "automation-search-box");
-        _$setProp(_el$60, "flexDirection", "row");
-        _$setProp(_el$60, "height", 1);
-        _$setProp(_el$60, "flexShrink", 0);
-        _$setProp(_el$60, "marginTop", 1);
-        _$setProp(_el$60, "onMouseUp", () => setSearching(true));
-        _$insertNode(_el$61, _$createTextNode(`/ `));
-        _$setProp(_el$61, "flexShrink", 0);
-        _$insert(_el$60, _$createComponent(Show, {
+        var _el$72 = _$createElement("box"), _el$73 = _$createElement("text");
+        _$insertNode(_el$72, _el$73);
+        _$setProp(_el$72, "id", "automation-search-box");
+        _$setProp(_el$72, "flexDirection", "row");
+        _$setProp(_el$72, "height", 1);
+        _$setProp(_el$72, "flexShrink", 0);
+        _$setProp(_el$72, "marginTop", 1);
+        _$setProp(_el$72, "onMouseUp", () => setSearching(true));
+        _$insertNode(_el$73, _$createTextNode(`/ `));
+        _$setProp(_el$73, "flexShrink", 0);
+        _$insert(_el$72, _$createComponent(Show, {
           get when() {
             return searching();
           },
           get fallback() {
             return (() => {
-              var _el$67 = _$createElement("text");
-              _$setProp(_el$67, "wrapMode", "none");
-              _$insert(_el$67, query);
-              _$effect((_$p) => _$setProp(_el$67, "fg", theme().text, _$p));
-              return _el$67;
+              var _el$79 = _$createElement("text");
+              _$setProp(_el$79, "wrapMode", "none");
+              _$insert(_el$79, query);
+              _$effect((_$p) => _$setProp(_el$79, "fg", theme().text, _$p));
+              return _el$79;
             })();
           },
           get children() {
-            var _el$63 = _$createElement("input");
-            _$setProp(_el$63, "id", "automation-search");
-            _$setProp(_el$63, "flexGrow", 1);
-            _$setProp(_el$63, "onInput", setQuery);
-            _$setProp(_el$63, "onKeyDown", (key) => {
+            var _el$75 = _$createElement("input");
+            _$setProp(_el$75, "id", "automation-search");
+            _$setProp(_el$75, "flexGrow", 1);
+            _$setProp(_el$75, "onInput", setQuery);
+            _$setProp(_el$75, "onKeyDown", (key) => {
               if (["escape", "return", "enter", "tab"].includes(key.name)) {
                 key.preventDefault();
                 key.stopPropagation();
@@ -1508,12 +1684,12 @@ function AutomationWindow(props) {
               }
             });
             _$effect((_p$) => {
-              var _v$38 = query(), _v$39 = searching(), _v$40 = text().searchPlaceholder, _v$41 = theme().text, _v$42 = theme().raised;
-              _v$38 !== _p$.e && (_p$.e = _$setProp(_el$63, "value", _v$38, _p$.e));
-              _v$39 !== _p$.t && (_p$.t = _$setProp(_el$63, "focused", _v$39, _p$.t));
-              _v$40 !== _p$.a && (_p$.a = _$setProp(_el$63, "placeholder", _v$40, _p$.a));
-              _v$41 !== _p$.o && (_p$.o = _$setProp(_el$63, "textColor", _v$41, _p$.o));
-              _v$42 !== _p$.i && (_p$.i = _$setProp(_el$63, "backgroundColor", _v$42, _p$.i));
+              var _v$42 = query(), _v$43 = searching(), _v$44 = text().searchPlaceholder, _v$45 = theme().text, _v$46 = theme().raised;
+              _v$42 !== _p$.e && (_p$.e = _$setProp(_el$75, "value", _v$42, _p$.e));
+              _v$43 !== _p$.t && (_p$.t = _$setProp(_el$75, "focused", _v$43, _p$.t));
+              _v$44 !== _p$.a && (_p$.a = _$setProp(_el$75, "placeholder", _v$44, _p$.a));
+              _v$45 !== _p$.o && (_p$.o = _$setProp(_el$75, "textColor", _v$45, _p$.o));
+              _v$46 !== _p$.i && (_p$.i = _$setProp(_el$75, "backgroundColor", _v$46, _p$.i));
               return _p$;
             }, {
               e: undefined,
@@ -1522,122 +1698,132 @@ function AutomationWindow(props) {
               o: undefined,
               i: undefined
             });
-            return _el$63;
+            return _el$75;
           }
         }), null);
-        _$effect((_$p) => _$setProp(_el$61, "fg", theme().accent, _$p));
-        return _el$60;
+        _$effect((_$p) => _$setProp(_el$73, "fg", theme().accent, _$p));
+        return _el$72;
       }
-    }), _el$64);
-    _$insert(_el$51, _$createComponent(Show, {
+    }), _el$76);
+    _$insert(_el$63, _$createComponent(Show, {
       get when() {
         return notice();
       },
       children: (item) => (() => {
-        var _el$68 = _$createElement("text");
-        _$setProp(_el$68, "flexShrink", 0);
-        _$setProp(_el$68, "height", 1);
-        _$setProp(_el$68, "marginTop", 1);
-        _$setProp(_el$68, "wrapMode", "none");
-        _$setProp(_el$68, "selectable", false);
-        _$insert(_el$68, () => fit(item().text, width()));
-        _$effect((_$p) => _$setProp(_el$68, "fg", item().color, _$p));
-        return _el$68;
+        var _el$80 = _$createElement("text");
+        _$setProp(_el$80, "flexShrink", 0);
+        _$setProp(_el$80, "height", 1);
+        _$setProp(_el$80, "marginTop", 1);
+        _$setProp(_el$80, "wrapMode", "none");
+        _$setProp(_el$80, "selectable", false);
+        _$insert(_el$80, () => fit(item().text, width()));
+        _$effect((_$p) => _$setProp(_el$80, "fg", item().color, _$p));
+        return _el$80;
       })()
-    }), _el$64);
-    _$insertNode(_el$64, _el$65);
-    _$setProp(_el$64, "flexGrow", 1);
-    _$setProp(_el$64, "flexBasis", 0);
-    _$setProp(_el$64, "minHeight", 0);
-    _$setProp(_el$64, "marginTop", 1);
-    _$setProp(_el$64, "overflow", "hidden");
-    _$insert(_el$64, _$createComponent(Show, {
+    }), _el$76);
+    _$insertNode(_el$76, _el$77);
+    _$setProp(_el$76, "flexGrow", 1);
+    _$setProp(_el$76, "flexBasis", 0);
+    _$setProp(_el$76, "minHeight", 0);
+    _$setProp(_el$76, "marginTop", 1);
+    _$setProp(_el$76, "overflow", "hidden");
+    _$insert(_el$76, _$createComponent(Show, {
       get when() {
         return wide();
       },
       get children() {
         return _$createComponent(Rail, {});
       }
-    }), _el$65);
-    _$insert(_el$64, _$createComponent(List, {}), _el$65);
+    }), _el$77);
+    _$insert(_el$76, _$createComponent(List, {}), _el$77);
     var _ref$2 = detail;
-    typeof _ref$2 === "function" ? _$use(_ref$2, _el$65) : detail = _el$65;
-    _$setProp(_el$65, "id", "automation-detail");
-    _$setProp(_el$65, "flexGrow", 1);
-    _$setProp(_el$65, "flexBasis", 0);
-    _$setProp(_el$65, "minWidth", 0);
-    _$setProp(_el$65, "minHeight", 0);
-    _$setProp(_el$65, "scrollX", false);
-    _$setProp(_el$65, "paddingRight", 1);
-    _$insert(_el$65, _$createComponent(Show, {
+    typeof _ref$2 === "function" ? _$use(_ref$2, _el$77) : detail = _el$77;
+    _$setProp(_el$77, "id", "automation-detail");
+    _$setProp(_el$77, "flexGrow", 1);
+    _$setProp(_el$77, "flexBasis", 0);
+    _$setProp(_el$77, "minWidth", 0);
+    _$setProp(_el$77, "minHeight", 0);
+    _$setProp(_el$77, "scrollX", false);
+    _$setProp(_el$77, "paddingRight", 1);
+    _$insert(_el$77, _$createComponent(Show, {
       get when() {
-        return selected();
+        return !helping();
       },
       get fallback() {
-        return (() => {
-          var _el$69 = _$createElement("text");
-          _$setProp(_el$69, "wrapMode", "word");
-          _$insert(_el$69, (() => {
-            var _c$5 = _$memo(() => !!visible().length);
-            return () => _c$5() ? text().selectTask : "";
-          })());
-          _$effect((_$p) => _$setProp(_el$69, "fg", faint(), _$p));
-          return _el$69;
-        })();
+        return _$createComponent(Help, {});
       },
-      children: (row) => _$createComponent(Detail, {
-        get row() {
-          return row();
-        }
-      })
+      get children() {
+        return _$createComponent(Show, {
+          get when() {
+            return selected();
+          },
+          get fallback() {
+            return (() => {
+              var _el$81 = _$createElement("text");
+              _$setProp(_el$81, "wrapMode", "word");
+              _$insert(_el$81, (() => {
+                var _c$5 = _$memo(() => !!visible().length);
+                return () => _c$5() ? text().selectTask : "";
+              })());
+              _$effect((_$p) => _$setProp(_el$81, "fg", faint(), _$p));
+              return _el$81;
+            })();
+          },
+          children: (row) => _$createComponent(Detail, {
+            get row() {
+              return row();
+            }
+          })
+        });
+      }
     }));
-    _$setProp(_el$66, "id", "automation-footer");
-    _$setProp(_el$66, "flexDirection", "column");
-    _$setProp(_el$66, "flexShrink", 0);
-    _$setProp(_el$66, "marginTop", 1);
-    _$insert(_el$66, _$createComponent(For, {
+    _$setProp(_el$78, "id", "automation-footer");
+    _$setProp(_el$78, "flexDirection", "column");
+    _$setProp(_el$78, "flexShrink", 0);
+    _$setProp(_el$78, "marginTop", 1);
+    _$insert(_el$78, _$createComponent(For, {
       get each() {
         return keyHintLines(hints(), width());
       },
       children: (line) => (() => {
-        var _el$70 = _$createElement("text");
-        _$setProp(_el$70, "wrapMode", "none");
-        _$setProp(_el$70, "selectable", false);
-        _$insert(_el$70, () => line.flatMap((hint, index) => [...index ? [(() => {
-          var _el$71 = _$createElement("span");
-          _$insertNode(_el$71, _$createTextNode(`  `));
-          _$effect((_$p) => _$setProp(_el$71, "style", {
+        var _el$82 = _$createElement("text");
+        _$setProp(_el$82, "wrapMode", "none");
+        _$setProp(_el$82, "selectable", false);
+        _$insert(_el$82, () => line.flatMap((hint, index) => [...index ? [(() => {
+          var _el$83 = _$createElement("span");
+          _$insertNode(_el$83, _$createTextNode(`  `));
+          _$effect((_$p) => _$setProp(_el$83, "style", {
             fg: theme().muted
           }, _$p));
-          return _el$71;
+          return _el$83;
         })()] : [], (() => {
-          var _el$73 = _$createElement("b");
-          _$insert(_el$73, () => hint.key);
-          _$effect((_$p) => _$setProp(_el$73, "style", {
+          var _el$85 = _$createElement("b");
+          _$insert(_el$85, () => hint.key);
+          _$effect((_$p) => _$setProp(_el$85, "style", {
             fg: theme().text
           }, _$p));
-          return _el$73;
+          return _el$85;
         })(), (() => {
-          var _el$74 = _$createElement("span");
-          _$insert(_el$74, () => ` ${hint.label}`);
-          _$effect((_$p) => _$setProp(_el$74, "style", {
+          var _el$86 = _$createElement("span");
+          _$insert(_el$86, () => ` ${hint.label}`);
+          _$effect((_$p) => _$setProp(_el$86, "style", {
             fg: theme().muted
           }, _$p));
-          return _el$74;
+          return _el$86;
         })()]));
-        return _el$70;
+        return _el$82;
       })()
     }));
     _$effect((_p$) => {
-      var _v$43 = props.height ? props.height() ?? 20 : "100%", _v$44 = hasKeyboard() ? theme().accent : theme().border, _v$45 = theme().text, _v$46 = theme().muted, _v$47 = wide() ? "row" : "column", _v$48 = wide() ? ["left"] : ["top"], _v$49 = theme().border, _v$50 = wide() ? 2 : 0;
-      _v$43 !== _p$.e && (_p$.e = _$setProp(_el$51, "height", _v$43, _p$.e));
-      _v$44 !== _p$.t && (_p$.t = _$setProp(_el$51, "borderColor", _v$44, _p$.t));
-      _v$45 !== _p$.a && (_p$.a = _$setProp(_el$53, "fg", _v$45, _p$.a));
-      _v$46 !== _p$.o && (_p$.o = _$setProp(_el$57, "fg", _v$46, _p$.o));
-      _v$47 !== _p$.i && (_p$.i = _$setProp(_el$64, "flexDirection", _v$47, _p$.i));
-      _v$48 !== _p$.n && (_p$.n = _$setProp(_el$65, "border", _v$48, _p$.n));
-      _v$49 !== _p$.s && (_p$.s = _$setProp(_el$65, "borderColor", _v$49, _p$.s));
-      _v$50 !== _p$.h && (_p$.h = _$setProp(_el$65, "paddingLeft", _v$50, _p$.h));
+      var _v$47 = props.height ? props.height() ?? 20 : "100%", _v$48 = hasKeyboard() ? theme().accent : theme().border, _v$49 = theme().text, _v$50 = theme().muted, _v$51 = wide() ? "row" : "column", _v$52 = wide() ? ["left"] : ["top"], _v$53 = theme().border, _v$54 = wide() ? 2 : 0;
+      _v$47 !== _p$.e && (_p$.e = _$setProp(_el$63, "height", _v$47, _p$.e));
+      _v$48 !== _p$.t && (_p$.t = _$setProp(_el$63, "borderColor", _v$48, _p$.t));
+      _v$49 !== _p$.a && (_p$.a = _$setProp(_el$65, "fg", _v$49, _p$.a));
+      _v$50 !== _p$.o && (_p$.o = _$setProp(_el$69, "fg", _v$50, _p$.o));
+      _v$51 !== _p$.i && (_p$.i = _$setProp(_el$76, "flexDirection", _v$51, _p$.i));
+      _v$52 !== _p$.n && (_p$.n = _$setProp(_el$77, "border", _v$52, _p$.n));
+      _v$53 !== _p$.s && (_p$.s = _$setProp(_el$77, "borderColor", _v$53, _p$.s));
+      _v$54 !== _p$.h && (_p$.h = _$setProp(_el$77, "paddingLeft", _v$54, _p$.h));
       return _p$;
     }, {
       e: undefined,
@@ -1649,7 +1835,7 @@ function AutomationWindow(props) {
       s: undefined,
       h: undefined
     });
-    return _el$51;
+    return _el$63;
   })();
 }
 

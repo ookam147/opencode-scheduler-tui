@@ -8,9 +8,8 @@ type AutomationInfo = Awaited<ReturnType<AutomationAPI["pause"]>>
 export type SessionLookup = (sessionID: string) => { id: string; title?: string } | undefined
 
 function toAutomation(info: AutomationInfo): Automation {
-  const { state: _state, ...automation } = info
   // Native timestamps are already milliseconds, including small/zero values.
-  return automation as Automation
+  return info as Automation
 }
 
 /** Also cancel promptly when a transport does not settle on abort. */

@@ -32,8 +32,8 @@ describe("automation adapter", () => {
     expect(calls).toEqual([["list", undefined]])
     expect(rows[0]).toMatchObject({ id: "aut_1", nextDueAt: 123, expires: 0, lastRunAt: 100,
       time: { created: 1, updated: 2 }, session: { id: "ses_1", title: "Title ses_1" } })
-    // Code-action state is internal to the automation and would churn the view on every run.
-    expect(rows[0]).not.toHaveProperty("state")
+    // A code action's saved state is shown in the details.
+    expect(rows[0]!.state).toEqual({ secret: true })
   })
 
   test("joins titles from the host cache only, including a different prompt target", async () => {

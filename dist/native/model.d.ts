@@ -56,6 +56,8 @@ export type Automation = {
     lastRunAt?: number;
     lastOutcome?: AutomationOutcome;
     lastOutput?: string;
+    /** JSON a code action keeps between runs. */
+    state?: unknown;
     time?: {
         created: number;
         updated: number;
@@ -75,6 +77,11 @@ export type AutomationFilter = "all" | AutomationStatus;
 export type AutomationSort = "created" | "next" | "name";
 /** The session a prompt lands in: an explicit target, else the creator (code sends and subagent runs start there). */
 export declare function targetSessionID(row: Automation): string | undefined;
+/**
+ * Whether a code action's last successful run woke an agent (returned `send`) or finished quietly.
+ * Undefined for other actions, which always prompt (or never do), and for runs that did not succeed.
+ */
+export declare function codeWake(row: Pick<Automation, "action" | "lastOutcome" | "lastOutput">): "woke" | "quiet" | undefined;
 /** Whether an automation concerns a session: created there, or prompting it. */
 export declare function belongsTo(row: Automation, sessionID: string | undefined): boolean;
 /** The body of an action: its prompt, script or command. */

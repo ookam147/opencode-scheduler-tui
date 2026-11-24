@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test"
-import { actionBody, belongsTo, countAutomations, describeTrigger, selectAutomations, sortAutomations, targetSessionID, type AutomationRow } from "./model.js"
+import { actionBody, belongsTo, codeWake, countAutomations, describeTrigger, selectAutomations, sortAutomations, targetSessionID, type AutomationRow } from "./model.js"
 
 const rows: AutomationRow[] = [
   { id: "aut_a", sessionID: "ses_a", name: "喝水", action: { type: "prompt", prompt: "提醒喝水", to: { session: "ses_a" } }, trigger: { type: "at", at: "in 5 minutes" }, tz: "Asia/Shanghai", directory: "/work/reminders", status: "done", runCount: 1, session: { id: "ses_a", title: "健康提醒" } },
@@ -44,6 +44,18 @@ describe("automation presentation", () => {
     const named = ["task 10", "Task 2", "apple"].map((name, i) => ({ ...rows[1]!, id: String(i), name }))
     expect(sortAutomations(named, "name", "en").map((r) => r.name)).toEqual(["apple", "Task 2", "task 10"])
     expect(list.map((r) => r.id)).toEqual(["aut_a", "late", "aut_c", "aut_d", "soon", "soon2"])
+  })
+  test("tells whether a code run woke an agent from its handoff line", () => {
+    const code = { action: { type: "code" as const, code: "x" } }
+    expect(codeWake({ ...code, lastOutcome: "fired", lastOutput: "Prompted ses_abc\nlog" })).toBe("woke")
+    expect(codeWake({ ...code, lastOutcome: "late", lastOutput: "Started subagent ses_aut_1_2" })).toBe("woke")
+    expect(codeWake({ ...code, lastOutcome: "fired", lastOutput: "checked 3 orders" })).toBe("quiet")
+    expect(codeWake({ ...code, lastOutcome: "fired" })).toBe("quiet")
+    // A log line that merely mentions a session later on is not a handoff.
+    expect(codeWake({ ...code, lastOutcome: "fired", lastOutput: "ok\nPrompted ses_abc" })).toBe("quiet")
+    expect(codeWake({ ...code, lastOutcome: "failed", lastOutput: "Prompted ses_abc" })).toBeUndefined()
+    expect(codeWake({ ...code })).toBeUndefined()
+    expect(codeWake({ action: { type: "shell", command: "ls" }, lastOutcome: "fired" })).toBeUndefined()
   })
   test("describes all four trigger kinds and reads each action body", () => {
     expect(describeTrigger(rows[0]!.trigger)).toBe("单次 in 5 minutes")

@@ -33,6 +33,8 @@ export type Automation = {
   lastRunAt?: number
   lastOutcome?: AutomationOutcome
   lastOutput?: string
+  /** JSON a code action keeps between runs. */
+  state?: unknown
   time?: { created: number; updated: number }
 }
 
@@ -46,6 +48,19 @@ export type AutomationSort = "created" | "next" | "name"
 /** The session a prompt lands in: an explicit target, else the creator (code sends and subagent runs start there). */
 export function targetSessionID(row: Automation): string | undefined {
   return row.action.type === "prompt" && row.action.to.session ? row.action.to.session : row.sessionID
+}
+
+/** A code run's output starts with its handoff line when it returned `send`; see OpenCode's `deliverySummary`. */
+const HANDOFF = /^(Prompted|Started subagent) ses_\S+$/m
+
+/**
+ * Whether a code action's last successful run woke an agent (returned `send`) or finished quietly.
+ * Undefined for other actions, which always prompt (or never do), and for runs that did not succeed.
+ */
+export function codeWake(row: Pick<Automation, "action" | "lastOutcome" | "lastOutput">): "woke" | "quiet" | undefined {
+  if (row.action.type !== "code" || (row.lastOutcome !== "fired" && row.lastOutcome !== "late")) return undefined
+  const first = row.lastOutput?.split("\n", 1)[0] ?? ""
+  return HANDOFF.test(first) ? "woke" : "quiet"
 }
 
 /** Whether an automation concerns a session: created there, or prompting it. */

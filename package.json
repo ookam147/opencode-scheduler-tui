@@ -37,7 +37,8 @@
     "release:minor": "npm version minor && npm publish",
     "release:major": "npm version major && npm publish",
     "typecheck": "tsc --noEmit",
-    "test": "bun test src --preload @opentui/solid/runtime-plugin-support"
+    "test": "bun test src --preload @opentui/solid/runtime-plugin-support",
+    "screenshots": "bun test ./scripts/screenshots.test.tsx --preload @opentui/solid/runtime-plugin-support"
   },
   "keywords": [
     "opencode",

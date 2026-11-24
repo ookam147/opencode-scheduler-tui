@@ -1,46 +1,111 @@
-# OpenCode Automation Center
+# OpenCode Automations Center
 
-[简体中文](./README.zh-CN.md)
+[简体中文](./README.zh-CN.md) · [npm](https://www.npmjs.com/package/@ookam147/opencode-scheduler-tui) · [Changelog](./CHANGELOG.md)
 
-A session-aware TUI for **OpenCode's native Automation service**. Requires OpenCode **2.4.0** or later (verified on 2.4.0 / 2.4.1).
+A TUI plugin for viewing and managing OpenCode's **native Automations** from inside a session: see when each automation runs, what it does and how its last run went, and pause, resume or delete it.
 
-The host owns timing, persistence and execution. The plugin does not install launchd/systemd/cron jobs, spawn `opencode run`, read a local SQLite database, or register competing scheduler tools.
+Requires OpenCode **2.4.0** or later (verified on 2.4.0 / 2.4.1). OpenCode owns timing, storage and execution; this plugin only reads and manages. It installs no system timers, spawns no processes and registers no competing scheduler tools.
 
-## Task center
+![Automations window](https://raw.githubusercontent.com/ookam147/opencode-scheduler-tui/main/docs/screenshots/window-en.png)
 
-![Automations window](docs/screenshots/native-en.png)
-
-Inside a conversation, run `/automation_status` or **Show or hide automations** in the command palette. It opens above the message box, covers only the conversation area and gives way to the sidebar. Run the command again or press `Esc` to close; the keyboard returns to the message box.
-
-- Fixed header, status tabs, category rail, independent list/detail scrolling and keyboard footer; responsive layout.
-- Native `active`, `paused`, `done` states, current/all-session scope, and search across names, prompts, commands, scripts, sessions, directories and last output.
-- All four triggers: `at` (one-time, shown on the local clock), `every`, `cron`, and MCP `event` (server, event and arguments).
-- All actions: a prompt (unmarked), a subagent prompt `↳`, a Code Mode script `λ` and a shell command `$`, each with an explanation of how it runs.
-- Next run, time zone, expiry, run count, last outcome and **last output** (shell exit code and output, code logs, the reason it paused). Rows whose last run failed are tagged `failed`.
-- No manual creation: ask the agent, which uses the `automation` tools or the built-in `/automation` command. The window is for reviewing and managing.
-- Pause, resume, confirmed deletion and navigation to the session the prompt is delivered to.
-- No invented “run now”, edit or full run history: native APIs do not provide these operations.
-
-## Local loading
+## Install
 
 ```sh
-npm install
-npm run build
+opencode plugin add @ookam147/opencode-scheduler-tui
 ```
 
-Use Bun 1.3.14+ for build/test. The plugin runs in OpenCode's Bun host. `@opencode/plugin` and OpenTUI are optional peers provided by the host (`@opencode/plugin >=2.4.0 <3`, OpenTUI `>=0.9.4`), so they are not installed with the plugin.
+This installs the plugin from npm and adds it to `plugins` in the global `~/.config/opencode/opencode.json`. Restart OpenCode to load it.
 
-For this checkout, add its **directory** to `plugins` in `~/.config/opencode/cli.json`:
+Or add it by hand:
 
 ```json
 {
-  "plugins": ["/absolute/path/to/opencode-scheduler"]
+  "plugins": ["@ookam147/opencode-scheduler-tui"]
 }
 ```
 
-Alternatively load the directory in `opencode.json`'s `plugins`; its V2 server part is a no-op and exists only to allow TUI-part discovery. Preserve existing entries. **The plugin does not edit your configuration.**
+Automations are on by default. To turn them off for a directory, set `"automations": false` in its config; its automations are then not listed.
 
-Automations are on by default; `experimental.schedules` is gone in 2.4 and now produces a config diagnostic. Set `"automations": false` to turn them off; automations in such a directory are not listed.
+## Quick start
+
+1. **Create automations** by asking the agent, e.g. “Summarize yesterday's commits at 9 on weekdays” or “Remind me to drink water in 30 minutes”. It uses the `automation` tools or the built-in `/automation` command. The plugin has no creation form.
+2. **Open the window**: run `/automation_status` in a session, or choose **Show or hide automations** in the command palette (`ctrl+p`). It opens above the message box.
+3. **Review and manage**: `↑↓` selects, the right pane shows details; `p` pauses or resumes, `d` deletes, `o` opens the session its prompt goes to (usually the one that created it).
+4. **Unsure what a marker means?** Press `h` for help; `h` or `Esc` returns.
+5. **Close** with `/automation_status` again or `Esc`; the keyboard returns to the message box.
+
+## List markers
+
+| Marker | Meaning |
+|---|---|
+| `●` | Active: runs on schedule |
+| `‖` | Paused: will not run until resumed |
+| `✓` | Done: will not run again |
+| (none) | Prompt: sent to a session, wakes an agent |
+| `↳` | Subagent: sent to a subagent, wakes an agent |
+| `λ` | Code Mode script: wakes an agent only when needed |
+| `$` | Shell command: no AI call |
+| red `failed` | The last run failed |
+
+The same explanations are one keypress away (`h`):
+
+![Help](https://raw.githubusercontent.com/ookam147/opencode-scheduler-tui/main/docs/screenshots/help-en.png)
+
+## Triggers and actions
+
+**Triggers** (the Trigger column):
+
+| Trigger | Example | Shown as |
+|---|---|---|
+| `at` | once, in 30 minutes | Once Today 15:30 |
+| `every` | every 10 minutes | Every 10 minutes |
+| `cron` | 9:00 on weekdays | Cron 0 9 * * 1-5 |
+| `event` | when an MCP server pushes an event | Event server/event |
+
+**Actions** (the Action line in the details):
+
+| Action | Calls AI | What it does |
+|---|---|---|
+| Prompt | yes | Sends the prompt into the target session; the agent there handles it and replies in that session |
+| Subagent `↳` | yes | Each run opens a new child session for the named subagent (e.g. `explore`, `general`). The result stays in that child session and the original session gets no message; find it in the original session's Subagents panel |
+| Code Mode `λ` | when needed | Runs a script without calling AI. It can read data (e.g. with `fetch`); returning `send` wakes an agent, `done` ends the automation, and `state` is kept for the next run |
+| Shell `$` | no | Runs one fixed command and records its exit code and output |
+
+Neither prompts nor subagents have a model setting of their own: a prompt uses the target session's current model, a subagent uses its own configured model.
+
+## Details
+
+| Field | Content |
+|---|---|
+| Next / Time zone / Expires | When it runs next, its time zone, when it stops |
+| Runs | Total run count |
+| Last | When it last ran and how. For Code Mode, whether that run woke an agent |
+| Action | Its kind and content; a subagent reads “Subagent name” |
+| Sends to | Shown only when a prompt goes to a session other than the one that created it |
+| Last output | A shell's exit code and output, a script's logs, or why it paused |
+| Saved state | Data a Code Mode script keeps for its next run |
+| Created in | The session and directory it was created in |
+
+OpenCode keeps only the **last** run's result, not a per-run history, so “Runs” counts woken and quiet runs together. To track them, count in a Code Mode script's `state`, e.g. `wakes + 1` whenever it returns `send`.
+
+## Keys
+
+| Key | Action |
+|---|---|
+| `↑↓` / `j k` | Select |
+| `←→` / `Tab` | Status filter (All / Active / Paused / Done) |
+| `s` | Current session / all sessions |
+| `/` | Search names, prompts, commands, scripts, sessions, directories and last output |
+| `r` | Refresh now |
+| `p` | Pause / resume |
+| `d` | Delete (asks first; deletes the automation only, not its session or messages) |
+| `o` | Open the session the prompt goes to; for subagent, code and shell automations, the creating session |
+| `c` | Settings |
+| `h` | Help (`h` or `Esc` returns) |
+| `PgUp` / `PgDn` | Scroll details |
+| `Esc` | Close (clears the search first) |
+
+“Current session” includes automations created in it and those whose prompt is sent to it.
 
 ## Settings
 
@@ -55,31 +120,48 @@ Press `c` in the window, or choose **Automations settings** in the command palet
 | Default scope | Current session / All sessions | Current session |
 | Default status | All / Active / Paused / Done | All |
 
-Changes apply at once: an open window switches language, refresh interval, sort and time display immediately. Sorting by next run lists active timers by due time, then event watches, paused and done; the default scope and status apply the next time the window opens. The host's plugin storage keeps them in `~/.local/state/opencode/<channel>/tui/plugin.opencode-scheduler.settings.json`, synced across running TUIs. The language no longer follows the machine's time zone; user-authored names and prompts are never translated.
+Language, refresh, sort and time display apply at once; the default scope and status apply the next time the window opens. Settings live in `~/.local/state/opencode/<channel>/tui/plugin.opencode-scheduler.settings.json` and sync across running TUIs.
 
 ## Data and refresh
 
-- One `experimental.automation.list()` call returns every automation (oldest first). “Current” and “All sessions” are filtered locally: no session walk, pagination or request fan-out.
-- “Current session” includes automations created in it and those whose prompt is delivered to it.
-- Session titles come from the host's synced `context.data.session` cache, never an extra request. A session that is not cached (for example, deleted) shows its ID. Deleting a session does not delete its automations.
-- While open, the list refreshes silently at the configured interval (five seconds by default) without overlapping requests. Mutations and `r` refresh immediately. Requests and timers are cancelled when the window closes.
+- Each refresh is one request for every automation; “Current” and “All sessions” are filtered locally.
+- Session titles come from OpenCode's own session cache, never an extra request; an uncached session (for example, a deleted one) shows its ID. Deleting a session does not delete its automations.
+- While open, the list refreshes silently at the configured interval without overlapping requests; pause, delete and `r` refresh at once; closing the window cancels requests and timers.
+- No “run now”, in-place editing or per-run history: the native API offers none.
 
-Details omit agent/model/provider/reasoning settings: a session's current selection must not be mistaken for an automation's fixed configuration. The `d` action asks for confirmation, then calls the native delete API; it does not delete the owning session or its messages.
+## From source
 
-## Keys
+```sh
+npm install
+npm run build
+```
 
-`↑↓` / `j k`: select · `←→` / `Tab`: status · `s`: scope · `/`: search · `r`: refresh · `p`: pause/resume · `d`: delete · `o`: open target session · `c`: settings · `PgUp/PgDn`: detail scroll · `Esc`: close (or clear search first).
+Building and testing need Bun 1.3.14+. `@opencode/plugin` and OpenTUI are optional peers provided by OpenCode (`@opencode/plugin >=2.4.0 <3`, OpenTUI `>=0.9.4`). Add the checkout's **directory** to `plugins`, keeping existing entries:
 
-## Migration and validation
+```json
+{
+  "plugins": ["/absolute/path/to/opencode-scheduler-tui"]
+}
+```
 
-- [Changelog](./CHANGELOG.md) and [migration notes](./docs/native-migration.md)
-- [Legacy documentation](./docs/legacy-readme.md) describes the old OS scheduler, not the current entrypoint.
+Development:
 
 ```sh
 npm run typecheck
-npm run build
 npm test
+npm run build
 npm run check:exports
+npm run screenshots   # regenerate the HTML frames behind the README screenshots
 ```
 
-The entrypoints are `dist/native/server.js` and `dist/native/tui.js`. SDK/OpenTUI/Solid imports stay external so the host owns shared runtimes.
+Entrypoints are `dist/native/server.js` (an empty server part that lets OpenCode discover the plugin) and `dist/native/tui.js`.
+
+## More
+
+- [Changelog](./CHANGELOG.md)
+- [Migration notes](./docs/native-migration.md): from 2.x (native schedules) to 3.0 (native Automations)
+- [Legacy documentation](./docs/legacy-readme.md): the 1.x system-timer implementation, no longer used
+
+## License
+
+MIT

@@ -15,22 +15,23 @@ export declare function words(language?: Language): {
     last: string;
     lastOutput: string;
     session: string;
-    target: string;
     unknownSession: string;
     eventArgs: string;
     action: string;
     actions: {
         prompt: string;
+        subagent: string;
         code: string;
         shell: string;
     };
-    executionNotes: {
-        prompt: string;
-        subagent: (agent: string) => string;
-        code: string;
-        shell: string;
-    };
-    toSubagent: (agent: string) => string;
+    sendTo: string;
+    help: string;
+    helpTitle: string;
+    helpClose: string;
+    helpSections: {
+        title: string;
+        items: [string, string][];
+    }[];
     automationID: string;
     sessionID: string;
     statuses: {
@@ -48,6 +49,11 @@ export declare function words(language?: Language): {
         expired: string;
     };
     failedTag: string;
+    wakes: {
+        woke: string;
+        quiet: string;
+    };
+    savedState: string;
     done: string;
     backToList: string;
     clickWindow: string;

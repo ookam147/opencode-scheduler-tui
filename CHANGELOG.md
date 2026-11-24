@@ -7,7 +7,7 @@
 ### ⚠️ 破坏性变更
 
 - **底层 API**：`experimental.schedule.*` 在 2.4.0 中已移除，改用 `experimental.automation.*`（`automationID` 替代 `scheduleID`）。不再支持 OpenCode 2.4.0 以下版本。
-- **命令**：`/schedule_status` → `/automation_status`；命令面板标题改为 “Show or hide automations”。
+- **命令**：`/schedule_status` → `/automation_status`；命令面板标题改为「自动化任务」（英文界面 “Show or hide automations”）。
 - **依赖**：`@opencode/*` 2.2.5 → 2.4.0，OpenTUI 0.8.0 → 0.9.4；对等依赖改为 `@opencode/plugin >=2.4.0 <3`、OpenTUI `>=0.9.4`。
 - **配置**：不再需要 `experimental.schedules`（2.4 已移除）；Automation 默认开启，用顶层 `"automations": false` 关闭。
 
@@ -22,7 +22,14 @@
 - **设置**：窗口内按 `c` 或命令面板「自动化任务设置」。可设置界面语言（简体中文 / English）、自动刷新间隔（5 / 10 / 30 / 60 秒或关闭）、排序方式（创建时间 / 下次运行 / 名称）、时间显示（相对 / 具体时间）、默认范围与默认状态；由宿主插件存储持久化，多个 TUI 同步。界面语言不再按电脑时区判断，默认简体中文。
 - 列表以 `↳` / `λ` / `$` 标记子代理、Code、Shell 动作；上次失败的任务标注「失败」。
 - 详情展示动作类型与内容、投递目标、执行说明、事件参数与**上次输出**（服务端现于 list 返回）。
+- Code Mode 任务的上次结果注明「已唤醒 AI / 未唤醒 AI」，详情显示脚本保存的 `state`；新增帮助（`h`），集中说明列表标记、四种动作与详情字段；详情里不再附带执行说明，避免与任务内容混淆。
+- 详情里子代理任务的动作显示为「子代理 名称」，与普通提示词区分；提示词发到创建会话以外的会话时，显示「发送到」。
 - `at` 触发按本地时间显示；事件监听的「下次」显示为「收到事件时」。
+
+### 文档
+
+- README（中英文）重写为安装、快速上手、列表标记、触发与动作、详情字段、快捷键、设置的完整教程，并换上新截图；新增 `npm run screenshots` 用于重新生成截图。
+- 推荐用 `opencode plugin add @ookam147/opencode-scheduler-tui` 从 npm 安装。
 
 ---
 

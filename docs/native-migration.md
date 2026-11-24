@@ -29,7 +29,9 @@ package exports 只指向 `src/native/` 的构建产物。没有修改 `AGENTS.m
 | — | `name`（必填）、`projectID`、`directory`、`state` |
 | `sessionID` 必有 | 可选；删除会话不删除任务 |
 
-`state` 是 code 动作的内部 JSON 状态，每次运行都可能变化；插件在适配层丢弃它，避免无意义的重绘。
+`state` 是 code 动作保存给下次运行的 JSON，详情里原样显示（超过 4000 字符截断）。它只在某次运行后变化，刷新时未变化的行仍会复用，不会多余重绘。
+
+code 动作是否唤醒了 AI 没有单独字段：服务端在脚本返回 `send` 时，把 `Prompted ses_…` 或 `Started subagent ses_…` 写在 `lastOutput` 第一行。插件只认第一行，据此在「上次」一栏标注已唤醒 / 未唤醒；失败的运行不标注。任务因 `done: true` 结束还是单次跑完结束，服务端同样不记录，插件不做猜测。
 
 ## 性能变化
 
