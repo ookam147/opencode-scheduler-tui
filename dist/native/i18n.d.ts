@@ -1,6 +1,6 @@
 export type Language = "zh" | "en";
-/** UI language comes from the host machine, never a schedule's time zone. */
-export declare function detectLanguage(timeZone?: string): Language;
+/** Each language names itself, so the choice is readable whichever language is active. */
+export declare const LANGUAGE_NAMES: Record<Language, string>;
 export declare function words(language?: Language): {
     title: string;
     current: string;
@@ -13,12 +13,25 @@ export declare function words(language?: Language): {
     ends: string;
     runs: string;
     last: string;
-    prompt: string;
+    lastOutput: string;
     session: string;
+    target: string;
     unknownSession: string;
-    execution: string;
-    executionNote: string;
-    scheduleID: string;
+    eventArgs: string;
+    action: string;
+    actions: {
+        prompt: string;
+        code: string;
+        shell: string;
+    };
+    executionNotes: {
+        prompt: string;
+        subagent: (agent: string) => string;
+        code: string;
+        shell: string;
+    };
+    toSubagent: (agent: string) => string;
+    automationID: string;
     sessionID: string;
     statuses: {
         all: string;
@@ -29,28 +42,12 @@ export declare function words(language?: Language): {
     outcomes: {
         fired: string;
         late: string;
-        checked: string;
-        expired: string;
         skipped: string;
         disabled: string;
         failed: string;
+        expired: string;
     };
-    condition: string;
-    conditionIf: string;
-    conditionUntil: string;
-    conditionIfNote: string;
-    conditionUntilNote: string;
-    waitingTag: string;
-    conditionFailureNote: string;
-    conditionShell: string;
-    conditionCode: string;
-    conditionRule: string;
-    conditionRuleExit: string;
-    conditionRuleIs: (value: string) => string;
-    conditionRuleMatches: (value: string) => string;
-    conditionRuleChanges: string;
-    conditionCodeNote: string;
-    gated: string;
+    failedTag: string;
     done: string;
     backToList: string;
     clickWindow: string;
@@ -64,8 +61,6 @@ export declare function words(language?: Language): {
     resume: string;
     remove: string;
     openSession: string;
-    readIssues: string;
-    back: string;
     clearSearch: string;
     refreshing: string;
     processing: string;
@@ -79,16 +74,14 @@ export declare function words(language?: Language): {
     noTasks: string;
     pausedNext: string;
     noMoreRuns: string;
+    onEvent: string;
     unlimited: string;
     neverFired: string;
-    warningSummary: (count: number) => string;
-    warningTitle: (count: number) => string;
-    warningHelp: string;
-    runCount: (count: number, remaining?: number) => string;
+    runCount: (count: number) => string;
     nextTime: (clock: string, relative: string) => string;
-    whenIn: (value: string) => string;
     whenAt: (value: string) => string;
     whenEvery: (value: string) => string;
+    whenEvent: (server: string, event: string) => string;
     today: string;
     tomorrow: string;
     yesterday: string;
@@ -103,5 +96,23 @@ export declare function words(language?: Language): {
     confirmDelete: string;
     cancel: string;
     commandTitle: string;
-    commandDescription: string;
+    settings: string;
+    settingsTitle: string;
+    settingsCommand: string;
+    languageSetting: string;
+    refreshSetting: string;
+    scopeSetting: string;
+    filterSetting: string;
+    sortSetting: string;
+    timeSetting: string;
+    sorts: {
+        created: string;
+        next: string;
+        name: string;
+    };
+    timeFormats: {
+        relative: string;
+        absolute: string;
+    };
+    refreshChoice: (seconds: number) => string;
 };

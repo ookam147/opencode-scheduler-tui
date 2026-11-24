@@ -1,24 +1,25 @@
 import { describe, expect, test } from "bun:test"
 import { testRender } from "@opentui/solid"
 import { createSignal } from "solid-js"
-import type { ScheduleRow } from "./model"
+import type { AutomationRow } from "./model"
 import type { Language } from "./i18n"
 import { columns } from "./format"
-import { reconcileWindowSelection, ScheduleWindow, type ScheduleWindowTheme } from "./window"
+import { reconcileWindowSelection, AutomationWindow, type AutomationWindowTheme } from "./window"
 
-const theme: ScheduleWindowTheme = {
+const theme: AutomationWindowTheme = {
   text: "#ffffff", muted: "#999999", accent: "#55aaff", background: "#101010",
   raised: "#303030", border: "#555555", success: "#22cc88", warning: "#ffaa33", error: "#ff5555", info: "#55aaff",
 }
-function row(id: string, status: ScheduleRow["status"] = "active", sessionID = "session-1"): ScheduleRow {
-  return { id, name: `Task ${id}`, prompt: `Prompt for ${id}`, when: { type: "every", every: "1h" }, tz: "UTC", status, sessionID, runCount: 3, lastOutcome: "fired" }
+function row(id: string, status: AutomationRow["status"] = "active", sessionID = "session-1"): AutomationRow {
+  return { id, name: `Task ${id}`, action: { type: "prompt", prompt: `Prompt for ${id}`, to: { session: sessionID } },
+    trigger: { type: "every", every: "1h" }, tz: "UTC", directory: "/work", status, sessionID, runCount: 3, lastOutcome: "fired" }
 }
-async function mount(rows: ScheduleRow[], width = 110, height = 26, language: Language = "zh") {
+async function mount(rows: AutomationRow[], width = 110, height = 26, language: Language = "zh") {
   const [items, setItems] = createSignal(rows)
   const [loading, setLoading] = createSignal(false)
   const [error, setError] = createSignal<string>()
   const calls: string[] = []
-  const app = await testRender(() => <ScheduleWindow language={language} rows={items} loading={loading} error={error}
+  const app = await testRender(() => <AutomationWindow language={() => language} rows={items} loading={loading} error={error}
     currentSessionID={() => "session-1"} theme={() => theme}
     refresh={() => { calls.push("refresh") }} pause={(row) => { calls.push(`pause:${row.id}`) }}
     resume={(row) => { calls.push(`resume:${row.id}`) }} remove={(row) => { calls.push(`remove:${row.id}`); setItems(items().filter((item) => item.id !== row.id)) }}
@@ -35,43 +36,104 @@ async function mount(rows: ScheduleRow[], width = 110, height = 26, language: La
   return { app, calls, setItems, setLoading, setError, key }
 }
 
-describe("native schedule window", () => {
-  test.each(["zh", "en"] as const)("explains a shell `until` gate and its predicate (%s)", async (language) => {
-    const gated: ScheduleRow = { ...row("gated"), name: "Deploy watch",
-      until: { type: "shell", run: "curl -sf https://example.com/health", matches: "^ok$" } }
-    const m = await mount([gated], 150, 44, language)
+describe("automation window", () => {
+  test.each(["zh", "en"] as const)("explains a shell action and its last output (%s)", async (language) => {
+    const shell: AutomationRow = { ...row("shell"), name: "Health check",
+      action: { type: "shell", command: "curl -sf https://example.com/health" },
+      lastOutcome: "failed", lastRunAt: Date.now() - 60_000, lastOutput: "Exit code: 22\ncurl: (22) 503" }
+    const m = await mount([shell], 150, 44, language)
     try {
       const frame = m.app.captureCharFrame()
       expect(frame).toContain("curl -sf https://example.com/health")
-      expect(frame).toContain("^ok$")
-      // The one-shot wording must be distinguishable from the recurring gate.
-      expect(frame).toContain(language === "zh" ? "满足即结束（until）" : "Fires once when met (until)")
-      expect(frame).not.toContain(language === "zh" ? "每次检查（if）" : "Checked each slot (if)")
-      expect(frame).toContain(language === "zh" ? "连续 3 次会自动暂停" : "Three consecutive check errors")
+      expect(frame).toContain(language === "zh" ? "Shell 命令" : "Shell command")
+      expect(frame).toContain("curl: (22) 503")
+      expect(frame).toContain(language === "zh" ? "上次输出" : "Last output")
       if (language === "en") expect(frame).not.toMatch(/[\u4e00-\u9fff]/)
     } finally { m.app.renderer.destroy() }
   })
-  test.each(["zh", "en"] as const)("tags only active gates whose last check did not pass as waiting (%s)", async (language) => {
-    const gate = { type: "shell" as const, run: "test -f /tmp/ready" }
-    const waiting: ScheduleRow = { ...row("waiting"), name: "Wait gate", until: gate, lastOutcome: "checked" }
-    const fired: ScheduleRow = { ...row("fired"), name: "Fired gate", if: gate, lastOutcome: "fired" }
-    const paused: ScheduleRow = { ...row("paused", "paused"), name: "Paused gate", if: gate, lastOutcome: "checked" }
-    const plain: ScheduleRow = { ...row("plain"), lastOutcome: "checked" }
-    const m = await mount([waiting, fired, paused, plain], 150, 30, language)
+  test.each(["zh", "en"] as const)("tags only unfinished rows whose last run failed (%s)", async (language) => {
+    const failing: AutomationRow = { ...row("failing"), name: "Fail task", lastOutcome: "failed" }
+    const paused: AutomationRow = { ...row("paused", "paused"), name: "Paused task", lastOutcome: "failed" }
+    const finished: AutomationRow = { ...row("finished", "done"), name: "Done task", lastOutcome: "failed" }
+    const fine: AutomationRow = { ...row("fine"), name: "Fine task" }
+    const m = await mount([failing, paused, finished, fine], 150, 30, language)
     try {
       const lines = m.app.captureCharFrame().split("\n")
-      const tag = language === "zh" ? "等待条件" : "waiting"
-      // List rows carry the plan column; the detail header only repeats the selected name.
-      const line = (name: string) => lines.find((item) => item.includes(name) && item.includes(language === "zh" ? "每隔 1h" : "Every 1h"))!
-      // The tag follows the name directly, not the far edge of a wide name column.
-      expect(line("Wait gate")).toContain(`Wait gate ${tag}`)
-      for (const name of ["Fired gate", "Paused gate", "Task plain"]) expect(line(name)).not.toContain(tag)
-      const column = (text: string) => columns(text.slice(0, text.indexOf(language === "zh" ? "每隔 1h" : "Every 1h")))
-      expect(column(line("Wait gate"))).toBe(column(line("Fired gate")))
+      const tag = language === "zh" ? "失败" : "failed"
+      const plan = language === "zh" ? "每隔 1h" : "Every 1h"
+      const line = (name: string) => lines.find((item) => item.includes(name) && item.includes(plan))!
+      expect(line("Fail task")).toContain(`Fail task ${tag}`)
+      expect(line("Paused task")).toContain(`Paused task ${tag}`)
+      for (const name of ["Done task", "Fine task"]) expect(line(name)).not.toContain(` ${tag}`)
+      const column = (text: string) => columns(text.slice(0, text.indexOf(plan)))
+      expect(column(line("Fail task"))).toBe(column(line("Fine task")))
+    } finally { m.app.renderer.destroy() }
+  })
+  test("marks code, shell and subagent actions in the list without shifting columns", async () => {
+    const plain = row("plain")
+    const coded: AutomationRow = { ...row("coded"), name: "Inbox watch",
+      action: { type: "code", code: "const t = await tools.slack.read_thread({ id })\nreturn t.count > 0" } }
+    const child: AutomationRow = { ...row("child"), name: "Triage run", action: { type: "prompt", prompt: "triage", to: { subagent: "explore" } } }
+    const m = await mount([plain, coded, child], 150, 44, "zh")
+    try {
+      const lines = m.app.captureCharFrame().split("\n")
+      const plainRow = lines.find((line) => line.includes("● Task plain"))!
+      const codedRow = lines.find((line) => line.includes("Inbox watch") && line.includes("每隔 1h"))!
+      const childRow = lines.find((line) => line.includes("Triage run") && line.includes("每隔 1h"))!
+      expect(codedRow).toContain("λ")
+      expect(childRow).toContain("↳")
+      expect(plainRow).not.toContain("λ")
+      const column = (line: string) => columns(line.slice(0, line.indexOf("每隔 1h")))
+      expect(column(codedRow)).toBe(column(plainRow))
+      expect(column(childRow)).toBe(column(plainRow))
+      await m.key("down")
+      let frame = m.app.captureCharFrame()
+      expect(frame).toContain("Code Mode 脚本")
+      expect(frame).toContain("tools.slack.read_thread")
+      expect(frame).toContain("无网络访问")
+      await m.key("down")
+      frame = m.app.captureCharFrame()
+      expect(frame).toContain("子代理 explore")
+      expect(frame).toContain("不回报")
+    } finally { m.app.renderer.destroy() }
+  })
+  test("an event watch shows its server, event and arguments", async () => {
+    const watch: AutomationRow = { ...row("watch"), name: "Push watch", nextDueAt: undefined,
+      trigger: { type: "event", server: "github", event: "push", args: { repo: "a/b" } } }
+    const m = await mount([watch], 150, 40, "en")
+    try {
+      const frame = m.app.captureCharFrame()
+      expect(frame).toContain("Event github/push")
+      expect(frame).toContain('{"repo":"a/b"}')
+      expect(frame).toContain("On each event")
+    } finally { m.app.renderer.destroy() }
+  })
+  test("a one-time trigger stored as a UTC instant is shown on the local clock", async () => {
+    const due = new Date(Date.now() + 2 * 86_400_000)
+    due.setHours(9, 5, 0, 0)
+    const once: AutomationRow = { ...row("once"), trigger: { type: "at", at: due.toISOString() } }
+    const m = await mount([once], 150, 30, "en")
+    try {
+      const frame = m.app.captureCharFrame()
+      expect(frame).toContain("09:05")
+      expect(frame).not.toContain(due.toISOString())
+    } finally { m.app.renderer.destroy() }
+  })
+  test("current scope includes automations created elsewhere that prompt this session", async () => {
+    const inbound: AutomationRow = { ...row("inbound", "active", "session-2"), name: "Inbound",
+      action: { type: "prompt", prompt: "hi", to: { session: "session-1" } }, target: { id: "session-1", title: "Here" } }
+    const elsewhere = row("elsewhere", "active", "session-2")
+    const m = await mount([inbound, elsewhere], 150, 30, "en")
+    try {
+      const frame = m.app.captureCharFrame()
+      expect(frame).toContain("Inbound")
+      expect(frame).not.toContain("Task elsewhere")
+      expect(frame).toContain("Target")
+      expect(frame).toContain("Here")
     } finally { m.app.renderer.destroy() }
   })
   test("the English next column fits a full relative time without truncation", async () => {
-    const soon: ScheduleRow = { ...row("soon"), nextDueAt: Date.now() + 58 * 60_000 + 20_000 }
+    const soon: AutomationRow = { ...row("soon"), nextDueAt: Date.now() + 58 * 60_000 + 20_000 }
     const m = await mount([soon], 150, 20, "en")
     try {
       const listRow = m.app.captureCharFrame().split("\n").find((line) => line.includes("Every 1h"))!
@@ -79,43 +141,14 @@ describe("native schedule window", () => {
       expect(listRow).not.toContain("min…")
     } finally { m.app.renderer.destroy() }
   })
-  test("shows a code gate with its confinement note, and marks only gated rows in the list", async () => {
-    const plain = row("plain")
-    const coded: ScheduleRow = { ...row("coded"), name: "Inbox watch",
-      if: { type: "code", code: "const t = await tools.slack.read_thread({ id })\nreturn t.count > 0" } }
-    const m = await mount([plain, coded], 150, 44, "zh")
-    try {
-      const lines = m.app.captureCharFrame().split("\n")
-      // Match the list rows by their status glyph, since the detail pane repeats the selected task's name.
-      const plainRow = lines.find((line) => line.includes("● Task plain"))!
-      const codedRow = lines.find((line) => line.includes("Inbox watch"))!
-      expect(codedRow).toContain("◆")
-      expect(plainRow).not.toContain("◆")
-      // Columns must stay aligned even though the marker only appears on one row. The status rail holds a
-      // different number of CJK characters per line, so compare display columns rather than string indexes.
-      const column = (line: string) => {
-        const index = line.indexOf("每隔 1h")
-        return index < 0 ? -1 : columns(line.slice(0, index))
-      }
-      expect(column(plainRow)).toBeGreaterThan(-1)
-      expect(column(codedRow)).toBe(column(plainRow))
-      await m.key("down")
-      const frame = m.app.captureCharFrame()
-      expect(frame).toContain("每次检查（if）")
-      expect(frame).toContain("tools.slack.read_thread")
-      expect(frame).toContain("无网络访问")
-      // A code gate has no shell predicate to report.
-      expect(frame).not.toContain("判定")
-    } finally { m.app.renderer.destroy() }
-  })
   test.each(["zh", "en"] as const)("details omit session model settings to avoid implying execution configuration (%s)", async (language) => {
-    const task = { ...row("english"), tz: "Asia/Shanghai", session: { id: "session-1", title: "Original title", agent: "build", model: { id: "glm-5.3", providerID: "zai-coding-plan", variant: "max" } } }
+    const task: AutomationRow = { ...row("english"), tz: "Asia/Shanghai", session: { id: "session-1", title: "Original title" } }
     const m = await mount([task], 150, 44, language)
     try {
       const frame = m.app.captureCharFrame()
       for (const value of ["Asia/Shanghai", "Original title", "Prompt for english"]) expect(frame).toContain(value)
-      for (const value of ["会话当前配置", "Current session configuration", "glm-5.3", "zai-coding-plan", "max", "build"]) expect(frame).not.toContain(value)
-      const scheduleLabel = language === "zh" ? "任务 ID:" : "Schedule ID:"
+      for (const value of ["会话当前配置", "Current session configuration"]) expect(frame).not.toContain(value)
+      const scheduleLabel = language === "zh" ? "任务 ID:" : "Automation ID:"
       const sessionLabel = language === "zh" ? "会话 ID:" : "Session ID:"
       const lines = frame.split("\n")
       const scheduleLine = lines.findIndex((line) => line.includes(scheduleLabel))
@@ -124,7 +157,8 @@ describe("native schedule window", () => {
       expect(sessionLine).toBeGreaterThan(scheduleLine)
       expect(lines[scheduleLine]).toContain("english")
       expect(lines[sessionLine]).toContain("session-1")
-      expect(frame).toContain(language === "zh" ? "执行方式" : "Execution")
+      // The creator is the default target, so no separate target row is drawn.
+      expect(frame).not.toMatch(language === "zh" ? /目标\s{2,}/ : /Target\s{2,}/)
       expect(frame).toContain(language === "zh" ? "未绑定独立模型" : "separate model is bound")
       if (language === "en") expect(frame).not.toMatch(/[\u4e00-\u9fff]/)
     } finally { m.app.renderer.destroy() }
@@ -144,7 +178,7 @@ describe("native schedule window", () => {
   test("English empty, loading, failure and search states remain localized", async () => {
     const m = await mount([], 120, 26, "en")
     try {
-      expect(m.app.captureCharFrame()).toContain("This session has no scheduled tasks")
+      expect(m.app.captureCharFrame()).toContain("This session has no automations")
       m.setLoading(true)
       await m.app.flush()
       expect(m.app.captureCharFrame()).toContain("Reading tasks")
@@ -154,29 +188,88 @@ describe("native schedule window", () => {
       expect(m.app.captureCharFrame()).toContain("Original error")
       expect(m.app.captureCharFrame()).toContain("Could not read tasks")
       await m.key("/")
-      expect(m.app.captureCharFrame()).toContain("Search names, prompts or sessions")
+      expect(m.app.captureCharFrame()).toContain("Search names, prompts, commands or sessions")
       expect(m.app.captureCharFrame()).toContain("Back to list")
     } finally { m.app.renderer.destroy() }
   })
-  test("English warnings and unfocused hints do not translate raw errors", async () => {
-    let root: Parameters<NonNullable<import("./window").ScheduleWindowProps["onRoot"]>>[0] | undefined
-    const app = await testRender(() => <ScheduleWindow language="en" rows={() => [row("a")]}
-      loading={() => false} error={() => undefined} warnings={() => ["Original session: 原始错误"]}
+  test("English unfocused hints name the new command and do not translate raw errors", async () => {
+    let root: Parameters<NonNullable<import("./window").AutomationWindowProps["onRoot"]>>[0] | undefined
+    const app = await testRender(() => <AutomationWindow language={() => "en"} rows={() => [row("a")]}
+      loading={() => false} error={() => "原始错误"}
       currentSessionID={() => "session-1"} theme={() => theme} onRoot={(box) => { root = box }}
       refresh={() => {}} pause={() => {}} resume={() => {}} remove={() => {}} openSession={() => {}} close={() => {}} />,
       { width: 120, height: 30 })
     try {
       await app.flush()
-      expect(app.captureCharFrame()).toContain("Could not read tasks from 1 session(s)")
-      app.mockInput.pressKey("w")
-      await new Promise((resolve) => setTimeout(resolve, 35))
-      await app.flush()
-      expect(app.captureCharFrame()).toContain("Read issues (1)")
-      expect(app.captureCharFrame()).toContain("Original session: 原始错误")
+      expect(app.captureCharFrame()).toContain("✕ 原始错误")
       root?.blur()
       await app.flush()
       expect(app.captureCharFrame()).toContain("Click this window")
       expect(app.captureCharFrame()).toContain("keyboard is in the input")
+      expect(app.captureCharFrame()).toContain("/automation_status")
+    } finally { app.renderer.destroy() }
+  })
+  test("opens with the saved scope and status, and `c` opens settings only when the host offers it", async () => {
+    const rows = [row("mine"), row("paused", "paused"), row("other", "paused", "session-2")]
+    let opened = 0
+    const app = await testRender(() => <AutomationWindow language={() => "en"} rows={() => rows} loading={() => false}
+      error={() => undefined} currentSessionID={() => "session-1"} theme={() => theme}
+      initialScope="all" initialFilter="paused" openSettings={() => { opened++ }}
+      refresh={() => {}} pause={() => {}} resume={() => {}} remove={() => {}} openSession={() => {}} close={() => {}} />,
+      { width: 150, height: 30 })
+    try {
+      await app.flush()
+      const frame = app.captureCharFrame()
+      expect(frame).toContain("Task other")
+      expect(frame).toContain("Task paused")
+      expect(frame).not.toContain("Task mine")
+      expect(frame).toContain("c Settings")
+      app.mockInput.pressKey("c")
+      await new Promise((resolve) => setTimeout(resolve, 35))
+      expect(opened).toBe(1)
+    } finally { app.renderer.destroy() }
+    const m = await mount([row("a")], 150, 30, "en")
+    try { expect(m.app.captureCharFrame()).not.toContain("c Settings") } finally { m.app.renderer.destroy() }
+  })
+  test("sort and time display follow the settings live", async () => {
+    const now = Date.now()
+    const rows = [{ ...row("b"), name: "Beta", nextDueAt: now + 3 * 3_600_000 }, { ...row("a"), name: "Alpha", nextDueAt: now + 10 * 60_000 }]
+    const [sort, setSort] = createSignal<"created" | "next" | "name">("created")
+    const [time, setTime] = createSignal<"relative" | "absolute">("relative")
+    const app = await testRender(() => <AutomationWindow language={() => "en"} rows={() => rows} loading={() => false}
+      error={() => undefined} currentSessionID={() => "session-1"} theme={() => theme} sort={sort} timeFormat={time}
+      refresh={() => {}} pause={() => {}} resume={() => {}} remove={() => {}} openSession={() => {}} close={() => {}} />,
+      { width: 150, height: 30 })
+    const order = () => app.captureCharFrame().split("\n").filter((line) => line.includes("Every 1h"))
+      .map((line) => line.includes("Alpha") ? "Alpha" : "Beta")
+    try {
+      await app.flush()
+      expect(order()).toEqual(["Beta", "Alpha"])
+      setSort("next")
+      await app.flush()
+      expect(order()).toEqual(["Alpha", "Beta"])
+      const alpha = () => app.captureCharFrame().split("\n").find((line) => line.includes("Alpha") && line.includes("Every 1h"))!
+      expect(alpha()).toContain("in 10 minutes")
+      setTime("absolute")
+      await app.flush()
+      const clock = new Date(now + 10 * 60_000)
+      expect(alpha()).toContain(`${String(clock.getHours()).padStart(2, "0")}:${String(clock.getMinutes()).padStart(2, "0")}`)
+      expect(alpha()).not.toContain("in 10 minutes")
+    } finally { app.renderer.destroy() }
+  })
+  test("switches language live when the setting changes", async () => {
+    const [language, setLanguage] = createSignal<Language>("zh")
+    const app = await testRender(() => <AutomationWindow language={language} rows={() => [row("a")]} loading={() => false}
+      error={() => undefined} currentSessionID={() => "session-1"} theme={() => theme}
+      refresh={() => {}} pause={() => {}} resume={() => {}} remove={() => {}} openSession={() => {}} close={() => {}} />,
+      { width: 150, height: 30 })
+    try {
+      await app.flush()
+      expect(app.captureCharFrame()).toContain("当前会话")
+      setLanguage("en")
+      await app.flush()
+      expect(app.captureCharFrame()).toContain("Current session")
+      expect(app.captureCharFrame()).not.toMatch(/[\u4e00-\u9fff]/)
     } finally { app.renderer.destroy() }
   })
   test("preserves IDs across refresh and clamps a removed selection", () => {
@@ -258,7 +351,7 @@ describe("native schedule window", () => {
   test("allows Escape while loading and renders empty/loading states", async () => {
     const m = await mount([])
     try {
-      expect(m.app.captureCharFrame()).toContain("这个会话还没有定时任务")
+      expect(m.app.captureCharFrame()).toContain("这个会话还没有自动化任务")
       m.setLoading(true)
       await m.app.flush()
       expect(m.app.captureCharFrame()).toContain("正在读取任务")
@@ -275,36 +368,20 @@ describe("native schedule window", () => {
       expect(m.app.captureCharFrame()).toContain("让 agent 安排")
       await m.key("n")
       expect(m.calls).toEqual([])
-      m.setError("Native schedule request failed")
+      m.setError("Automation request failed")
       await m.app.flush()
-      expect(m.app.captureCharFrame()).toContain("Native schedule request failed")
+      expect(m.app.captureCharFrame()).toContain("Automation request failed")
       expect(m.app.captureCharFrame()).toContain("任务读取失败")
       await m.key("r")
       expect(m.calls).toContain("refresh")
     } finally { m.app.renderer.destroy() }
-  })
-  test("summarises partial read failures on one line and lists them on demand", async () => {
-    const app = await testRender(() => <ScheduleWindow language="zh" rows={() => [row("a")]} loading={() => false}
-      error={() => undefined} warnings={() => ["旧工作树（ses_x）：UnexpectedStatus: 500"]}
-      currentSessionID={() => "session-1"} theme={() => theme}
-      refresh={() => {}} pause={() => {}} resume={() => {}} remove={() => {}} openSession={() => {}} close={() => {}} />,
-      { width: 120, height: 26 })
-    try {
-      await app.flush()
-      expect(app.captureCharFrame()).toContain("1 个会话的任务读取失败")
-      expect(app.captureCharFrame()).not.toContain("UnexpectedStatus")
-      app.mockInput.pressKey("w")
-      await new Promise((resolve) => setTimeout(resolve, 35))
-      await app.flush()
-      expect(app.captureCharFrame()).toContain("UnexpectedStatus: 500")
-    } finally { app.renderer.destroy() }
   })
   test("host bindings are scoped away from search and disposed with the window", async () => {
     let target: (() => unknown) | undefined
     let actions: { key: string; run(): void }[] = []
     let disposed = false
     let pauses = 0
-    const app = await testRender(() => <ScheduleWindow language="zh" rows={() => [row("a")]} loading={() => false}
+    const app = await testRender(() => <AutomationWindow language={() => "zh"} rows={() => [row("a")]} loading={() => false}
       error={() => undefined} currentSessionID={() => "session-1"} theme={() => theme}
       refresh={() => {}} pause={() => { pauses++ }} resume={() => {}} remove={() => {}}
       openSession={() => {}} close={() => {}}

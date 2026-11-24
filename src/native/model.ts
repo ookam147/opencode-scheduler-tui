@@ -1,103 +1,110 @@
-/** Native schedules belong to sessions, not filesystem scheduler scopes. */
-export type ScheduleWhen =
-  | { type: "in"; in: string; tz?: string }
+/** Mirrors `Automation.Info` from OpenCode 2.4; timestamps are epoch milliseconds. */
+export type AutomationTrigger =
   | { type: "at"; at: string; tz?: string }
   | { type: "every"; every: string; tz?: string }
   | { type: "cron"; cron: string; tz?: string }
+  | { type: "event"; server: string; event: string; args?: Record<string, unknown> }
 
-/**
- * A gate the service evaluates before waking the session, with no model call. At most one predicate out of `is`,
- * `matches` and `changes` applies; with none of them, exit code 0 alone passes.
- */
-export type ScheduleCondition =
-  | { type: "shell"; run: string; is?: string; matches?: string; changes?: boolean }
-  | { type: "code"; code: string }
+export type AutomationTarget = { session: string; subagent?: never } | { subagent: string; session?: never }
 
-/** `if` gates every recurring slot; `until` polls until it passes once. The service stores at most one of them. */
-export type ScheduleCheckMode = "if" | "until"
-export type ScheduleCheck = { mode: ScheduleCheckMode; condition: ScheduleCondition }
+export type AutomationAction =
+  | { type: "prompt"; prompt: string; to: AutomationTarget }
+  | { type: "code"; code: string; args?: unknown }
+  | { type: "shell"; command: string }
 
-export type ScheduleOutcome = "fired" | "late" | "checked" | "expired" | "skipped" | "disabled" | "failed"
+export type AutomationActionType = AutomationAction["type"]
+export type AutomationStatus = "active" | "paused" | "done"
+export type AutomationOutcome = "fired" | "late" | "skipped" | "disabled" | "failed" | "expired"
 
-export type NativeSchedule = {
+export type Automation = {
   id: string
+  name: string
+  projectID?: string
+  /** The session that created it. Deleting that session does not delete the automation. */
   sessionID?: string
-  name?: string
-  prompt: string
-  when: ScheduleWhen
+  directory: string
+  trigger: AutomationTrigger
   tz: string
-  if?: ScheduleCondition
-  until?: ScheduleCondition
-  status: "active" | "paused" | "done"
+  action: AutomationAction
+  expires?: number
+  status: AutomationStatus
   nextDueAt?: number
-  endsAt?: number
-  remainingRuns?: number
   runCount: number
-  lastFiredAt?: number
-  lastOutcome?: ScheduleOutcome
+  lastRunAt?: number
+  lastOutcome?: AutomationOutcome
+  lastOutput?: string
   time?: { created: number; updated: number }
 }
 
-export type ScheduleSession = {
-  id: string
-  title?: string
-  directory?: string
-  agent?: string
-  /** Current session selection, not the configuration of any historical schedule firing. */
-  model?: { id: string; providerID: string; variant?: string }
-}
-export type ScheduleRow = NativeSchedule & { session?: ScheduleSession }
-export type ScheduleFilter = "all" | NativeSchedule["status"]
+/** What the TUI already knows about a session; never fetched just for this window. */
+export type AutomationSession = { id: string; title?: string }
+export type AutomationRow = Automation & { session?: AutomationSession; target?: AutomationSession }
+export type AutomationFilter = "all" | AutomationStatus
+/** `created` keeps the service's order (oldest first). */
+export type AutomationSort = "created" | "next" | "name"
 
-export function describeWhen(when: ScheduleWhen): string {
-  switch (when.type) {
-    case "in": return `延时 ${when.in}`
-    case "at": return `指定时间 ${when.at}`
-    case "every": return `每隔 ${when.every}`
-    case "cron": return `Cron ${when.cron}`
+/** The session a prompt lands in: an explicit target, else the creator (code sends and subagent runs start there). */
+export function targetSessionID(row: Automation): string | undefined {
+  return row.action.type === "prompt" && row.action.to.session ? row.action.to.session : row.sessionID
+}
+
+/** Whether an automation concerns a session: created there, or prompting it. */
+export function belongsTo(row: Automation, sessionID: string | undefined) {
+  return !!sessionID && (row.sessionID === sessionID || targetSessionID(row) === sessionID)
+}
+
+/** The body of an action: its prompt, script or command. */
+export function actionBody(action: AutomationAction): string {
+  switch (action.type) {
+    case "prompt": return action.prompt
+    case "code": return action.code
+    case "shell": return action.command
   }
 }
 
-/** The single gate stored on a schedule, if any. */
-export function scheduleCheck(row: NativeSchedule): ScheduleCheck | undefined {
-  if (row.if) return { mode: "if", condition: row.if }
-  if (row.until) return { mode: "until", condition: row.until }
-  return undefined
+export function describeTrigger(trigger: AutomationTrigger): string {
+  switch (trigger.type) {
+    case "at": return `单次 ${trigger.at}`
+    case "every": return `每隔 ${trigger.every}`
+    case "cron": return `Cron ${trigger.cron}`
+    case "event": return `MCP ${trigger.server}/${trigger.event}`
+  }
 }
 
-/** Mirrors the service's own condition summary: the command itself, or the first non-empty line of a code check. */
-export function describeCondition(condition: ScheduleCondition): string {
-  if (condition.type === "shell") return condition.run
-  const line = condition.code.split("\n").map((item) => item.trim()).find((item) => item.length > 0)
-  return line ? `code (${line.slice(0, 60)})` : "code"
-}
-
-/** Searchable text for a gate, including its predicate so `changes` or a regex can be found. */
-function conditionHaystack(condition: ScheduleCondition | undefined) {
-  if (!condition) return []
-  if (condition.type === "code") return [condition.code]
-  return [condition.run, condition.is, condition.matches, condition.changes ? "changes" : undefined]
-}
-
-export function selectSchedules(rows: ScheduleRow[], options: {
-  status?: ScheduleFilter
+export function selectAutomations(rows: AutomationRow[], options: {
+  status?: AutomationFilter
   sessionID?: string
   query?: string
-} = {}): ScheduleRow[] {
+} = {}): AutomationRow[] {
   const query = options.query?.trim().toLocaleLowerCase() ?? ""
   return rows.filter((row) => {
     if (options.status && options.status !== "all" && row.status !== options.status) return false
-    if (options.sessionID && row.sessionID !== options.sessionID) return false
-    return !query || [row.id, row.name, row.prompt, row.sessionID, row.session?.title,
-      row.session?.directory, row.session?.agent, row.session?.model?.id,
-      row.session?.model?.providerID, row.session?.model?.variant, describeWhen(row.when), row.tz,
-      row.if ? "if" : undefined, row.until ? "until" : undefined,
-      ...conditionHaystack(row.if), ...conditionHaystack(row.until)]
+    if (options.sessionID && !belongsTo(row, options.sessionID)) return false
+    const action = row.action
+    return !query || [row.id, row.name, actionBody(action), action.type,
+      action.type === "prompt" ? action.to.subagent ?? action.to.session : undefined,
+      row.sessionID, row.session?.title, row.target?.title, row.directory,
+      describeTrigger(row.trigger), row.tz, row.lastOutput]
       .some((value) => value?.toLocaleLowerCase().includes(query))
   })
 }
 
-export function countSchedules(rows: NativeSchedule[]) {
+/** Where a row falls when sorting by next run: due timers first, then event watches, paused and done. */
+function nextRank(row: Automation) {
+  if (row.status === "active") return row.nextDueAt !== undefined ? 0 : 1
+  return row.status === "paused" ? 2 : 3
+}
+
+/** A sorted copy. Ties keep the service's creation order, since `Array.prototype.sort` is stable. */
+export function sortAutomations<Row extends Automation>(rows: Row[], sort: AutomationSort, locale?: string): Row[] {
+  if (sort === "created") return rows
+  const name = (row: Automation) => row.name || actionBody(row.action)
+  return [...rows].sort((a, b) => sort === "name"
+    ? name(a).localeCompare(name(b), locale, { numeric: true, sensitivity: "base" })
+    : nextRank(a) - nextRank(b) || (a.nextDueAt ?? 0) - (b.nextDueAt ?? 0))
+}
+
+export function countAutomations(rows: Automation[]) {
   return rows.reduce((counts, row) => {
     counts.all++
     counts[row.status]++

@@ -1,31 +1,37 @@
 /** @jsxImportSource @opentui/solid */
 import type { BoxRenderable, RGBA } from "@opentui/core";
 import { type Accessor, type JSX } from "solid-js";
-import { type ScheduleRow } from "./model";
+import { type AutomationFilter, type AutomationSort, type AutomationRow } from "./model";
 import { type Language } from "./i18n";
-export type ScheduleWindowTheme = Record<"text" | "muted" | "accent" | "background" | "raised" | "border" | "success" | "warning" | "error" | "info", string | RGBA> & {
+import { type Scope, type TimeFormat } from "./settings";
+export type AutomationWindowTheme = Record<"text" | "muted" | "accent" | "background" | "raised" | "border" | "success" | "warning" | "error" | "info", string | RGBA> & {
     faint?: string | RGBA;
 };
-export type ScheduleWindowProps = {
-    language?: Language;
-    rows: Accessor<ScheduleRow[]>;
+export type AutomationWindowProps = {
+    language?: Accessor<Language>;
+    /** Scope and status the window opens with; later changes are the user's. */
+    initialScope?: Scope;
+    initialFilter?: AutomationFilter;
+    /** List order and how its "Next" column shows times; both follow the settings live. */
+    sort?: Accessor<AutomationSort>;
+    timeFormat?: Accessor<TimeFormat>;
+    rows: Accessor<AutomationRow[]>;
     loading: Accessor<boolean>;
     error: Accessor<string | undefined>;
-    /** Sessions whose schedules could not be read; the rest of the list is still shown. */
-    warnings?: Accessor<string[]>;
     currentSessionID: Accessor<string | undefined>;
-    theme: Accessor<ScheduleWindowTheme>;
+    theme: Accessor<AutomationWindowTheme>;
     refresh(): void | Promise<void>;
-    pause(row: ScheduleRow): void | Promise<void>;
-    resume(row: ScheduleRow): void | Promise<void>;
-    remove(row: ScheduleRow): void | Promise<void>;
-    openSession(row: ScheduleRow): void | Promise<void>;
+    pause(row: AutomationRow): void | Promise<void>;
+    resume(row: AutomationRow): void | Promise<void>;
+    remove(row: AutomationRow): void | Promise<void>;
+    openSession(row: AutomationRow): void | Promise<void>;
     close(): void | Promise<void>;
     /** Rows the window may take; it fills its parent when omitted. */
     height?: Accessor<number | undefined>;
     /** The window's own box, for the host to focus and measure. */
     onRoot?(box: BoxRenderable): void;
-    scopeChanged?(scope: "current" | "all"): void;
+    /** Opens the host's settings dialog; the shortcut is hidden without it. */
+    openSettings?(): void | Promise<void>;
     bindKeys?(target: () => BoxRenderable | undefined, actions: {
         key: string;
         run: () => void;
@@ -35,10 +41,10 @@ type KeyHint = {
     key: string;
     label: string;
 };
-/** Keep the same schedule through refresh/reordering; otherwise choose its nearest neighbour. */
-export declare function reconcileWindowSelection(rows: ScheduleRow[], id: string | undefined, previousIndex?: number): string;
+/** Keep the same automation through refresh/reordering; otherwise choose its nearest neighbour. */
+export declare function reconcileWindowSelection(rows: AutomationRow[], id: string | undefined, previousIndex?: number): string;
 /** Key hints in `width` columns, broken between hints, never inside one. */
 export declare function keyHintLines(hints: KeyHint[], width: number): KeyHint[][];
 /** A session-native view: every mutation and navigation is delegated to the host. */
-export declare function ScheduleWindow(props: ScheduleWindowProps): JSX.Element;
+export declare function AutomationWindow(props: AutomationWindowProps): JSX.Element;
 export {};

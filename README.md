@@ -1,23 +1,25 @@
-# OpenCode Native Scheduler
+# OpenCode Automation Center
 
 [简体中文](./README.zh-CN.md)
 
-A session-aware TUI for **OpenCode's native schedule service**. Requires OpenCode **2.2.3** or later (verified on 2.2.5).
+A session-aware TUI for **OpenCode's native Automation service**. Requires OpenCode **2.4.0** or later (verified on 2.4.0 / 2.4.1).
 
-The host owns timing, persistence and prompt delivery. The plugin does not install launchd/systemd/cron jobs, spawn `opencode run`, read a local SQLite database, or register competing scheduler tools.
+The host owns timing, persistence and execution. The plugin does not install launchd/systemd/cron jobs, spawn `opencode run`, read a local SQLite database, or register competing scheduler tools.
 
 ## Task center
 
-![Schedules window](docs/screenshots/native-en.png)
+![Automations window](docs/screenshots/native-en.png)
 
-Inside a conversation, run `/schedule_status` or **Show or hide scheduled tasks** in the command palette. Like the Quota window, it opens above the message box, covers only the conversation area and gives way to the sidebar. Run the command again or press `Esc` to close; the keyboard returns to the message box.
+Inside a conversation, run `/automation_status` or **Show or hide automations** in the command palette. It opens above the message box, covers only the conversation area and gives way to the sidebar. Run the command again or press `Esc` to close; the keyboard returns to the message box.
 
-- Fixed header, status tabs, category rail, independent list/detail scrolling and keyboard footer; responsive layout inspired by the Quota TUI, independently implemented.
-- Native `active`, `paused`, `done` states, current/all-session scope and text search.
-- Trigger, timezone, next due time, run count, last outcome, owning session title/ID and directory.
-- No manual creation: ask the agent, which uses OpenCode's native `schedule` tool (or the built-in `/schedule` command). The window is for reviewing and managing.
-- Pause, resume, confirmed deletion and navigation to the owning conversation.
-- No invented “run now”, edit, OS health checks or full run history: native APIs do not provide these operations.
+- Fixed header, status tabs, category rail, independent list/detail scrolling and keyboard footer; responsive layout.
+- Native `active`, `paused`, `done` states, current/all-session scope, and search across names, prompts, commands, scripts, sessions, directories and last output.
+- All four triggers: `at` (one-time, shown on the local clock), `every`, `cron`, and MCP `event` (server, event and arguments).
+- All actions: a prompt (unmarked), a subagent prompt `↳`, a Code Mode script `λ` and a shell command `$`, each with an explanation of how it runs.
+- Next run, time zone, expiry, run count, last outcome and **last output** (shell exit code and output, code logs, the reason it paused). Rows whose last run failed are tagged `failed`.
+- No manual creation: ask the agent, which uses the `automation` tools or the built-in `/automation` command. The window is for reviewing and managing.
+- Pause, resume, confirmed deletion and navigation to the session the prompt is delivered to.
+- No invented “run now”, edit or full run history: native APIs do not provide these operations.
 
 ## Local loading
 
@@ -26,7 +28,7 @@ npm install
 npm run build
 ```
 
-Use Bun 1.3.14+ for build/test. OpenTUI 0.8.0's Node engine requires Node 26.4.0+; the plugin itself runs in OpenCode's Bun host. `@opencode/plugin` is an optional peer provided by the host, so it is not installed with the plugin.
+Use Bun 1.3.14+ for build/test. The plugin runs in OpenCode's Bun host. `@opencode/plugin` and OpenTUI are optional peers provided by the host (`@opencode/plugin >=2.4.0 <3`, OpenTUI `>=0.9.4`), so they are not installed with the plugin.
 
 For this checkout, add its **directory** to `plugins` in `~/.config/opencode/cli.json`:
 
@@ -36,52 +38,42 @@ For this checkout, add its **directory** to `plugins` in `~/.config/opencode/cli
 }
 ```
 
-Alternatively load the directory in `opencode.json`'s `plugins`; its V2 server part is a no-op and exists only to allow TUI-part discovery. Preserve existing entries. **This migration does not edit your configuration automatically.** Configuration changes apply via hot reload or `/reload`.
+Alternatively load the directory in `opencode.json`'s `plugins`; its V2 server part is a no-op and exists only to allow TUI-part discovery. Preserve existing entries. **The plugin does not edit your configuration.**
 
-Native schedules must be enabled in the relevant OpenCode configuration:
+Automations are on by default; `experimental.schedules` is gone in 2.4 and now produces a config diagnostic. Set `"automations": false` to turn them off; automations in such a directory are not listed.
 
-```json
-{
-  "experimental": { "schedules": true }
-}
-```
+## Settings
 
-Schedules belong to sessions; ask the agent in the conversation that should receive the prompt.
+Press `c` in the window, or choose **Automations settings** in the command palette. Pick a setting, then its value; you return to the list until you press `Esc`.
 
-## Language and session configuration
+| Setting | Values | Default |
+|---|---|---|
+| Language | 简体中文 / English | 简体中文 |
+| Auto refresh | every 5 / 10 / 30 / 60 seconds, or off (refresh with `r`) | 5 seconds |
+| Sort by | Created (oldest first) / Next run (soonest first) / Name | Created |
+| Time display | Relative (in 3 minutes) / Clock time (Today 09:05), for the list's “Next” column | Relative |
+| Default scope | Current session / All sessions | Current session |
+| Default status | All / Active / Paused / Done | All |
 
-The window automatically selects Chinese for mainland China, Hong Kong, Macau and Taiwan IANA time zones; other time zones use English. This uses the user's local time zone, not the schedule's time zone. Time zone is only a language heuristic, not a reliable indication of a person's language preference. User-authored names and prompts are never translated.
+Changes apply at once: an open window switches language, refresh interval, sort and time display immediately. Sorting by next run lists active timers by due time, then event watches, paused and done; the default scope and status apply the next time the window opens. The host's plugin storage keeps them in `~/.local/state/opencode/<channel>/tui/plugin.opencode-scheduler.settings.json`, synced across running TUIs. The language no longer follows the machine's time zone; user-authored names and prompts are never translated.
 
-Details show the owning session's name, directory and navigation action. Agent/model/provider/reasoning settings are intentionally not displayed: a session's current selection must not be mistaken for a schedule's fixed execution configuration.
+## Data and refresh
 
-The `d` action asks for confirmation, then calls the native schedule deletion API. It is another entry point to native deletion, not a separate scheduler; it does not delete the owning session or its messages.
+- One `experimental.automation.list()` call returns every automation (oldest first). “Current” and “All sessions” are filtered locally: no session walk, pagination or request fan-out.
+- “Current session” includes automations created in it and those whose prompt is delivered to it.
+- Session titles come from the host's synced `context.data.session` cache, never an extra request. A session that is not cached (for example, deleted) shows its ID. Deleting a session does not delete its automations.
+- While open, the list refreshes silently at the configured interval (five seconds by default) without overlapping requests. Mutations and `r` refresh immediately. Requests and timers are cancelled when the window closes.
 
-## Gated schedules
-
-OpenCode 2.2.3 can gate a schedule on a condition the service evaluates before waking a session, with no model call. Gated tasks are marked with `◆` in the list (`if` in the theme's warning colour, `until` in its info colour), tagged `waiting` when the last check did not pass, and the details explain the gate:
-
-- `if` is checked before every run to decide whether that run happens.
-- `until` waits for the condition to hold, then runs once. If it times out unmet, it still runs once and notes the condition was not met.
-
-A check is either a shell command run in the session's directory (passing on exit code 0, or when its output equals `is`, matches `matches`, or differs from the previous check via `changes`) or a confined Code Mode script with no network access. Three consecutive check errors (timeout, command error, etc.) pause the task; an unmet condition is not an error. Two outcomes report check activity: `checked` (evaluated without waking) and `expired` (an `until` gate that timed out).
-
-Gates are only displayed, never created here; `schedule_create` remains the agent's job. `lastOutput` is not shown because the service returns it only from creation, never from the list and get APIs this window uses.
-
-## Refresh behavior
-
-All requests use the connected host's `context.client`, including remote services. The native list API requires a session ID. “All sessions” walks all session pages and combines schedule lists with a maximum of four concurrent requests. Inaccessible sessions produce visible warnings, not silent claims of completeness; sessions whose directory was deleted are skipped (judged by the local file system).
-
-Current-session data refreshes every five seconds while the page is open. All-session fan-out runs at most once per minute automatically. Mutations and `r` refresh immediately. Requests/timers are cancelled when the window closes; stale responses cannot replace a newer scope.
+Details omit agent/model/provider/reasoning settings: a session's current selection must not be mistaken for an automation's fixed configuration. The `d` action asks for confirmation, then calls the native delete API; it does not delete the owning session or its messages.
 
 ## Keys
 
-`↑↓` / `j k`: select · `←→` / `Tab`: status · `s`: scope · `/`: search · `r`: refresh · `p`: pause/resume · `d`: delete · `o`: open conversation · `PgUp/PgDn`: detail scroll · `Esc`: close (or leave search first).
+`↑↓` / `j k`: select · `←→` / `Tab`: status · `s`: scope · `/`: search · `r`: refresh · `p`: pause/resume · `d`: delete · `o`: open target session · `c`: settings · `PgUp/PgDn`: detail scroll · `Esc`: close (or clear search first).
 
 ## Migration and validation
 
-- [Migration notes](./docs/native-migration.md)
-- Old OS scheduler sources/tests have been removed (see Git history for 1.4.1 and earlier); the package exports only `dist/native/server.js` and `dist/native/tui.js`. Existing system timers/files are **not** removed or converted.
-- [Legacy documentation](./docs/legacy-readme.md) describes the old implementation, not the current native entrypoint.
+- [Changelog](./CHANGELOG.md) and [migration notes](./docs/native-migration.md)
+- [Legacy documentation](./docs/legacy-readme.md) describes the old OS scheduler, not the current entrypoint.
 
 ```sh
 npm run typecheck
@@ -90,4 +82,4 @@ npm test
 npm run check:exports
 ```
 
-The new entrypoints are `dist/native/server.js` and `dist/native/tui.js`. SDK/OpenTUI/Solid imports stay external so the host owns shared runtimes.
+The entrypoints are `dist/native/server.js` and `dist/native/tui.js`. SDK/OpenTUI/Solid imports stay external so the host owns shared runtimes.

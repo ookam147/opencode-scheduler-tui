@@ -3,56 +3,61 @@ import type { BoxRenderable, KeyEvent, RGBA, ScrollBoxRenderable } from "@opentu
 import { useTerminalDimensions } from "@opentui/solid"
 import { createEffect, createMemo, createSignal, For, onCleanup, onMount, Show, type Accessor, type JSX } from "solid-js"
 import { clockTime, columns, fit, nextLabel, relativeTime, STATUS_GLYPHS } from "./format"
-import { countSchedules, scheduleCheck, selectSchedules,
-  type ScheduleCheckMode, type ScheduleCondition, type ScheduleFilter, type ScheduleRow, type ScheduleWhen } from "./model"
-import { detectLanguage, words, type Language } from "./i18n"
+import { actionBody, belongsTo, countAutomations, selectAutomations, sortAutomations, targetSessionID,
+  type AutomationAction, type AutomationFilter, type AutomationSort, type AutomationRow, type AutomationTrigger } from "./model"
+import { words, type Language } from "./i18n"
+import { FILTERS, SCOPES, type Scope, type TimeFormat } from "./settings"
 
-export type ScheduleWindowTheme = Record<
+export type AutomationWindowTheme = Record<
   "text" | "muted" | "accent" | "background" | "raised" | "border" | "success" | "warning" | "error" | "info",
   string | RGBA
 > & { faint?: string | RGBA }
-export type ScheduleWindowProps = {
-  language?: Language
-  rows: Accessor<ScheduleRow[]>
+export type AutomationWindowProps = {
+  language?: Accessor<Language>
+  /** Scope and status the window opens with; later changes are the user's. */
+  initialScope?: Scope
+  initialFilter?: AutomationFilter
+  /** List order and how its "Next" column shows times; both follow the settings live. */
+  sort?: Accessor<AutomationSort>
+  timeFormat?: Accessor<TimeFormat>
+  rows: Accessor<AutomationRow[]>
   loading: Accessor<boolean>
   error: Accessor<string | undefined>
-  /** Sessions whose schedules could not be read; the rest of the list is still shown. */
-  warnings?: Accessor<string[]>
   currentSessionID: Accessor<string | undefined>
-  theme: Accessor<ScheduleWindowTheme>
+  theme: Accessor<AutomationWindowTheme>
   refresh(): void | Promise<void>
-  pause(row: ScheduleRow): void | Promise<void>
-  resume(row: ScheduleRow): void | Promise<void>
-  remove(row: ScheduleRow): void | Promise<void>
-  openSession(row: ScheduleRow): void | Promise<void>
+  pause(row: AutomationRow): void | Promise<void>
+  resume(row: AutomationRow): void | Promise<void>
+  remove(row: AutomationRow): void | Promise<void>
+  openSession(row: AutomationRow): void | Promise<void>
   close(): void | Promise<void>
   /** Rows the window may take; it fills its parent when omitted. */
   height?: Accessor<number | undefined>
   /** The window's own box, for the host to focus and measure. */
   onRoot?(box: BoxRenderable): void
-  scopeChanged?(scope: "current" | "all"): void
+  /** Opens the host's settings dialog; the shortcut is hidden without it. */
+  openSettings?(): void | Promise<void>
   bindKeys?(target: () => BoxRenderable | undefined, actions: { key: string; run: () => void }[]): () => void
 }
 
-type Scope = "current" | "all"
 type KeyHint = { key: string; label: string }
 
-const FILTERS: ScheduleFilter[] = ["all", "active", "paused", "done"]
-const SCOPES: Scope[] = ["current", "all"]
 /** Status list on the left: indent, label, count and its right border. */
 const RAIL_WIDTH = 16
 /** Wide enough for the status list beside the task list and the details. */
 const WIDE = 110
-/** Fits the longest relative time per language: "59 分钟后" and "in 59 minutes". */
-const NEXT_WIDTH = { zh: 10, en: 13 } as const
+/** Fits the longest label per language: "59 分钟后" / "in 59 minutes", or "2027-01-02 09:00" as a clock time. */
+const NEXT_WIDTH = { relative: { zh: 10, en: 13 }, absolute: { zh: 16, en: 16 } } as const
 const WHEN_WIDTH = 20
 const LABEL_WIDTH = 8
 const HINT_GAP = "  "
-/** Marks a schedule the service gates with a check before it wakes its session. */
-const GATE_GLYPH = "◆"
+/** Longest shown last output; the service already bounds it, but the detail pane redraws on every poll. */
+const OUTPUT_LIMIT = 4_000
+/** Marks actions that do not simply prompt a session, so they stand out in the list. */
+const ACTION_GLYPHS = { shell: "$", code: "λ", subagent: "↳" } as const
 
-/** Keep the same schedule through refresh/reordering; otherwise choose its nearest neighbour. */
-export function reconcileWindowSelection(rows: ScheduleRow[], id: string | undefined, previousIndex = 0) {
+/** Keep the same automation through refresh/reordering; otherwise choose its nearest neighbour. */
+export function reconcileWindowSelection(rows: AutomationRow[], id: string | undefined, previousIndex = 0) {
   return rows.find((row) => row.id === id)?.id ?? rows[Math.max(0, Math.min(previousIndex, rows.length - 1))]?.id
 }
 
@@ -75,28 +80,27 @@ export function keyHintLines(hints: KeyHint[], width: number) {
 }
 
 /** A session-native view: every mutation and navigation is delegated to the host. */
-export function ScheduleWindow(props: ScheduleWindowProps) {
-  const language = () => props.language ?? detectLanguage()
+export function AutomationWindow(props: AutomationWindowProps) {
+  const language = () => props.language?.() ?? "zh"
   const text = () => words(language())
-  const describeWhen = (when: ScheduleWhen) => {
-    switch (when.type) {
-      case "in": return text().whenIn(when.in)
-      case "at": return text().whenAt(when.at)
-      case "every": return text().whenEvery(when.every)
-      case "cron": return `Cron ${when.cron}`
+  const describeTrigger = (trigger: AutomationTrigger) => {
+    switch (trigger.type) {
+      // The service stores `at` as a UTC instant; show it on the local clock like every other time here.
+      case "at": { const ms = Date.parse(trigger.at); return text().whenAt(Number.isNaN(ms) ? trigger.at : clockTime(ms, now(), language())) }
+      case "every": return text().whenEvery(trigger.every)
+      case "cron": return `Cron ${trigger.cron}`
+      case "event": return text().whenEvent(trigger.server, trigger.event)
     }
   }
   const terminal = useTerminalDimensions()
   const [width, setWidth] = createSignal(Math.max(20, terminal().width - 4))
-  const [filter, setFilter] = createSignal<ScheduleFilter>("all")
-  const [scope, setScope] = createSignal<Scope>(props.currentSessionID() ? "current" : "all")
-  createEffect(() => props.scopeChanged?.(scope()))
+  const [filter, setFilter] = createSignal<AutomationFilter>(props.initialFilter ?? "all")
+  const [scope, setScope] = createSignal<Scope>(props.currentSessionID() ? props.initialScope ?? "current" : "all")
   const [query, setQuery] = createSignal("")
   const [searching, setSearching] = createSignal(false)
   const [selectedID, setSelectedID] = createSignal<string>()
   const [pending, setPending] = createSignal(false)
   const [actionError, setActionError] = createSignal<string>()
-  const [showWarnings, setShowWarnings] = createSignal(false)
   const [now, setNow] = createSignal(Date.now())
   const [hasKeyboard, setHasKeyboard] = createSignal(false)
   let root: BoxRenderable | undefined
@@ -106,7 +110,6 @@ export function ScheduleWindow(props: ScheduleWindowProps) {
   let alive = true
   const theme = props.theme
   const faint = () => theme().faint ?? theme().muted
-  const warnings = () => props.warnings?.() ?? []
 
   const wide = () => width() >= WIDE
   const detailWidth = () => wide() ? Math.min(60, Math.max(40, Math.floor(width() * 0.4))) : width()
@@ -114,13 +117,15 @@ export function ScheduleWindow(props: ScheduleWindowProps) {
   /** Inside the list: its scrollbar column stays free. */
   const rowWidth = () => listWidth() - 2
   const whenWidth = () => rowWidth() >= 56 ? WHEN_WIDTH : 0
-  const nextWidth = () => NEXT_WIDTH[language()]
+  const timeFormat = () => props.timeFormat?.() ?? "relative"
+  const nextWidth = () => NEXT_WIDTH[timeFormat()][language()]
   const nameWidth = () => Math.max(6, rowWidth() - 2 - nextWidth() - 2 - (whenWidth() ? whenWidth() + 2 : 0))
 
   const scoped = createMemo(() => scope() === "all" ? props.rows()
-    : props.rows().filter((row) => !!props.currentSessionID() && row.sessionID === props.currentSessionID()))
-  const counts = createMemo(() => countSchedules(scoped()))
-  const visible = createMemo(() => selectSchedules(scoped(), { status: filter(), query: query() }))
+    : props.rows().filter((row) => belongsTo(row, props.currentSessionID())))
+  const counts = createMemo(() => countAutomations(scoped()))
+  const visible = createMemo(() => sortAutomations(selectAutomations(scoped(), { status: filter(), query: query() }),
+    props.sort?.() ?? "created", language() === "zh" ? "zh-CN" : "en"))
   const selected = createMemo(() => visible().find((row) => row.id === selectedID()))
   const busy = () => pending() || props.loading()
 
@@ -133,9 +138,8 @@ export function ScheduleWindow(props: ScheduleWindowProps) {
   createEffect(() => {
     const id = selectedID()
     detail?.scrollTo(0)
-    if (id) queueMicrotask(() => { if (alive) list?.scrollChildIntoView(`schedule-row-${id}`) })
+    if (id) queueMicrotask(() => { if (alive) list?.scrollChildIntoView(`automation-row-${id}`) })
   })
-  createEffect(() => { if (!warnings().length) setShowWarnings(false) })
   const clock = setInterval(() => setNow(Date.now()), 30_000)
   onCleanup(() => { alive = false; clearInterval(clock) })
 
@@ -150,8 +154,7 @@ export function ScheduleWindow(props: ScheduleWindowProps) {
   const exitSearch = () => { setSearching(false); root?.focus() }
   const close = () => { Promise.resolve().then(() => props.close()).catch((error) => { if (alive) setActionError(String(error)) }) }
   const escape = () => {
-    if (showWarnings()) setShowWarnings(false)
-    else if (query()) setQuery("")
+    if (query()) setQuery("")
     else close()
   }
   const switchFilter = (delta: number) => setFilter(FILTERS[(FILTERS.indexOf(filter()) + delta + FILTERS.length) % FILTERS.length]!)
@@ -159,7 +162,6 @@ export function ScheduleWindow(props: ScheduleWindowProps) {
     const rows = visible()
     const index = rows.findIndex((row) => row.id === selectedID())
     setSelectedID(rows[Math.max(0, Math.min(rows.length - 1, index + delta))]?.id)
-    setShowWarnings(false)
   }
   function toggle() {
     const row = selected()
@@ -167,7 +169,8 @@ export function ScheduleWindow(props: ScheduleWindowProps) {
     if (row?.status === "paused") void invoke(() => props.resume(row))
   }
   const remove = () => { const row = selected(); if (row) void invoke(() => props.remove(row)) }
-  const open = () => { const row = selected(); if (row?.sessionID) void invoke(() => props.openSession(row)) }
+  const open = () => { const row = selected(); if (row && targetSessionID(row)) void invoke(() => props.openSession(row)) }
+  const settings = () => { if (props.openSettings) void invoke(() => props.openSettings!()) }
   const actions = [
     { key: "up", run: () => move(-1) }, { key: "k", run: () => move(-1) },
     { key: "down", run: () => move(1) }, { key: "j", run: () => move(1) },
@@ -175,10 +178,9 @@ export function ScheduleWindow(props: ScheduleWindowProps) {
     { key: "tab", run: () => switchFilter(1) }, { key: "shift+tab", run: () => switchFilter(-1) },
     { key: "/", run: () => setSearching(true) },
     { key: "s", run: () => setScope(scope() === "all" ? "current" : "all") },
-    { key: "w", run: () => { if (warnings().length) setShowWarnings(!showWarnings()) } },
     { key: "escape", run: escape },
     { key: "r", run: () => { void invoke(props.refresh) } }, { key: "p", run: toggle },
-    { key: "d", run: remove }, { key: "o", run: open },
+    { key: "d", run: remove }, { key: "o", run: open }, { key: "c", run: settings },
     { key: "pageup", run: () => detail?.scrollBy(-Math.max(1, detail.height - 1)) },
     { key: "pagedown", run: () => detail?.scrollBy(Math.max(1, detail.height - 1)) },
   ].map((action) => ({ ...action, run: () => { if (!searching()) action.run() } }))
@@ -194,13 +196,18 @@ export function ScheduleWindow(props: ScheduleWindowProps) {
     const action = actions.find((action) => action.key === name || (action.key === "/" && key.sequence === "/"))
     if (action) { key.preventDefault(); key.stopPropagation(); action.run() }
   }
-  const statusColor = (status: ScheduleRow["status"]) =>
+  const statusColor = (status: AutomationRow["status"]) =>
     status === "active" ? theme().success : status === "paused" ? theme().warning : theme().muted
-  /** `if` and `until` gates need distinct colours in the list and details, so the two kinds are easy to tell apart. */
-  const gateColor = (mode: ScheduleCheckMode | undefined) =>
-    mode === "until" ? theme().info : theme().warning
-  const pickFilter = (value: ScheduleFilter) => { setFilter(value); root?.focus() }
-  const title = (row: ScheduleRow) => row.name || row.prompt.replace(/\s+/g, " ").trim() || row.id
+  /** The list marker for an action, or nothing for a plain prompt to a session. */
+  const actionKind = (action: AutomationAction) =>
+    action.type === "prompt" ? action.to.subagent ? "subagent" as const : undefined : action.type
+  const actionColor = (action: AutomationAction) => {
+    const kind = actionKind(action)
+    return kind === "shell" ? theme().warning : kind === "code" ? theme().info : theme().accent
+  }
+  const pickFilter = (value: AutomationFilter) => { setFilter(value); root?.focus() }
+  const title = (row: AutomationRow) => row.name || actionBody(row.action).replace(/\s+/g, " ").trim() || row.id
+  const sessionName = (session: AutomationRow["session"]) => session?.title || session?.id
 
   /** A header tab: raised and bright when chosen, muted otherwise. */
   const Tab = (tab: { label: string; active: boolean; run(): void }) =>
@@ -224,7 +231,7 @@ export function ScheduleWindow(props: ScheduleWindowProps) {
 
   const hints = (): KeyHint[] => {
     if (searching()) return [{ key: "enter", label: text().done }, { key: "esc", label: text().backToList }]
-    if (!hasKeyboard()) return [{ key: text().clickWindow, label: text().keyboardElsewhere }, { key: "/schedule_status", label: text().close }]
+    if (!hasKeyboard()) return [{ key: text().clickWindow, label: text().keyboardElsewhere }, { key: "/automation_status", label: text().close }]
     const row = selected()
     return [
       { key: "↑↓", label: text().select },
@@ -234,17 +241,15 @@ export function ScheduleWindow(props: ScheduleWindowProps) {
       { key: "r", label: text().refresh },
       ...(row?.status === "active" ? [{ key: "p", label: text().pause }] : row?.status === "paused" ? [{ key: "p", label: text().resume }] : []),
       ...(row ? [{ key: "d", label: text().remove }] : []),
-      ...(row?.sessionID ? [{ key: "o", label: text().openSession }] : []),
-      ...(warnings().length ? [{ key: "w", label: text().readIssues }] : []),
-      { key: "esc", label: showWarnings() ? text().back : query() ? text().clearSearch : text().close },
+      ...(row && targetSessionID(row) ? [{ key: "o", label: text().openSession }] : []),
+      ...(props.openSettings ? [{ key: "c", label: text().settings }] : []),
+      { key: "esc", label: query() ? text().clearSearch : text().close },
     ]
   }
 
   const notice = (): { text: string; color: string | RGBA } | undefined => {
     const failure = actionError() || props.error()
     if (failure) return { text: `✕ ${failure}`, color: theme().error }
-    const count = warnings().length
-    if (count) return { text: text().warningSummary(count), color: theme().warning }
   }
 
   const emptyText = () => props.loading() ? text().reading
@@ -273,31 +278,31 @@ export function ScheduleWindow(props: ScheduleWindowProps) {
       <text fg={faint()} wrapMode="none" flexShrink={0}>
         {`  ${fit(text().task, nameWidth())}  ${whenWidth() ? `${fit(text().plan, whenWidth())}  ` : ""}${fit(text().next, nextWidth(), "right")}`}
       </text>
-      <scrollbox id="schedule-list" ref={list} flexGrow={1} flexBasis={0} minHeight={0} scrollX={false}>
+      <scrollbox id="automation-list" ref={list} flexGrow={1} flexBasis={0} minHeight={0} scrollX={false}>
         <Show when={visible().length} fallback={<text fg={theme().muted} wrapMode="word" marginTop={1}>{`  ${emptyText()}`}</text>}>
           <For each={visible()}>{(row) => {
             const chosen = () => selectedID() === row.id
-            /** Keeps the row's total width stable, so the gate marker never shifts the columns beside it. */
-            const gate = () => scheduleCheck(row) ? `${GATE_GLYPH} ` : ""
-            /** An active gate whose last check did not pass is still waiting; say so without opening the details. */
-            const waiting = () => row.status === "active" && scheduleCheck(row) && row.lastOutcome === "checked"
-              ? ` ${text().waitingTag}` : ""
-            const room = () => nameWidth() - columns(gate()) - columns(waiting())
-            /** Unpadded, so the waiting tag follows the name; the padding goes after the tag instead. */
+            /** Keeps the row's total width stable, so the action marker never shifts the columns beside it. */
+            const marker = () => { const kind = actionKind(row.action); return kind ? `${ACTION_GLYPHS[kind]} ` : "" }
+            /** The last run failed (an active retry, or the reason it paused); say so without opening the details. */
+            const failed = () => row.status !== "done" && row.lastOutcome === "failed" ? ` ${text().failedTag}` : ""
+            const room = () => nameWidth() - columns(marker()) - columns(failed())
+            /** Unpadded, so the failure tag follows the name; the padding goes after the tag instead. */
             const name = () => fit(title(row), room()).trimEnd()
             const pad = () => " ".repeat(Math.max(0, room() - columns(name())))
-            return <box id={`schedule-row-${row.id}`} height={1} flexShrink={0}
+            return <box id={`automation-row-${row.id}`} height={1} flexShrink={0}
               backgroundColor={chosen() ? theme().raised : undefined}
-              onMouseUp={() => { setSelectedID(row.id); setShowWarnings(false); root?.focus() }}>
+              onMouseUp={() => { setSelectedID(row.id); root?.focus() }}>
               <text wrapMode="none" selectable={false}>
                 <span style={{ fg: statusColor(row.status) }}>{`${STATUS_GLYPHS[row.status]} `}</span>
-                <span style={{ fg: gateColor(scheduleCheck(row)?.mode) }}>{gate()}</span>
+                <span style={{ fg: actionColor(row.action) }}>{marker()}</span>
                 {chosen()
                   ? <b style={{ fg: theme().accent }}>{name()}</b>
                   : <span style={{ fg: row.status === "done" ? theme().muted : theme().text }}>{name()}</span>}
-                <span style={{ fg: theme().muted }}>{`${waiting()}${pad()}`}</span>
-                <span style={{ fg: theme().muted }}>{whenWidth() ? `  ${fit(describeWhen(row.when), whenWidth())}` : ""}</span>
-                <span style={{ fg: row.status === "active" ? theme().text : faint() }}>{`  ${fit(nextLabel(row, now(), language()), nextWidth(), "right")}`}</span>
+                <span style={{ fg: theme().error }}>{failed()}</span>
+                <span style={{ fg: theme().muted }}>{pad()}</span>
+                <span style={{ fg: theme().muted }}>{whenWidth() ? `  ${fit(describeTrigger(row.trigger), whenWidth())}` : ""}</span>
+                <span style={{ fg: row.status === "active" ? theme().text : faint() }}>{`  ${fit(nextLabel(row, now(), language(), timeFormat()), nextWidth(), "right")}`}</span>
               </text>
             </box>
           }}</For>
@@ -305,108 +310,87 @@ export function ScheduleWindow(props: ScheduleWindowProps) {
       </scrollbox>
     </box>
 
-  /** The check itself: the command for a shell gate, the script for a code gate. */
-  const conditionTarget = (condition: ScheduleCondition) =>
-    condition.type === "shell" ? condition.run : condition.code.trim()
+  const executionNote = (action: AutomationAction) =>
+    action.type === "prompt"
+      ? action.to.subagent ? text().executionNotes.subagent(action.to.subagent) : text().executionNotes.prompt
+      : text().executionNotes[action.type]
 
-  /** How a shell check decides to pass; the service allows at most one predicate. */
-  const conditionRule = (condition: ScheduleCondition) => {
-    if (condition.type === "code") return undefined
-    if (condition.is !== undefined) return text().conditionRuleIs(condition.is)
-    if (condition.matches !== undefined) return text().conditionRuleMatches(condition.matches)
-    if (condition.changes) return text().conditionRuleChanges
-    return text().conditionRuleExit
-  }
+  const output = (value: string) => value.length > OUTPUT_LIMIT ? `${value.slice(0, OUTPUT_LIMIT)}…` : value
 
-  const Condition = (conditionProps: { row: ScheduleRow }) => {
-    const check = () => scheduleCheck(conditionProps.row)
-    return <Show when={check()}>{(gate) =>
-      <>
-        <text fg={theme().muted} flexShrink={0}>{text().condition}</text>
-        <text wrapMode="word" flexShrink={0}>
-          <span style={{ fg: gateColor(gate().mode) }}>{`${GATE_GLYPH} `}</span>
-          <span style={{ fg: theme().text }}>
-            {gate().mode === "if" ? text().conditionIf : text().conditionUntil}
-          </span>
-        </text>
-        <box flexShrink={0} border={["left"]} borderColor={gateColor(gate().mode)} paddingLeft={1}>
-          <box flexDirection="column" flexShrink={0}>
-            <Field label={gate().condition.type === "shell" ? text().conditionShell : text().conditionCode}>
-              {conditionTarget(gate().condition)}
-            </Field>
-            <Show when={conditionRule(gate().condition)}>{(rule) =>
-              <Field label={text().conditionRule}>{rule()}</Field>}</Show>
-          </box>
-        </box>
-        <text fg={faint()} wrapMode="word" flexShrink={0}>
-          {gate().mode === "if" ? text().conditionIfNote : text().conditionUntilNote}
-        </text>
-        <Show when={gate().condition.type === "code"}>
-          <text fg={faint()} wrapMode="word" flexShrink={0}>{text().conditionCodeNote}</text>
-        </Show>
-        <text fg={faint()} wrapMode="word" flexShrink={0}>{text().conditionFailureNote}</text>
-        <box height={1} flexShrink={0} />
-      </>
-    }</Show>
-  }
-
-  const Detail = (detailProps: { row: ScheduleRow }) => {
+  const Detail = (detailProps: { row: AutomationRow }) => {
     const row = () => detailProps.row
+    const action = () => row().action
+    const target = () => {
+      const current = action()
+      if (current.type !== "prompt") return undefined
+      if (current.to.subagent) return text().toSubagent(current.to.subagent)
+      // Prompting its own creator is the default; only name a target that differs.
+      if (current.to.session === row().sessionID) return undefined
+      return sessionName(row().target) || current.to.session
+    }
+    const eventArgs = () => {
+      const trigger = row().trigger
+      return trigger.type === "event" && trigger.args && Object.keys(trigger.args).length ? JSON.stringify(trigger.args) : undefined
+    }
     return <box flexDirection="column" flexShrink={0}>
       <text fg={theme().text} wrapMode="word" flexShrink={0}><b>{title(row())}</b></text>
       <text wrapMode="none" flexShrink={0}>
         <span style={{ fg: statusColor(row().status) }}>{`${STATUS_GLYPHS[row().status]} ${text().statuses[row().status]}`}</span>
-        <span style={{ fg: faint() }}>{`  ·  ${describeWhen(row().when)}`}</span>
+        <span style={{ fg: faint() }}>{`  ·  ${describeTrigger(row().trigger)}`}</span>
       </text>
       <box height={1} flexShrink={0} />
       <Field label={text().next}>{row().status === "active" && row().nextDueAt !== undefined
         ? text().nextTime(clockTime(row().nextDueAt, now(), language()), relativeTime(row().nextDueAt, now(), language()))
-        : row().status === "paused" ? text().pausedNext : row().status === "done" ? text().noMoreRuns : "—"}</Field>
+        : row().status === "paused" ? text().pausedNext : row().status === "done" ? text().noMoreRuns
+        : row().trigger.type === "event" ? text().onEvent : "—"}</Field>
+      <Show when={eventArgs()}>{(args) => <Field label={text().eventArgs}>{args()}</Field>}</Show>
       <Field label={text().timeZone}>{row().tz}</Field>
-      <Field label={text().ends}>{row().endsAt !== undefined ? clockTime(row().endsAt, now(), language()) : text().unlimited}</Field>
-      <Field label={text().runs}>{text().runCount(row().runCount, row().remainingRuns)}</Field>
+      <Field label={text().ends}>{row().expires !== undefined ? clockTime(row().expires, now(), language()) : text().unlimited}</Field>
+      <Field label={text().runs}>{text().runCount(row().runCount)}</Field>
       <Field label={text().last} color={row().lastOutcome === "failed" ? theme().error : undefined}>
-        {row().lastFiredAt !== undefined
-          ? `${clockTime(row().lastFiredAt, now(), language())}${row().lastOutcome ? ` · ${text().outcomes[row().lastOutcome!]}` : ""}`
-          : text().neverFired}
+        {row().lastRunAt !== undefined
+          ? `${clockTime(row().lastRunAt, now(), language())}${row().lastOutcome ? ` · ${text().outcomes[row().lastOutcome!]}` : ""}`
+          : row().lastOutcome ? text().outcomes[row().lastOutcome!] : text().neverFired}
       </Field>
       <box height={1} flexShrink={0} />
-      <Condition row={row()} />
-      <text fg={theme().muted} flexShrink={0}>{text().prompt}</text>
-      <box flexShrink={0} border={["left"]} borderColor={theme().accent} paddingLeft={1} marginTop={0}>
-        <text fg={theme().text} wrapMode="word">{row().prompt || "—"}</text>
+      <text flexShrink={0}>
+        <span style={{ fg: theme().muted }}>{`${text().action}  `}</span>
+        <span style={{ fg: actionColor(action()) }}>{text().actions[action().type]}</span>
+      </text>
+      <box flexShrink={0} border={["left"]} borderColor={actionColor(action())} paddingLeft={1} marginTop={0}>
+        <text fg={theme().text} wrapMode="word">{actionBody(action()).trim() || "—"}</text>
       </box>
+      <Show when={target()}>{(value) => <Field label={text().target}>{value()}</Field>}</Show>
+      <text fg={faint()} wrapMode="word" flexShrink={0}>{executionNote(action())}</text>
+      <Show when={row().lastOutput}>{(value) =>
+        <>
+          <box height={1} flexShrink={0} />
+          <text fg={theme().muted} flexShrink={0}>{text().lastOutput}</text>
+          <box flexShrink={0} border={["left"]} borderColor={row().lastOutcome === "failed" ? theme().error : theme().border} paddingLeft={1}>
+            <text fg={row().lastOutcome === "failed" ? theme().error : faint()} wrapMode="word">{output(value())}</text>
+          </box>
+        </>}
+      </Show>
       <box height={1} flexShrink={0} />
       <text fg={theme().muted} flexShrink={0}>{text().session}</text>
-      <text fg={theme().text} wrapMode="word" flexShrink={0}>{row().session?.title || row().sessionID || text().unknownSession}</text>
-      <Show when={row().session?.directory}><text fg={faint()} wrapMode="word" flexShrink={0}>{row().session?.directory}</text></Show>
-      <box height={1} flexShrink={0} />
-      <text fg={theme().muted} flexShrink={0}>{text().execution}</text>
-      <text fg={theme().text} wrapMode="word" flexShrink={0}>{text().executionNote}</text>
+      <text fg={theme().text} wrapMode="word" flexShrink={0}>{sessionName(row().session) || text().unknownSession}</text>
+      <text fg={faint()} wrapMode="word" flexShrink={0}>{row().directory}</text>
       <box height={1} flexShrink={0} />
       <box flexDirection="row" gap={1} flexShrink={0} flexWrap="wrap">
         <Show when={row().status !== "done"}>
           <Button hotkey="p" label={row().status === "active" ? text().pause : text().resume} color={theme().warning} run={toggle} />
         </Show>
         <Button hotkey="d" label={text().remove} color={theme().error} run={remove} />
-        <Show when={row().sessionID}><Button hotkey="o" label={text().openSession} color={theme().accent} run={open} /></Show>
+        <Show when={targetSessionID(row())}><Button hotkey="o" label={text().openSession} color={theme().accent} run={open} /></Show>
       </box>
       <box height={1} flexShrink={0} />
-      <text fg={faint()} wrapMode="word" flexShrink={0}>{`${text().scheduleID}: ${row().id}`}</text>
+      <text fg={faint()} wrapMode="word" flexShrink={0}>{`${text().automationID}: ${row().id}`}</text>
       <text fg={faint()} wrapMode="word" flexShrink={0}>{`${text().sessionID}: ${row().sessionID || "—"}`}</text>
     </box>
   }
 
-  const Warnings = () =>
-    <box flexDirection="column" flexShrink={0}>
-      <text fg={theme().warning} flexShrink={0}><b>{text().warningTitle(warnings().length)}</b></text>
-      <text fg={theme().muted} wrapMode="word" flexShrink={0}>{text().warningHelp}</text>
-      <box height={1} flexShrink={0} />
-      <For each={warnings()}>{(warning) => <text fg={theme().text} wrapMode="word" flexShrink={0}>{`• ${warning}`}</text>}</For>
-    </box>
-
   return <box
-    id="native-schedule-window" focusable flexDirection="column" flexShrink={0}
+    id="native-automation-window" focusable flexDirection="column" flexShrink={0}
     ref={(box: BoxRenderable) => {
       root = box
       box.on("focused", () => setHasKeyboard(true))
@@ -432,10 +416,10 @@ export function ScheduleWindow(props: ScheduleWindowProps) {
       </box>
     </Show>
     <Show when={searching() || query()}>
-      <box id="schedule-search-box" flexDirection="row" height={1} flexShrink={0} marginTop={1} onMouseUp={() => setSearching(true)}>
+      <box id="automation-search-box" flexDirection="row" height={1} flexShrink={0} marginTop={1} onMouseUp={() => setSearching(true)}>
         <text fg={theme().accent} flexShrink={0}>{"/ "}</text>
         <Show when={searching()} fallback={<text fg={theme().text} wrapMode="none">{query()}</text>}>
-          <input id="schedule-search" flexGrow={1} value={query()} onInput={setQuery} focused={searching()}
+          <input id="automation-search" flexGrow={1} value={query()} onInput={setQuery} focused={searching()}
             placeholder={text().searchPlaceholder} textColor={theme().text} backgroundColor={theme().raised}
             onKeyDown={(key) => {
               // An input owns all character keys. Escape/Enter only leave the input, never close the window.
@@ -447,24 +431,21 @@ export function ScheduleWindow(props: ScheduleWindowProps) {
       </box>
     </Show>
     <Show when={notice()}>{(item) =>
-      <text flexShrink={0} height={1} marginTop={1} fg={item().color} wrapMode="none" selectable={false}
-        onMouseUp={() => { if (warnings().length) setShowWarnings(!showWarnings()) }}>
+      <text flexShrink={0} height={1} marginTop={1} fg={item().color} wrapMode="none" selectable={false}>
         {fit(item().text, width())}
       </text>}
     </Show>
     <box flexDirection={wide() ? "row" : "column"} flexGrow={1} flexBasis={0} minHeight={0} marginTop={1} overflow="hidden">
       <Show when={wide()}><Rail /></Show>
       <List />
-      <scrollbox id="schedule-detail" ref={detail} flexGrow={1} flexBasis={0} minWidth={0} minHeight={0} scrollX={false}
+      <scrollbox id="automation-detail" ref={detail} flexGrow={1} flexBasis={0} minWidth={0} minHeight={0} scrollX={false}
         border={wide() ? ["left"] : ["top"]} borderColor={theme().border} paddingLeft={wide() ? 2 : 0} paddingRight={1}>
-        <Show when={!showWarnings()} fallback={<Warnings />}>
-          <Show when={selected()} fallback={<text fg={faint()} wrapMode="word">{visible().length ? text().selectTask : ""}</text>}>
-            {(row) => <Detail row={row()} />}
-          </Show>
+        <Show when={selected()} fallback={<text fg={faint()} wrapMode="word">{visible().length ? text().selectTask : ""}</text>}>
+          {(row) => <Detail row={row()} />}
         </Show>
       </scrollbox>
     </box>
-    <box id="schedule-footer" flexDirection="column" flexShrink={0} marginTop={1}>
+    <box id="automation-footer" flexDirection="column" flexShrink={0} marginTop={1}>
       <For each={keyHintLines(hints(), width())}>{(line) =>
         <text wrapMode="none" selectable={false}>
           {line.flatMap((hint, index) => [

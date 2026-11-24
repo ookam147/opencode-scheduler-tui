@@ -1,65 +1,55 @@
 import { describe, expect, test } from "bun:test"
-import { countSchedules, describeCondition, describeWhen, scheduleCheck, selectSchedules, type ScheduleRow } from "./model.js"
+import { actionBody, belongsTo, countAutomations, describeTrigger, selectAutomations, sortAutomations, targetSessionID, type AutomationRow } from "./model.js"
 
-const rows: ScheduleRow[] = [
-  { id: "sch_a", sessionID: "ses_a", name: "喝水", prompt: "提醒喝水", when: { type: "in", in: "5 minutes" }, tz: "Asia/Shanghai", status: "done", runCount: 1, session: { id: "ses_a", title: "健康提醒", directory: "/work/reminders" } },
-  { id: "sch_b", sessionID: "ses_b", name: "Review", prompt: "Review changes", when: { type: "cron", cron: "0 9 * * 1-5" }, tz: "UTC", status: "active", runCount: 0 },
-  { id: "sch_c", sessionID: "ses_a", prompt: "Check", when: { type: "every", every: "1 hour" }, tz: "UTC", status: "paused", runCount: 2 },
+const rows: AutomationRow[] = [
+  { id: "aut_a", sessionID: "ses_a", name: "喝水", action: { type: "prompt", prompt: "提醒喝水", to: { session: "ses_a" } }, trigger: { type: "at", at: "in 5 minutes" }, tz: "Asia/Shanghai", directory: "/work/reminders", status: "done", runCount: 1, session: { id: "ses_a", title: "健康提醒" } },
+  { id: "aut_b", sessionID: "ses_b", name: "Review", action: { type: "shell", command: "gh pr status" }, trigger: { type: "cron", cron: "0 9 * * 1-5" }, tz: "UTC", directory: "/work/app", status: "active", runCount: 0, lastOutput: "Exit code: 1\nno PRs" },
+  { id: "aut_c", sessionID: "ses_a", name: "Check", action: { type: "code", code: "return tools.slack.unread()" }, trigger: { type: "every", every: "1 hour" }, tz: "UTC", directory: "/work", status: "paused", runCount: 2 },
+  { id: "aut_d", sessionID: "ses_c", name: "Ping", action: { type: "prompt", prompt: "ping", to: { session: "ses_a" } }, trigger: { type: "event", server: "github", event: "push" }, tz: "UTC", directory: "/work", status: "active", runCount: 0 },
+  { id: "aut_e", sessionID: "ses_b", name: "Triage", action: { type: "prompt", prompt: "triage", to: { subagent: "explore" } }, trigger: { type: "every", every: "1 day" }, tz: "UTC", directory: "/work", status: "active", runCount: 0 },
 ]
 
-describe("native schedule presentation", () => {
-  test("counts native terminal status independently of active and paused", () => {
-    expect(countSchedules(rows)).toEqual({ all: 3, active: 1, paused: 1, done: 1 })
-    expect(countSchedules([])).toEqual({ all: 0, active: 0, paused: 0, done: 0 })
+describe("automation presentation", () => {
+  test("counts status independently of active and paused", () => {
+    expect(countAutomations(rows)).toEqual({ all: 5, active: 3, paused: 1, done: 1 })
+    expect(countAutomations([])).toEqual({ all: 0, active: 0, paused: 0, done: 0 })
   })
-  test("combines session, native status and search without mutating source", () => {
-    expect(selectSchedules(rows, { sessionID: "ses_a", status: "done", query: "健康" }).map((r) => r.id)).toEqual(["sch_a"])
-    expect(selectSchedules(rows, { query: "REVIEW" }).map((r) => r.id)).toEqual(["sch_b"])
-    expect(selectSchedules(rows, { query: "/work/reminders" })).toHaveLength(1)
-    expect(selectSchedules(rows, { sessionID: "missing" })).toEqual([])
-    expect(rows).toHaveLength(3)
+  test("a session owns what it created and what prompts it", () => {
+    expect(targetSessionID(rows[3]!)).toBe("ses_a")
+    expect(targetSessionID(rows[4]!)).toBe("ses_b")
+    expect(targetSessionID(rows[1]!)).toBe("ses_b")
+    expect(belongsTo(rows[3]!, "ses_a")).toBe(true)
+    expect(belongsTo(rows[3]!, "ses_c")).toBe(true)
+    expect(belongsTo(rows[3]!, undefined)).toBe(false)
+    expect(selectAutomations(rows, { sessionID: "ses_a" }).map((r) => r.id)).toEqual(["aut_a", "aut_c", "aut_d"])
   })
-  test("describes all four trigger kinds without computing a replacement next run", () => {
-    expect(describeWhen({ type: "in", in: "5 minutes" })).toBe("延时 5 minutes")
-    expect(describeWhen({ type: "at", at: "2026-11-01T09:00" })).toBe("指定时间 2026-11-01T09:00")
-    expect(describeWhen(rows[1]!.when)).toBe("Cron 0 9 * * 1-5")
-    expect(describeWhen(rows[2]!.when)).toBe("每隔 1 hour")
+  test("combines session, status and search without mutating source", () => {
+    expect(selectAutomations(rows, { sessionID: "ses_a", status: "done", query: "健康" }).map((r) => r.id)).toEqual(["aut_a"])
+    expect(selectAutomations(rows, { query: "REVIEW" }).map((r) => r.id)).toEqual(["aut_b"])
+    expect(selectAutomations(rows, { query: "/work/reminders" })).toHaveLength(1)
+    expect(selectAutomations(rows, { sessionID: "missing" })).toEqual([])
+    expect(rows).toHaveLength(5)
   })
-  test("reads the single stored gate and prefers `if` over `until`", () => {
-    const shell = { type: "shell" as const, run: "git fetch --dry-run", changes: true }
-    const code = { type: "code" as const, code: "return true" }
-    expect(scheduleCheck({ ...rows[1]!, if: shell })).toEqual({ mode: "if", condition: shell })
-    expect(scheduleCheck({ ...rows[1]!, until: code })).toEqual({ mode: "until", condition: code })
-    expect(scheduleCheck(rows[1]!)).toBeUndefined()
-    // The service stores one check, so a row carrying both still resolves to a single gate.
-    expect(scheduleCheck({ ...rows[1]!, if: shell, until: code })).toEqual({ mode: "if", condition: shell })
-  })
-  test("describes a gate like the service does, summarizing code by its first real line", () => {
-    expect(describeCondition({ type: "shell", run: "test -f ready.txt" })).toBe("test -f ready.txt")
-    expect(describeCondition({ type: "code", code: "\n\n  return tools.a.b()  \n" })).toBe("code (return tools.a.b())")
-    expect(describeCondition({ type: "code", code: "   \n " })).toBe("code")
-    const long = describeCondition({ type: "code", code: `return "${"x".repeat(80)}"` })
-    expect(long.slice(6, -1)).toHaveLength(60)
-    expect(long.startsWith('code (return "xxx')).toBe(true)
-  })
-  test("search finds gated tasks by mode, command, predicate and code", () => {
-    const gated: ScheduleRow[] = [
-      { ...rows[1]!, id: "sch_shell", if: { type: "shell", run: "gh pr status", matches: "^OPEN$" } },
-      { ...rows[2]!, id: "sch_code", until: { type: "code", code: "return tools.slack.unread() > 0" } },
-    ]
-    for (const [query, id] of [["if", "sch_shell"], ["gh pr", "sch_shell"], ["^OPEN$", "sch_shell"],
-      ["until", "sch_code"], ["slack.unread", "sch_code"]] as const) {
-      expect(selectSchedules(gated, { query }).map((item) => item.id)).toEqual([id])
+  test("search finds actions by body, kind, subagent, trigger and last output", () => {
+    for (const [query, id] of [["gh pr", "aut_b"], ["slack.unread", "aut_c"], ["explore", "aut_e"],
+      ["github/push", "aut_d"], ["no PRs", "aut_b"], ["shell", "aut_b"]] as const) {
+      expect(selectAutomations(rows, { query }).map((item) => item.id)).toEqual([id])
     }
-    expect(selectSchedules([{ ...rows[1]!, if: { type: "shell", run: "ls", changes: true } }], { query: "changes" }))
-      .toHaveLength(1)
   })
-  test("search includes the joined session agent, model, provider and reasoning variant", () => {
-    const joined: ScheduleRow[] = [{ ...rows[0]!, session: {
-      id: "ses_a", agent: "build", model: { id: "glm-5.3", providerID: "zai-coding-plan", variant: "max" },
-    } }]
-    for (const query of ["BUILD", "glm-5.3", "zai-coding-plan", "max"]) {
-      expect(selectSchedules(joined, { query })).toHaveLength(1)
-    }
+  test("sorts by next run (due timers, then event watches, paused, done) or by name, keeping creation order on ties", () => {
+    const timed = (id: string, nextDueAt: number): AutomationRow => ({ ...rows[1]!, id, name: id, nextDueAt })
+    const list = [rows[0]!, timed("late", 900), rows[2]!, rows[3]!, timed("soon", 100), timed("soon2", 100)]
+    expect(sortAutomations(list, "next").map((r) => r.id)).toEqual(["soon", "soon2", "late", "aut_d", "aut_c", "aut_a"])
+    expect(sortAutomations(list, "created")).toBe(list)
+    const named = ["task 10", "Task 2", "apple"].map((name, i) => ({ ...rows[1]!, id: String(i), name }))
+    expect(sortAutomations(named, "name", "en").map((r) => r.name)).toEqual(["apple", "Task 2", "task 10"])
+    expect(list.map((r) => r.id)).toEqual(["aut_a", "late", "aut_c", "aut_d", "soon", "soon2"])
+  })
+  test("describes all four trigger kinds and reads each action body", () => {
+    expect(describeTrigger(rows[0]!.trigger)).toBe("单次 in 5 minutes")
+    expect(describeTrigger(rows[1]!.trigger)).toBe("Cron 0 9 * * 1-5")
+    expect(describeTrigger(rows[2]!.trigger)).toBe("每隔 1 hour")
+    expect(describeTrigger(rows[3]!.trigger)).toBe("MCP github/push")
+    expect(rows.map((row) => actionBody(row.action))).toEqual(["提醒喝水", "gh pr status", "return tools.slack.unread()", "ping", "triage"])
   })
 })

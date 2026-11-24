@@ -1,5 +1,31 @@
 # Changelog
 
+## [3.0.0] - 2026-11-24
+
+迁移到 OpenCode 2.4 原生 Automation，需要 OpenCode 2.4.0 及以上（已核对 2.4.0 / 2.4.1）。界面架构保持不变。
+
+### ⚠️ 破坏性变更
+
+- **底层 API**：`experimental.schedule.*` 在 2.4.0 中已移除，改用 `experimental.automation.*`（`automationID` 替代 `scheduleID`）。不再支持 OpenCode 2.4.0 以下版本。
+- **命令**：`/schedule_status` → `/automation_status`；命令面板标题改为 “Show or hide automations”。
+- **依赖**：`@opencode/*` 2.2.5 → 2.4.0，OpenTUI 0.8.0 → 0.9.4；对等依赖改为 `@opencode/plugin >=2.4.0 <3`、OpenTUI `>=0.9.4`。
+- **配置**：不再需要 `experimental.schedules`（2.4 已移除）；Automation 默认开启，用顶层 `"automations": false` 关闭。
+
+### 变更
+
+- **数据模型**：`when` → `trigger`（新增 MCP `event`），`prompt` → `action`（`prompt` / 子代理 / `code` / `shell`），`endsAt` → `expires`，`lastFiredAt` → `lastRunAt`；移除 `if` / `until` 条件门控与 `checked` 结果。
+- **性能**：一次请求读取全部 Automation，「当前 / 所有会话」本地筛选；移除会话遍历、分页、4 路并发、本地目录检查与部分失败警告（`w` 键）。全局视图也每 5 秒刷新。
+- **会话信息**：标题改读宿主 `context.data.session` 缓存，不再请求会话接口。「当前会话」同时包含投递到本会话的任务；`o` 打开投递目标会话。
+
+### 新增
+
+- **设置**：窗口内按 `c` 或命令面板「自动化任务设置」。可设置界面语言（简体中文 / English）、自动刷新间隔（5 / 10 / 30 / 60 秒或关闭）、排序方式（创建时间 / 下次运行 / 名称）、时间显示（相对 / 具体时间）、默认范围与默认状态；由宿主插件存储持久化，多个 TUI 同步。界面语言不再按电脑时区判断，默认简体中文。
+- 列表以 `↳` / `λ` / `$` 标记子代理、Code、Shell 动作；上次失败的任务标注「失败」。
+- 详情展示动作类型与内容、投递目标、执行说明、事件参数与**上次输出**（服务端现于 list 返回）。
+- `at` 触发按本地时间显示；事件监听的「下次」显示为「收到事件时」。
+
+---
+
 ## [2.0.0] - 2026-11-02
 
 改为 OpenCode 原生 schedule 的管理界面，需要 OpenCode 2.2.3 及以上（已核对 2.2.5）。
